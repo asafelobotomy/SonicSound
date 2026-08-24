@@ -6,6 +6,12 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish a GitHub release if the package.json version tag is missing"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -78,9 +84,12 @@ jobs:
           retention-days: 30
 
   # On main: if package.json version was bumped and no tag exists yet, publish a release.
+  # Manual: workflow_dispatch with publish_release=true publishes when the tag is missing.
   publish-release:
     name: Publish GitHub Release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
     needs: [web, android-debug, android-unsigned-release]
     runs-on: ubuntu-latest
     permissions:
@@ -92,6 +101,10 @@ jobs:
 
       - name: Detect version bump
         id: bump
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          FORCE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
         run: |
           set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
@@ -99,12 +112,13 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-          BEFORE="${{ github.event.before }}"
           BUMPED=false
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+          if [ "${FORCE_RELEASE}" = "true" ]; then
             BUMPED=true
-          elif git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            OLD=$(git show "${BEFORE}:package.json" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).version)")
+          elif [ -z "${BEFORE_SHA}" ] || [ "${BEFORE_SHA}" = "0000000000000000000000000000000000000000" ]; then
+            BUMPED=true
+          elif git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            OLD=$(git show "${BEFORE_SHA}:package.json" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).version)")
             if [ "$OLD" != "$VERSION" ]; then
               BUMPED=true
             fi
@@ -126,7 +140,7 @@ jobs:
           fi
 
           echo "should_release=true" >> "$GITHUB_OUTPUT"
-          echo "Will publish ${TAG}"
+          echo "Will publish ${TAG} (event=${EVENT_NAME})"
 
       - name: Download build artifacts
         if: steps.bump.outputs.should_release == 'true'

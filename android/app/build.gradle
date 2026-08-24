@@ -25,6 +25,11 @@ def appVersionCode =
     (versionParts[0] as int) * 10000 +
     (versionParts[1] as int) * 100 +
     (versionParts.size() > 2 ? (versionParts[2] as int) : 0)
+// Shield Pro / modern devices are arm64. Override with -Pabis=armeabi-v7a,arm64-v8a if needed.
+def abiFiltersList = (project.findProperty("abis") ?: "arm64-v8a")
+    .split(",")
+    .collect { it.trim() }
+    .findAll { it }
 
 android {
     namespace "app.sonicsound"
@@ -49,8 +54,8 @@ android {
         versionCode appVersionCode
         versionName packageJson.version
         ndk {
-            // libvlc-all ships x86/x86_64 emulator libs (~90MB extra). Shield and phones need ARM only.
-            abiFilters "arm64-v8a", "armeabi-v7a"
+            // Default arm64-only keeps Shield installs small; libvlc-all otherwise pulls every ABI.
+            abiFilters(*abiFiltersList)
         }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

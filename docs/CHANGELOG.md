@@ -1,3 +1,7 @@
+# 0.2.2
+
+- Ship arm64-v8a-only APKs for Shield Pro / modern devices (drops unused 32-bit VLC libs)
+
 # 0.2.1
 
 - Shrink APK ~50% for Shield/TV installs: drop x86 emulator libs bundled by libvlc-all

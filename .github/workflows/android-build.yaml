@@ -87,9 +87,7 @@ jobs:
   # Manual: workflow_dispatch with publish_release=true publishes when the tag is missing.
   publish-release:
     name: Publish GitHub Release
-    if: >
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.publish_release }}
     needs: [web, android-debug, android-unsigned-release]
     runs-on: ubuntu-latest
     permissions:
@@ -213,12 +211,20 @@ jobs:
       - run: npm run build
       - run: npx cap sync android
       - name: Decode keystore
-        if: ${{ secrets.KEYSTORE != '' }}
-        uses: timheuer/base64-to-file@v1
-        with:
-          fileName: android/app/release.jks
-          encodedString: ${{ secrets.KEYSTORE }}
+        id: keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No KEYSTORE secret; skipping signed assemble"
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/app/release.jks
+          echo "present=true" >> "$GITHUB_OUTPUT"
       - name: Assemble release
+        if: steps.keystore.outputs.present == 'true'
         env:
           SONICSOUND_KEYSTORE: ${{ github.workspace }}/android/app/release.jks
           SONICSOUND_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -230,8 +236,9 @@ jobs:
           ./gradlew assembleRelease --no-daemon
           mkdir -p out
           cp app/build/outputs/apk/release/*.apk "out/SonicSound-${GITHUB_REF_NAME}.apk"
-      - uses: softprops/action-gh-release@v2
+      - name: Upload signed APK to release
+        if: steps.keystore.outputs.present == 'true'
+        uses: softprops/action-gh-release@v2
         with:
           files: android/out/*.apk
-          body_path: docs/CHANGELOG.md
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true

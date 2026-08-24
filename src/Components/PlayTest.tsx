@@ -158,7 +158,7 @@ export default function PlayTest() {
                 <div
                     className={classNames(
                         showQr ? "d-flex" : "d-none",
-                        "soniclair-modal",
+                        "sonicsound-modal",
                         "flex-column",
                         "align-items-center",
                         "justify-content-center"
@@ -205,7 +205,7 @@ export default function PlayTest() {
                     >
                         <div className="col-12 mb-3">
                             <img src={logo} className="App-logo" alt="logo" />
-                            <p className="text-white logo-text">SonicLair</p>
+                            <p className="text-white logo-text">SonicSound</p>
                         </div>
                     </motion.div>
                     <motion.div

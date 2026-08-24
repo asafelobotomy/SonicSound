@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SonicLair</string>
-    <string name="title_activity_main">SonicLair</string>
-    <string name="package_name">tech.logica10.soniclair</string>
-    <string name="custom_url_scheme">tech.logica10.soniclair</string>
+    <string name="app_name">SonicSound</string>
+    <string name="title_activity_main">SonicSound</string>
+    <string name="package_name">app.sonicsound</string>
+    <string name="custom_url_scheme">app.sonicsound</string>
     <string name="app_logo_description">App logo</string>
     <string name="home_button_content">Home</string>
     <string name="search_button_content">Search</string>
@@ -20,7 +20,7 @@
     <string name="recently_added">Recently Added</string>
     <string name="album_art_image_on_playing">Album Art Image on Playing</string>
     <string name="button_content_description">Button</string>
-    <string name="connect_you_phone_s_soniclair">Connect you phone\'s SonicLair</string>
+    <string name="connect_you_phone_s_sonicsound">Connect you phone\'s SonicSound</string>
     <string name="log_in">Log in</string>
     <string name="show_qr">Show QR</string>
     <string name="username">Username</string>
@@ -33,4 +33,5 @@
     <string name="plaintext_warning_login">Use plaintext password (insecure on http connections, needed for some servers)</string>
     <string name="using_plaintext_password">Using plaintext password</string>
     <string name="logout">Logout</string>
+    <string name="clear_cache">Clear art cache</string>
 </resources>

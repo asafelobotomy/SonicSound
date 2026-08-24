@@ -7,7 +7,7 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        tools:context="tech.logica10.soniclair.fragments.HomeFragment">
+        tools:context="app.sonicsound.fragments.HomeFragment">
 
         <TextView
             android:id="@+id/header_top_albums"

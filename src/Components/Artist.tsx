@@ -145,7 +145,7 @@ export default function Artist() {
     return (
         <>
             <Helmet>
-                <title>{artist.name} - SonicLair</title>
+                <title>{artist.name} - SonicSound</title>
             </Helmet>
             <div className="artist-container d-flex flex-column">
                 {coverArt !== "" && (

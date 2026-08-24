@@ -1,6 +1,8 @@
-# New Release!
+# 0.1.0
 
-## Bugfixes
-
-Fixed a bug that crashed the app if it had no connection to the server
-Fixed a bug that displayed unnecesary messages while reconnecting to the server via websockets
+- Rebrand SonicLair → SonicSound (app.sonicsound)
+- Vite + Capacitor 6 + Android SDK 34
+- Subsonic API version negotiation
+- 400 LOC file limit + modular Subsonic/player architecture
+- Cover art, seek, lyrics, random albums, play/shuffle
+- Security: remove hardcoded keystore/Spotify secrets

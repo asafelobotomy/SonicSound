@@ -141,7 +141,7 @@ function App() {
                     {!androidTv && (
                         <div className="App container-fluid d-flex flex-column justify-content-between">
                             <Helmet>
-                                <title>SonicLair</title>
+                                <title>SonicSound</title>
                             </Helmet>
                             <MenuContext.Provider value={menuContextValue}>
                                 {context.username === "" && (

@@ -17,7 +17,7 @@ export default function TVJukebox() {
     return (
         <div className="h-100 w-100 d-flex flex-column align-items-center justify-content-center">
             <div className="section-header text-white mb-3">
-                Connect your phone's SonicLair
+                Connect your phone's SonicSound
             </div>
             <div
                 className="p-5 d-flex align-items-center justify-content-around"

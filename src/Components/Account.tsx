@@ -77,7 +77,7 @@ export default function Account() {
         },
     });
     const handleChange = useCallback(
-        async (target: any) => {
+        async () => {
             const newOfflineMode = (
                 await VLC.setOfflineMode({ value: !offlineMode })
             ).value;
@@ -88,6 +88,40 @@ export default function Account() {
         },
         [offlineMode]
     );
+
+    const [artCacheLabel, setArtCacheLabel] = useState("Art cache: …");
+    const refreshArtCache = useCallback(async () => {
+        try {
+            const ret = await VLC.getCoverCacheSize();
+            if (ret.status === "ok" && ret.value) {
+                setArtCacheLabel(
+                    `Art cache: ${Math.round(ret.value.bytes / 1024)} KB`
+                );
+            }
+        } catch {
+            setArtCacheLabel("Art cache: unavailable");
+        }
+    }, []);
+
+    useEffect(() => {
+        if (Capacitor.getPlatform() === "android") {
+            refreshArtCache();
+        }
+    }, [refreshArtCache]);
+
+    const clearArtCache = useCallback(async () => {
+        const ret = await VLC.clearCoverCache();
+        if (ret.status === "ok") {
+            const freed = ret.value?.freedBytes ?? 0;
+            Toast.show({
+                text: `Cleared ${Math.round(freed / 1024)} KB of cached art`,
+            });
+            await refreshArtCache();
+        } else {
+            Toast.show({ text: ret.error });
+        }
+    }, [refreshArtCache]);
+
     return (
         <div className="d-flex flex-column align-items-center justify-content-start overflow-scroll scrollable">
             <div className="d-flex flex-column align-items-center justify-content-start w-100">
@@ -176,6 +210,16 @@ export default function Account() {
                                     {errors.cacheSize.message}
                                 </div>
                             )}
+                            <div className="subtitle text-white mt-2">
+                                {artCacheLabel}
+                            </div>
+                            <button
+                                type="button"
+                                className="btn btn-outline-light btn-sm mb-3"
+                                onClick={clearArtCache}
+                            >
+                                Clear art cache
+                            </button>
                             <div className="section-header text-white">
                                 Offline Mode
                             </div>

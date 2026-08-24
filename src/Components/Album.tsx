@@ -15,7 +15,11 @@ import { Toast } from "@capacitor/toast";
 import { CurrentTrackContextDefValue } from "../AudioContext";
 import { PluginListenerHandle } from "@capacitor/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCloudArrowDown } from "@fortawesome/free-solid-svg-icons";
+import {
+    faCloudArrowDown,
+    faPlay,
+    faShuffle,
+} from "@fortawesome/free-solid-svg-icons";
 
 export default function Album() {
     const [album, setAlbum] = useState<IInnerAlbumResponse>();
@@ -37,16 +41,17 @@ export default function Album() {
             const ret = await VLC.getAlbum({ id: state.id });
             if (ret.status === "ok") {
                 setAlbum(ret.value!);
+                const coverId = ret.value!.coverArt || state.id;
+                const art = await VLC.getAlbumArt({ id: coverId });
+                if (art.status === "ok") {
+                    setCoverArt(art.value!);
+                } else {
+                    Toast.show({ text: art.error });
+                }
             } else {
                 Toast.show({ text: ret.error });
             }
             setAlbumFetched(true);
-            const album = await VLC.getAlbumArt({ id: state.id });
-            if (album.status === "ok") {
-                setCoverArt(album.value!);
-            } else {
-                Toast.show({ text: album.error });
-            }
             if (listener.current) {
                 await listener.current.remove();
             }
@@ -82,6 +87,20 @@ export default function Album() {
         }
     }, [state]);
 
+    const playAll = useCallback(async () => {
+        const ret = await VLC.playAlbum({ album: state.id, track: 0 });
+        if (ret.status === "error") Toast.show({ text: ret.error });
+    }, [state.id]);
+
+    const shuffleAll = useCallback(async () => {
+        const ret = await VLC.playAlbum({ album: state.id, track: 0 });
+        if (ret.status === "error") {
+            Toast.show({ text: ret.error });
+            return;
+        }
+        await VLC.shufflePlaylist();
+    }, [state.id]);
+
     if (!albumFetched) {
         return (
             <div className="row">
@@ -98,7 +117,7 @@ export default function Album() {
     return (
         <>
             <Helmet>
-                <title>{album?.name} - SonicLair</title>
+                <title>{album?.name} - SonicSound</title>
             </Helmet>
             <div className="album-header d-flex flex-row align-items-center justify-content-start">
                 <img
@@ -109,19 +128,28 @@ export default function Album() {
                     onLoad={onLoadImage}
                 ></img>
                 <div className="ml-2 mb-2 h-100 flex-column align-items-start justify-content-between hide-desktop-flex">
-                    <div>
-                        {/* {Capacitor.getPlatform() === "android" && (
-                            <> */}
+                    <div className="d-flex flex-row gap-2">
+                        <button
+                            className="btn btn-primary text-white"
+                            onClick={playAll}
+                            title="Play all"
+                        >
+                            <FontAwesomeIcon icon={faPlay} />
+                        </button>
+                        <button
+                            className="btn btn-primary text-white"
+                            onClick={shuffleAll}
+                            title="Shuffle"
+                        >
+                            <FontAwesomeIcon icon={faShuffle} />
+                        </button>
                         <button
                             className="btn btn-primary text-white"
                             onClick={downloadAlbum}
+                            title="Download"
                         >
-                            <FontAwesomeIcon
-                                icon={faCloudArrowDown}
-                            ></FontAwesomeIcon>
+                            <FontAwesomeIcon icon={faCloudArrowDown} />
                         </button>
-                        {/* </>
-                        )} */}
                     </div>
                     <div className="d-flex flex-column align-items-start justify-content-end">
                         <span className="text-white text-start text-header-mobile">
@@ -149,6 +177,20 @@ export default function Album() {
                         <span className="text-white text-start">
                             released on {album?.year}
                         </span>
+                        <div className="d-flex flex-row gap-2 mt-2">
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={playAll}
+                            >
+                                <FontAwesomeIcon icon={faPlay} /> Play
+                            </button>
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={shuffleAll}
+                            >
+                                <FontAwesomeIcon icon={faShuffle} /> Shuffle
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

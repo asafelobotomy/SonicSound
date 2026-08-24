@@ -18,6 +18,7 @@ import { Capacitor, PluginListenerHandle } from "@capacitor/core";
 import AndroidTVPlugin from "../Plugins/AndroidTV";
 import { IAlbumSongResponse } from "../Models/API/Responses/IArtistResponse";
 import { Toast } from "@capacitor/toast";
+import LyricsPanel from "./LyricsPanel";
 
 export default function AudioControl() {
     const [currentTrack, setCurrentTrack] = useState<IAlbumSongResponse>(
@@ -65,12 +66,12 @@ export default function AudioControl() {
             return;
         }
         const fetch = async () => {
-            setCoverArt(
-                (await VLC.getAlbumArt({ id: currentTrack.albumId })).value!
-            );
+            const coverId = currentTrack.coverArt || currentTrack.albumId;
+            if (!coverId) return;
+            setCoverArt((await VLC.getAlbumArt({ id: coverId })).value!);
         };
         fetch();
-    }, [currentTrack, coverArt]);
+    }, [currentTrack]);
 
     useEffect(() => {
         const get = async () => {
@@ -291,6 +292,14 @@ export default function AudioControl() {
                     onChange={(e) => changePlayTime(e)}
                 ></input>
             </div>
+            {currentTrack.id !== "" && (
+                <div className="w-100 px-2 mb-2">
+                    <LyricsPanel
+                        artist={currentTrack.artist}
+                        title={currentTrack.title}
+                    />
+                </div>
+            )}
         </div>
     );
 }

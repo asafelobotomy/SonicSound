@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/soniclair_background"
+    android:background="@color/sonicsound_background"
     android:orientation="vertical"
 
     tools:context=".fragments.JukeboxFragment">
@@ -15,7 +15,7 @@
         android:layout_weight="0.1"
         android:fontFamily="@font/montserrat"
         android:gravity="center_horizontal"
-        android:text="@string/connect_you_phone_s_soniclair"
+        android:text="@string/connect_you_phone_s_sonicsound"
         android:textColor="#fff"
         android:textSize="30sp" />
 

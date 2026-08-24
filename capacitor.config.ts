@@ -1,10 +1,12 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'tech.logica10.soniclair',
-  appName: 'SonicLair',
+  appId: 'app.sonicsound',
+  appName: 'SonicSound',
   webDir: 'build',
-  bundledWebRuntime: false
+  server: {
+    androidScheme: 'https',
+  },
 };
 
 export default config;

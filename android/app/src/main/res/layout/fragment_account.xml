@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/soniclair_background"
+    android:background="@color/sonicsound_background"
     android:gravity="center"
     android:orientation="vertical"
     tools:context=".AccountFragment">
@@ -53,9 +53,29 @@
         android:visibility="invisible" />
 
     <Button
+        android:id="@+id/btn_clear_cache"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/round_outline_selector"
+        android:text="@string/clear_cache"
+        android:textAllCaps="false"
+        android:textColor="#fff" />
+
+    <TextView
+        android:id="@+id/tv_cache_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/montserrat"
+        android:gravity="center"
+        android:textColor="#aaa"
+        android:textSize="14sp" />
+
+    <Button
         android:id="@+id/btn_logout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:background="@drawable/round_outline_selector"
         android:text="@string/logout"
         android:textAllCaps="false"

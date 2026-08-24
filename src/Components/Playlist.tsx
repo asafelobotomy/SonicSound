@@ -9,6 +9,8 @@ import { IAlbumSongResponse } from "../Models/API/Responses/IArtistResponse";
 import { PluginListenerHandle } from "@capacitor/core";
 import { CurrentTrackContextDefValue } from "../AudioContext";
 import { Toast } from "@capacitor/toast";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPlay, faShuffle } from "@fortawesome/free-solid-svg-icons";
 
 export default function Playlist() {
     const { state }: any = useLocation();
@@ -43,12 +45,12 @@ export default function Playlist() {
                 await VLC.addListener(`currentTrack`, (info: any) => {
                     setCurrentTrack(info.currentTrack);
                 }),
-                await VLC.addListener("playlistUpdated", async (info: any) => {
+                await VLC.addListener("playlistUpdated", async () => {
                     if (state.id === "current") {
-                        var pl = await VLC.getCurrentPlaylist();
+                        const pl = await VLC.getCurrentPlaylist();
                         setPlaylist(pl.value!);
                     }
-                    var ret = await VLC.getCurrentState();
+                    const ret = await VLC.getCurrentState();
                     setCurrentTrack(ret.value?.currentTrack!);
                 }),
             ];
@@ -90,6 +92,21 @@ export default function Playlist() {
         navigate("/editPlaylist", { state: { id: playlist!.id } });
     }, [navigate, playlist]);
 
+    const playAll = useCallback(async () => {
+        if (!playlist) return;
+        if (playlist.id === "current") {
+            await VLC.skipTo({ track: 0 });
+            return;
+        }
+        const ret = await VLC.playPlaylist({ playlist: playlist.id, track: 0 });
+        if (ret.status === "error") Toast.show({ text: ret.error });
+    }, [playlist]);
+
+    const shuffleAll = useCallback(async () => {
+        await playAll();
+        await VLC.shufflePlaylist();
+    }, [playAll]);
+
     return (
         <div className="playlist-container d-flex flex-column w-100 ">
             <div className="d-flex flex-row align-items-center justify-content-between w-100">
@@ -98,14 +115,32 @@ export default function Playlist() {
                         ? playlist.name
                         : "Currently playing"}
                 </div>
-                {playlist && playlist.id !== "current" && (
-                    <button
-                        className="btn btn-primary ms-2"
-                        onClick={editPlaylist}
-                    >
-                        Edit
-                    </button>
-                )}
+                <div className="d-flex flex-row">
+                    {playlist && playlist.entry?.length > 0 && (
+                        <>
+                            <button
+                                className="btn btn-primary ms-2"
+                                onClick={playAll}
+                            >
+                                <FontAwesomeIcon icon={faPlay} /> Play
+                            </button>
+                            <button
+                                className="btn btn-primary ms-2"
+                                onClick={shuffleAll}
+                            >
+                                <FontAwesomeIcon icon={faShuffle} /> Shuffle
+                            </button>
+                        </>
+                    )}
+                    {playlist && playlist.id !== "current" && (
+                        <button
+                            className="btn btn-primary ms-2"
+                            onClick={editPlaylist}
+                        >
+                            Edit
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="subtitle text-white w-100 text-start mb-3 fst-italic">

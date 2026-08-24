@@ -37,7 +37,7 @@ export function TVTopBar() {
                     height: "4vh",
                 }}
             ></img>
-            <span className="section-header px-3 text-white">SonicLair</span>
+            <span className="section-header px-3 text-white">SonicSound</span>
             <div style={{ margin: "auto" }}></div>
             {websocketConnected && (
                 <i

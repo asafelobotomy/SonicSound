@@ -1,0 +1,12 @@
+## Copy to local.properties (gitignored). Do not commit secrets.
+# sdk.dir=/path/to/Android/Sdk
+#
+# Release signing (optional; debug builds work without these):
+# sonicsound.keystore=/absolute/path/to/release.jks
+# sonicsound.keystorePassword=
+# sonicsound.keyAlias=releasekey
+# sonicsound.keyPassword=
+#
+# Optional Spotify similarity features:
+# spotify.clientId=
+# spotify.clientSecret=

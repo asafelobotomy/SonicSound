@@ -191,7 +191,7 @@ export default function SongItem({
                         style={{ height: "2px", margin: 0, padding: 0 }}
                     >
                         <div
-                            className="progress-bar progress-bar-soniclair"
+                            className="progress-bar progress-bar-sonicsound"
                             role="progressbar"
                             style={{
                                 width: `${downloadProgress}%`,

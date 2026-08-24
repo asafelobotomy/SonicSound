@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="tech.logica10.soniclair">
+    package="app.sonicsound">
 
     <uses-sdk tools:overrideLibrary="com.google.zxing.client.android" />
 
@@ -57,7 +57,7 @@
             android:resource="@xml/automotive_app_desc" /> <!-- Used by Android Auto -->
         <meta-data
             android:name="com.google.android.gms.car.notification.SmallIcon"
-            android:resource="@drawable/ic_stat_soniclair" />
+            android:resource="@drawable/ic_stat_sonicsound" />
 
         <service
             android:name=".services.MediaBrowserService"

@@ -1,36 +1,38 @@
 import axios from "axios";
-import qs from "qs";
 
 export interface ISpotifyToken {
     token: string;
 }
 
+/**
+ * Fetches a Spotify client-credentials token when VITE_SPOTIFY_* are set.
+ * Core playback does not require Spotify.
+ */
 export default async function GetSpotifyToken(): Promise<string> {
-    var client_id = "3cb3ecad8ce14e1dba560e3b5ceb908b";
-    var client_secret = "86810d6f234142a9bf7be9d2a924bbba";
+    const client_id = import.meta.env.VITE_SPOTIFY_CLIENT_ID || "";
+    const client_secret = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || "";
 
-    const headers = {
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        auth: {
-            username: client_id,
-            password: client_secret,
-        },
-    };
-    const data = {
-        grant_type: "client_credentials",
-    };
-
-    try {
-        const response = await axios.post(
-            "https://accounts.spotify.com/api/token",
-            qs.stringify(data),
-            headers
+    if (!client_id || !client_secret) {
+        throw new Error(
+            "Spotify is not configured. Set VITE_SPOTIFY_CLIENT_ID and VITE_SPOTIFY_CLIENT_SECRET to enable similarity features."
         );
-        return response.data.access_token;
-    } catch (error) {
-        throw error;
     }
+
+    const body = new URLSearchParams({ grant_type: "client_credentials" });
+
+    const response = await axios.post(
+        "https://accounts.spotify.com/api/token",
+        body.toString(),
+        {
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            auth: {
+                username: client_id,
+                password: client_secret,
+            },
+        }
+    );
+    return response.data.access_token;
 }

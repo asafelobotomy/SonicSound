@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/soniclair_background"
+    android:background="@color/sonicsound_background"
     android:orientation="vertical"
     tools:context=".fragments.NowPlayingFragment">
 
@@ -190,8 +190,8 @@
             android:layout_marginHorizontal="100dp"
             android:focusable="false"
             android:max="100"
-            android:progressTint="@color/soniclair_item_highlight"
-            android:thumbTint="@color/soniclair_item_highlight" />
+            android:progressTint="@color/sonicsound_item_highlight"
+            android:thumbTint="@color/sonicsound_item_highlight" />
     </LinearLayout>
 
 </LinearLayout>

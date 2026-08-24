@@ -2,42 +2,68 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def keystorePath = System.getenv("SONICSOUND_KEYSTORE") ?: localProperties.getProperty("sonicsound.keystore")
+def keystorePassword = System.getenv("SONICSOUND_KEYSTORE_PASSWORD") ?: localProperties.getProperty("sonicsound.keystorePassword")
+def keyAlias = System.getenv("SONICSOUND_KEY_ALIAS") ?: localProperties.getProperty("sonicsound.keyAlias", "releasekey")
+def keyPassword = System.getenv("SONICSOUND_KEY_PASSWORD") ?: localProperties.getProperty("sonicsound.keyPassword")
+def hasReleaseSigning = keystorePath != null && keystorePassword != null && keyPassword != null
 
 android {
+    namespace "app.sonicsound"
     compileSdkVersion rootProject.ext.compileSdkVersion
 
     compileOptions{
         coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        buildConfig true
     }
 
     defaultConfig {
-        applicationId "tech.logica10.soniclair"
+        applicationId "app.sonicsound"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 32
-        versionName "0.0.6-3"
+        versionCode 100
+        versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+        buildConfigField "String", "SPOTIFY_CLIENT_ID", "\"${System.getenv("SPOTIFY_CLIENT_ID") ?: localProperties.getProperty("spotify.clientId", "")}\""
+        buildConfigField "String", "SPOTIFY_CLIENT_SECRET", "\"${System.getenv("SPOTIFY_CLIENT_SECRET") ?: localProperties.getProperty("spotify.clientSecret", "")}\""
     }
     signingConfigs {
-        release {
-            // You need to specify either an absolute path or include the
-            // keystore file in the same directory as the build.gradle file.
-            storeFile file("releasekey.jks")
-            storePassword "ttq215sqyjqk"
-            keyAlias "releasekey"
-            keyPassword "ttq215sqyjqk"
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(keystorePath)
+                storePassword keystorePassword
+                keyAlias keyAlias
+                keyPassword keyPassword
+            }
         }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     packagingOptions {
@@ -64,7 +90,6 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation project(':capacitor-android')
-//    implementation 'com.google.android.material:material:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
@@ -92,13 +117,9 @@ dependencies {
 
     implementation "androidx.room:room-ktx:$roomVersion"
     kapt "androidx.room:room-compiler:$roomVersion"
-    // optional - RxJava2 support for Room
     implementation "androidx.room:room-rxjava2:$roomVersion"
-    // optional - RxJava3 support for Room
     implementation "androidx.room:room-rxjava3:$roomVersion"
-    // optional - Guava support for Room, including Optional and ListenableFuture
     implementation "androidx.room:room-guava:$roomVersion"
-    // optional - Test helpers
     testImplementation "androidx.room:room-testing:$roomVersion"
 
 

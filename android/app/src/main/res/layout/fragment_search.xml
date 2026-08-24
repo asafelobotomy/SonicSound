@@ -4,27 +4,27 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/soniclair_background"
+    android:background="@color/sonicsound_background"
     android:orientation="vertical"
-    tools:context="tech.logica10.soniclair.fragments.SearchFragment">
+    tools:context="app.sonicsound.fragments.SearchFragment">
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/search_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:boxStrokeColor="@color/soniclair_item_highlight"
+        app:boxStrokeColor="@color/sonicsound_item_highlight"
         app:hintTextColor="#fff"
         android:textColorHint="#fff"
-        android:backgroundTint="@color/soniclair_item_highlight"
+        android:backgroundTint="@color/sonicsound_item_highlight"
         android:foregroundTint="#fff"
-        app:boxBackgroundColor="@color/soniclair_item_highlight">
+        app:boxBackgroundColor="@color/sonicsound_item_highlight">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/search_input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:backgroundTint="@color/soniclair_item_highlight"
-            app:backgroundTint="@color/soniclair_item_highlight"
+            android:backgroundTint="@color/sonicsound_item_highlight"
+            app:backgroundTint="@color/sonicsound_item_highlight"
             android:fontFamily="@font/montserrat"
             android:foregroundTint="#fff"
             android:textColorHighlight="#fff"

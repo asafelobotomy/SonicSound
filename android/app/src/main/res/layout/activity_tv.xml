@@ -74,7 +74,7 @@
         <Button
             android:id="@+id/btn_home"
             android:layout_width="fill_parent"
-            android:layout_height="@dimen/button_soniclair_height"
+            android:layout_height="@dimen/button_sonicsound_height"
             android:layout_marginVertical="5dp"
             android:background="@drawable/round_outline_selector"
             android:contentDescription="@string/home_button_content"
@@ -86,12 +86,12 @@
             android:text="@string/home_button_content"
             android:textAllCaps="false"
             android:textColor="#ffffff"
-            android:textSize="@dimen/button_soniclair_text_size" />
+            android:textSize="@dimen/button_sonicsound_text_size" />
 
         <Button
             android:id="@+id/btn_search"
             android:layout_width="fill_parent"
-            android:layout_height="@dimen/button_soniclair_height"
+            android:layout_height="@dimen/button_sonicsound_height"
             android:layout_marginVertical="5dp"
             android:background="@drawable/round_outline_selector"
             android:contentDescription="@string/home_button_content"
@@ -105,12 +105,12 @@
             android:text="@string/search_button_content"
             android:textAllCaps="false"
             android:textColor="#ffffff"
-            android:textSize="@dimen/button_soniclair_text_size" />
+            android:textSize="@dimen/button_sonicsound_text_size" />
 
         <Button
             android:id="@+id/btn_playlists"
             android:layout_width="fill_parent"
-            android:layout_height="@dimen/button_soniclair_height"
+            android:layout_height="@dimen/button_sonicsound_height"
             android:layout_marginVertical="5dp"
             android:background="@drawable/round_outline_selector"
             android:contentDescription="@string/home_button_content"
@@ -124,12 +124,12 @@
             android:text="@string/playlists_button_content"
             android:textAllCaps="false"
             android:textColor="#ffffff"
-            android:textSize="@dimen/button_soniclair_text_size" />
+            android:textSize="@dimen/button_sonicsound_text_size" />
 
         <Button
             android:id="@+id/btn_account"
             android:layout_width="fill_parent"
-            android:layout_height="@dimen/button_soniclair_height"
+            android:layout_height="@dimen/button_sonicsound_height"
             android:layout_marginVertical="5dp"
             android:background="@drawable/round_outline_selector"
             android:contentDescription="@string/home_button_content"
@@ -143,12 +143,12 @@
             android:text="@string/account_button_content"
             android:textAllCaps="false"
             android:textColor="#ffffff"
-            android:textSize="@dimen/button_soniclair_text_size" />
+            android:textSize="@dimen/button_sonicsound_text_size" />
 
         <Button
             android:id="@+id/btn_jukebox"
             android:layout_width="fill_parent"
-            android:layout_height="@dimen/button_soniclair_height"
+            android:layout_height="@dimen/button_sonicsound_height"
             android:layout_marginVertical="5dp"
             android:background="@drawable/round_outline_selector"
             android:contentDescription="@string/home_button_content"
@@ -162,7 +162,7 @@
             android:text="@string/jukebox_button_content"
             android:textAllCaps="false"
             android:textColor="#ffffff"
-            android:textSize="@dimen/button_soniclair_text_size" />
+            android:textSize="@dimen/button_sonicsound_text_size" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -173,7 +173,7 @@
         <Button
             android:id="@+id/btn_playing"
             android:layout_width="fill_parent"
-            android:layout_height="@dimen/button_soniclair_height"
+            android:layout_height="@dimen/button_sonicsound_height"
             android:layout_marginVertical="5dp"
             android:background="@drawable/round_outline_selector"
             android:contentDescription="@string/home_button_content"
@@ -186,7 +186,7 @@
             android:text="@string/playing_button_content"
             android:textAllCaps="false"
             android:textColor="#ffffff"
-            android:textSize="@dimen/button_soniclair_text_size" />
+            android:textSize="@dimen/button_sonicsound_text_size" />
 
     </LinearLayout>
 

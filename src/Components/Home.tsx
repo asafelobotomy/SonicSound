@@ -16,6 +16,9 @@ export default function Home() {
     const [recentAlbums, setRecentAlbums] = useState<IAlbumArtistResponse[]>(
         []
     );
+    const [randomAlbums, setRandomAlbums] = useState<IAlbumArtistResponse[]>(
+        []
+    );
 
     useEffect(() => {
         if (fetched) return;
@@ -32,6 +35,13 @@ export default function Home() {
             const randomSongs = await VLC.getRandomSongs();
             if (randomSongs.status === "ok") {
                 setSongs(randomSongs.value!);
+            }
+            const randomAlbumList = await VLC.getTopAlbums({
+                type: "random",
+                size: 20,
+            });
+            if (randomAlbumList.status === "ok") {
+                setRandomAlbums(randomAlbumList.value!);
             }
             const newAlbums = await VLC.getTopAlbums({
                 type: "newest",
@@ -54,6 +64,31 @@ export default function Home() {
 
     return (
         <div className="d-flex flex-column h-100 scrollable overflow-scroll scrollable-hidden">
+            {randomAlbums && randomAlbums.length > 0 && (
+                <>
+                    <div
+                        className="col-12 text-start"
+                        style={{ height: "min-content" }}
+                    >
+                        <span className="section-header text-white">
+                            Random Albums
+                        </span>
+                        <hr className="text-white w-100" />
+                    </div>
+                    <div
+                        className="col-12 overflow-scroll scrollable scrollable-hidden"
+                        style={{ height: "min-content" }}
+                    >
+                        <div className="d-flex flex-row">
+                            {randomAlbums.map((s) => (
+                                <div key={s.id} style={{ margin: "10px" }}>
+                                    <AlbumCard item={s} forceWidth={true} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
             {albums && albums.length && albums.length > 0 && (
                 <>
                     <div

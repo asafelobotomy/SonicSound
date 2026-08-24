@@ -9,7 +9,9 @@ export interface IAccount {
     password: string;
     url: string;
     type: string;
-    usePlaintext: boolean
+    usePlaintext: boolean;
+    /** Negotiated Subsonic REST API version for this account. */
+    apiVersion?: string;
 }
 
 export interface IAudioContext {

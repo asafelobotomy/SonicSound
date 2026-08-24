@@ -34,13 +34,14 @@ export default function NowPlaying() {
     const { ref, focusKey } = useFocusable();
     useEffect(() => {
         const fetch = async () => {
-            setCoverArt(
-                (await VLC.getAlbumArt({ id: currentTrack.coverArt })).value!
-            );
+            const coverId = currentTrack.coverArt || currentTrack.albumId;
+            if (coverId) {
+                setCoverArt((await VLC.getAlbumArt({ id: coverId })).value!);
+            }
             setPlaylist((await VLC.getCurrentPlaylist()).value!!);
         };
         fetch();
-    }, [currentTrack, coverArt]);
+    }, [currentTrack]);
 
     useEffect(() => {
         const get = async () => {

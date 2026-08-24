@@ -25,7 +25,7 @@
         <TextView
             android:id="@+id/tv_qr_login"
             android:textSize="25sp"
-            android:textColor="@color/soniclair_background"
+            android:textColor="@color/sonicsound_background"
             android:fontFamily="@font/montserrat"
             android:layout_gravity="center"
             android:layout_width="wrap_content"
@@ -35,7 +35,7 @@
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/soniclair_background"
+        android:background="@color/sonicsound_background"
         android:orientation="horizontal"
         tools:context=".TvLoginActivity">
 
@@ -72,18 +72,18 @@
                 android:id="@+id/username_input_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:backgroundTint="@color/soniclair_item_highlight"
+                android:backgroundTint="@color/sonicsound_item_highlight"
                 android:foregroundTint="#fff"
                 android:textColorHint="#fff"
 
-                app:boxBackgroundColor="@color/soniclair_item_highlight"
+                app:boxBackgroundColor="@color/sonicsound_item_highlight"
                 app:hintTextColor="#fff">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/username_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="@color/soniclair_item_highlight"
+                    android:backgroundTint="@color/sonicsound_item_highlight"
                     android:fontFamily="@font/montserrat"
                     android:foregroundTint="#fff"
                     android:hint="@string/username"
@@ -98,11 +98,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
 
-                android:backgroundTint="@color/soniclair_item_highlight"
+                android:backgroundTint="@color/sonicsound_item_highlight"
                 android:foregroundTint="#fff"
                 android:textColorHint="#fff"
 
-                app:boxBackgroundColor="@color/soniclair_item_highlight"
+                app:boxBackgroundColor="@color/sonicsound_item_highlight"
                 app:hintTextColor="#fff"
                 app:passwordToggleTint="#fff">
 
@@ -110,7 +110,7 @@
                     android:id="@+id/password_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="@color/soniclair_item_highlight"
+                    android:backgroundTint="@color/sonicsound_item_highlight"
                     android:fontFamily="@font/montserrat"
                     android:foregroundTint="#fff"
                     android:hint="@string/password"
@@ -124,19 +124,19 @@
                 android:id="@+id/url_input_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:backgroundTint="@color/soniclair_item_highlight"
+                android:backgroundTint="@color/sonicsound_item_highlight"
 
                 android:foregroundTint="#fff"
 
                 android:textColorHint="#fff"
-                app:boxBackgroundColor="@color/soniclair_item_highlight"
+                app:boxBackgroundColor="@color/sonicsound_item_highlight"
                 app:hintTextColor="#fff">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/url_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="@color/soniclair_item_highlight"
+                    android:backgroundTint="@color/sonicsound_item_highlight"
                     android:fontFamily="@font/montserrat"
                     android:foregroundTint="#fff"
                     android:hint="@string/url"

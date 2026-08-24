@@ -1,3 +1,7 @@
+# 0.2.1
+
+- Shrink APK ~50% for Shield/TV installs: drop x86 emulator libs bundled by libvlc-all
+
 # 0.2.0
 
 - Local JDK 17 + Android SDK 34 debug APK path

@@ -48,6 +48,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
         versionName packageJson.version
+        ndk {
+            // libvlc-all ships x86/x86_64 emulator libs (~90MB extra). Shield and phones need ARM only.
+            abiFilters "arm64-v8a", "armeabi-v7a"
+        }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

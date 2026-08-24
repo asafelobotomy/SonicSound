@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   web:
     name: Web build + tests + LOC
@@ -74,11 +77,114 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-  android-release:
-    name: Android release APK
+  # On main: if package.json version was bumped and no tag exists yet, publish a release.
+  publish-release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [web, android-debug, android-unsigned-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version bump
+        id: bump
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          BEFORE="${{ github.event.before }}"
+          BUMPED=false
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BUMPED=true
+          elif git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            OLD=$(git show "${BEFORE}:package.json" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).version)")
+            if [ "$OLD" != "$VERSION" ]; then
+              BUMPED=true
+            fi
+          else
+            # before SHA unavailable (force-push / shallow history) — fall back to tag check only
+            BUMPED=true
+          fi
+
+          if [ "$BUMPED" != true ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "package.json version unchanged; skipping release"
+            exit 0
+          fi
+
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "refs/tags/${TAG}$"; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} already exists; skipping release"
+            exit 0
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "Will publish ${TAG}"
+
+      - name: Download build artifacts
+        if: steps.bump.outputs.should_release == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage release assets
+        if: steps.bump.outputs.should_release == 'true'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.bump.outputs.version }}"
+          mkdir -p release-assets
+          find artifacts -name '*.apk' -print0 | while IFS= read -r -d '' apk; do
+            base=$(basename "$apk")
+            case "$base" in
+              *debug*) dest="SonicSound-${VERSION}-debug.apk" ;;
+              *release*) dest="SonicSound-${VERSION}-release-unsigned.apk" ;;
+              *) dest="SonicSound-${VERSION}-${base}" ;;
+            esac
+            cp "$apk" "release-assets/${dest}"
+          done
+          ls -la release-assets
+
+      - name: Changelog notes for this version
+        if: steps.bump.outputs.should_release == 'true'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.bump.outputs.version }}"
+          awk -v ver="$VERSION" '
+            $0 == "# " ver {flag=1; next}
+            /^# / {flag=0}
+            flag {print}
+          ' docs/CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "SonicSound ${VERSION}" > release-notes.md
+          fi
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: SonicSound ${{ steps.bump.outputs.tag }}
+          body_path: release-notes.md
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          make_latest: true
+
+  # Manual / tag-push path: signed Play-style APK when keystore secrets are configured.
+  android-signed-release:
+    name: Android signed release APK
     if: startsWith(github.ref, 'refs/tags/v')
     needs: web
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -105,12 +211,13 @@ jobs:
           SONICSOUND_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SONICSOUND_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           cd android
           ./gradlew assembleRelease --no-daemon
           mkdir -p out
-          cp app/build/outputs/apk/release/*.apk out/SonicSound-${{ github.ref_name }}.apk || \
-            cp app/build/outputs/apk/release/*.apk out/SonicSound-${{ github.ref_name }}.apk
+          cp app/build/outputs/apk/release/*.apk "out/SonicSound-${GITHUB_REF_NAME}.apk"
       - uses: softprops/action-gh-release@v2
         with:
           files: android/out/*.apk
           body_path: docs/CHANGELOG.md
+          fail_on_unmatched_files: false

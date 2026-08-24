@@ -16,6 +16,16 @@ def keyAlias = System.getenv("SONICSOUND_KEY_ALIAS") ?: localProperties.getPrope
 def keyPassword = System.getenv("SONICSOUND_KEY_PASSWORD") ?: localProperties.getProperty("sonicsound.keyPassword")
 def hasReleaseSigning = keystorePath != null && keystorePassword != null && keyPassword != null
 
+// Single source of truth: root package.json
+def packageJson = new groovy.json.JsonSlurper().parseText(
+    rootProject.file("../package.json").getText("UTF-8")
+)
+def versionParts = (packageJson.version as String).tokenize(".")
+def appVersionCode =
+    (versionParts[0] as int) * 10000 +
+    (versionParts[1] as int) * 100 +
+    (versionParts.size() > 2 ? (versionParts[2] as int) : 0)
+
 android {
     namespace "app.sonicsound"
     compileSdk rootProject.ext.compileSdkVersion
@@ -36,8 +46,8 @@ android {
         applicationId "app.sonicsound"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 100
-        versionName "0.1.0"
+        versionCode appVersionCode
+        versionName packageJson.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

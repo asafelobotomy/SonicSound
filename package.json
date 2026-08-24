@@ -1,6 +1,6 @@
 {
   "name": "sonicsound",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "dependencies": {
@@ -46,6 +46,7 @@
     "test:watch": "vitest",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" --max-warnings 0",
     "lint:loc": "node scripts/check-max-lines.cjs",
+    "bump-version": "node scripts/bump-version.cjs",
     "cap:sync": "npm run build && npx cap sync android"
   },
   "devDependencies": {

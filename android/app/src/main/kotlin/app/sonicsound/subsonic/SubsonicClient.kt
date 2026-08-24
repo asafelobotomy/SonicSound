@@ -39,7 +39,8 @@ class SubsonicClient(var initialAccount: Account) {
     private val connectivityManager: ConnectivityManager =
         App.context.getSystemService(ConnectivityManager::class.java)
 
-    private val http = SubsonicHttp { account }
+    @PublishedApi
+    internal val http = SubsonicHttp { account }
     private val coverCache = SubsonicCoverCache(
         accountProvider = { account },
         paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() }
@@ -104,7 +105,8 @@ class SubsonicClient(var initialAccount: Account) {
             ret.add(
                 MediaBrowserCompat.MediaItem(
                     builder.build(),
-                    MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
+                    MediaBrowserCompat.MediaItem.FLAG_BROWSABLE or
+                        MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
                 )
             )
         }

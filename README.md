@@ -65,6 +65,10 @@ VITE_SPOTIFY_CLIENT_ID=
 VITE_SPOTIFY_CLIENT_SECRET=
 ```
 
+Prefer an `https://` Subsonic/Navidrome URL when your server supports TLS. Android allows cleartext HTTP for LAN servers that do not offer HTTPS.
+
+F-Droid packaging notes: [docs/fdroid.md](docs/fdroid.md).
+
 ## Upstream credit
 
 Original SonicLair by [thelinkin3000](https://github.com/thelinkin3000/SonicLair), MIT License. See [LICENSE](LICENSE).

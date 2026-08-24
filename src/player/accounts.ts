@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+import { Preferences } from "@capacitor/preferences";
 import { buildAuthParams, ApiVersion } from "../subsonic/auth";
 import { negotiateApiVersion, removeTrailingSlash } from "../subsonic/client";
 import { errorResponse, okResponse } from "../subsonic/errors";
@@ -7,7 +9,7 @@ import { IBackendResponse } from "../Plugins/VLC";
 
 const STORAGE_KEY = "serverCreds";
 
-/** In-memory fallback when localStorage is unavailable (SSR/tests/private mode). */
+/** In-memory cache (and test/private-mode fallback). */
 const memoryStore = new Map<string, string>();
 
 const EMPTY_CONTEXT: IAppContext = {
@@ -22,8 +24,33 @@ const EMPTY_CONTEXT: IAppContext = {
     spotifyToken: "",
 };
 
-/** Persist account metadata; passwords stay local to this device only. */
+function isNative(): boolean {
+    try {
+        return Capacitor.isNativePlatform();
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * On native Capacitor, load credentials from Preferences into memory once at
+ * startup. Web continues to use localStorage (PWA limitation — passwords stay
+ * on-device only; do not sync to a cloud account).
+ */
+export async function hydrateCredentials(): Promise<void> {
+    if (!isNative()) return;
+    try {
+        const { value } = await Preferences.get({ key: STORAGE_KEY });
+        if (value) memoryStore.set(STORAGE_KEY, value);
+    } catch {
+        /* ignore */
+    }
+}
+
 function readRaw(): string | null {
+    if (isNative()) {
+        return memoryStore.get(STORAGE_KEY) ?? null;
+    }
     try {
         if (typeof localStorage !== "undefined") {
             return localStorage.getItem(STORAGE_KEY);
@@ -35,16 +62,18 @@ function readRaw(): string | null {
 }
 
 function writeRaw(value: string): void {
+    memoryStore.set(STORAGE_KEY, value);
+    if (isNative()) {
+        void Preferences.set({ key: STORAGE_KEY, value }).catch(() => undefined);
+        return;
+    }
     try {
         if (typeof localStorage !== "undefined") {
             localStorage.setItem(STORAGE_KEY, value);
-            memoryStore.set(STORAGE_KEY, value);
-            return;
         }
     } catch {
         /* private mode / quota */
     }
-    memoryStore.set(STORAGE_KEY, value);
 }
 
 export function loadStoredContext(): IAppContext {
@@ -63,6 +92,10 @@ export function persistContext(context: IAppContext): void {
 
 export function clearStoredContext(): void {
     memoryStore.delete(STORAGE_KEY);
+    if (isNative()) {
+        void Preferences.remove({ key: STORAGE_KEY }).catch(() => undefined);
+        return;
+    }
     try {
         if (typeof localStorage !== "undefined") {
             localStorage.removeItem(STORAGE_KEY);

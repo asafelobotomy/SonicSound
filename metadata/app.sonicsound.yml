@@ -1,0 +1,54 @@
+Categories:
+  - Multimedia
+  - Internet
+
+License: MIT
+
+AuthorName: SonicSound contributors
+WebSite: https://github.com/asafelobotomy/SonicSound
+SourceCode: https://github.com/asafelobotomy/SonicSound
+IssueTracker: https://github.com/asafelobotomy/SonicSound/issues
+
+AutoName: SonicSound
+
+RepoType: git
+Repo: https://github.com/asafelobotomy/SonicSound.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 100
+    commit: a7c1c6c
+    subdir: android/app
+    sudo:
+      - apt-get update || apt-get update
+      - apt-get install -y openjdk-17-jdk-headless npm nodejs
+    init: |
+      cd ../..
+      npm ci
+      npm run build
+      npx cap sync android
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-release-unsigned.apk
+    srclibs: []
+    rm:
+      - src-tauri
+      - docs/screenshots
+    prebuild:
+      - sdkmanager "platforms;android-34" "build-tools;34.0.0" || true
+    scanignore:
+      - android/app/src/main/assets/public
+
+AntiFeatures:
+  - NonFreeNet
+
+Description: |-
+    SonicSound is an album-centered music client for Subsonic-compatible
+    servers (Navidrome, Airsonic, and others). It supports Android phone and
+    Android TV, playlists, lyrics, offline cache, and optional Spotify
+    artist-art similarity (disabled unless you configure your own API keys).
+
+    Optional Spotify client credentials are never required for core playback.
+    When enabled they contact Spotify (NonFreeNet).
+
+Summary: Subsonic/Navidrome music player for phone and TV

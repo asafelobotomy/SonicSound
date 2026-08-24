@@ -10,6 +10,7 @@
     "@capacitor/core": "^6.2.0",
     "@capacitor/haptics": "^6.0.2",
     "@capacitor/keyboard": "^6.0.3",
+    "@capacitor/preferences": "^6.0.4",
     "@capacitor/status-bar": "^6.0.2",
     "@capacitor/toast": "^6.0.3",
     "@fortawesome/fontawesome-svg-core": "^6.1.1",
@@ -67,7 +68,8 @@
     "prettier": "^2.6.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "vite-plugin-pwa": "^0.21.2"
   },
   "allowScripts": {
     "esbuild@0.21.5": true,

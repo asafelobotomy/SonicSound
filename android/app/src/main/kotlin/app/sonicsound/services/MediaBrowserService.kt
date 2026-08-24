@@ -1,9 +1,5 @@
 package app.sonicsound.services
 
-import android.app.PendingIntent
-import android.app.SearchManager
-import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.provider.MediaStore
@@ -12,25 +8,24 @@ import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
 import androidx.media.MediaBrowserServiceCompat
+import app.sonicsound.App
+import app.sonicsound.Globals
+import app.sonicsound.KeyValueStorage
+import app.sonicsound.KeyValueStorage.Companion.getActiveAccount
+import app.sonicsound.R
+import app.sonicsound.subsonic.SubsonicClient
 import com.bumptech.glide.Glide
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import app.sonicsound.*
-import app.sonicsound.subsonic.SubsonicClient
-import app.sonicsound.KeyValueStorage.Companion.getActiveAccount
-
 
 class MediaBrowserService : MediaBrowserServiceCompat() {
     private val mediaSession: MediaSessionCompat? = Globals.GetMediaSession()
     private val subsonicClient: SubsonicClient = SubsonicClient(getActiveAccount())
 
-
-
     override fun onCreate() {
         super.onCreate()
-        // Set the session's token so that client activities can communicate with it.
         sessionToken = mediaSession!!.sessionToken
     }
 
@@ -40,26 +35,23 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
         rootHints: Bundle?
     ): BrowserRoot {
         val extras = Bundle()
-        extras.putInt(
-            "android.media.browse.CONTENT_STYLE_PLAYABLE_HINT",
-            2
-        )
+        extras.putInt("android.media.browse.CONTENT_STYLE_PLAYABLE_HINT", 2)
         return BrowserRoot("HOME", extras)
+    }
+
+    private fun placeholderBitmap(): Bitmap {
+        val future = Glide.with(App.context)
+            .asBitmap()
+            .load(R.drawable.ic_album_art_placeholder)
+            .submit()
+        return runBlocking(Dispatchers.IO) { future.get() }
     }
 
     fun getHome(): List<MediaBrowserCompat.MediaItem> {
         val builder = MediaDescriptionCompat.Builder()
         val ret = mutableListOf<MediaBrowserCompat.MediaItem>()
-        val future = Glide.with(App.context)
-            .asBitmap()
-            .load(R.drawable.ic_album_art_placeholder)
-            .submit()
-        val albumArtBitmap: Bitmap;
-        runBlocking(Dispatchers.IO) {
-            albumArtBitmap = future.get()
-        }
+        val albumArtBitmap = placeholderBitmap()
 
-        // Random songs
         builder.setTitle("Random Songs")
         builder.setSubtitle("Rediscover your library!")
         builder.setIconBitmap(albumArtBitmap)
@@ -70,10 +62,8 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
                 MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
             )
         )
-        // Top Albums
         builder.setTitle("Most Played Albums")
         builder.setSubtitle("Jump back to your favourites")
-
         builder.setIconBitmap(albumArtBitmap)
         builder.setMediaId("MOSTPLAYED")
         ret.add(
@@ -82,7 +72,6 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
                 MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
             )
         )
-        // Playlists
         builder.setTitle("Playlists")
         builder.setSubtitle("Listen to your curated playlists")
         builder.setIconBitmap(albumArtBitmap)
@@ -100,76 +89,81 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
         parentMediaId: String,
         result: Result<List<MediaBrowserCompat.MediaItem>>
     ) {
-        if (parentMediaId == "HOME") {
-            result.sendResult(getHome())
-        } else if (parentMediaId == "RANDOMSONGS") {
-            // We're not logged in on a server, we bail
-            if (getActiveAccount().username == null) {
-                result.sendResult(listOf())
-                return
-            }
+        when {
+            parentMediaId == "HOME" -> result.sendResult(getHome())
+            parentMediaId == "RANDOMSONGS" -> loadCachedSongs(result)
+            parentMediaId == "PLAYLISTS" -> loadCachedPlaylists(result)
+            parentMediaId == "MOSTPLAYED" -> loadCachedAlbums(result)
+            parentMediaId.startsWith("p") -> loadPlaylistTracks(parentMediaId.substring(1), result)
+            else -> result.sendResult(emptyList())
+        }
+    }
 
-            // We try to return cached media items if we have any
-            val songs = KeyValueStorage.getCachedSongs()
+    private fun loadCachedSongs(result: Result<List<MediaBrowserCompat.MediaItem>>) {
+        if (getActiveAccount().username == null) {
+            result.sendResult(emptyList())
+            return
+        }
+        val songs = KeyValueStorage.getCachedSongs()
+        CoroutineScope(Dispatchers.IO).launch { warmCaches(subsonicClient) }
+        if (songs.isNotEmpty()) {
+            runBlocking(Dispatchers.IO) {
+                result.sendResult(subsonicClient.getSongsAsMediaItems(songs))
+            }
+        } else {
+            result.sendResult(emptyList())
+        }
+    }
 
-            // Fetch new songs for the next time
-            CoroutineScope(Dispatchers.IO).launch {
-                load(subsonicClient)
+    private fun loadCachedPlaylists(result: Result<List<MediaBrowserCompat.MediaItem>>) {
+        if (getActiveAccount().username == null) {
+            result.sendResult(emptyList())
+            return
+        }
+        val playlists = KeyValueStorage.getCachedPlaylists()
+        CoroutineScope(Dispatchers.IO).launch { warmCaches(subsonicClient) }
+        if (playlists.isNotEmpty()) {
+            runBlocking(Dispatchers.IO) {
+                result.sendResult(subsonicClient.getPlaylistsAsMediaItems(playlists))
             }
-            // We do have some songs!
-            if (songs.isNotEmpty()) {
-                runBlocking(Dispatchers.IO) {
-                    result.sendResult(subsonicClient.getSongsAsMediaItems(songs))
-                }
-            } else {
-                // We have nothing for the user at this time, returning an empty list so as to not block the UI.
-                result.sendResult(listOf())
-            }
-        } else if (parentMediaId == "PLAYLISTS") {
-            // We're not logged in on a server, we bail
-            if (getActiveAccount().username == null) {
-                result.sendResult(listOf())
-                return
-            }
+        } else {
+            result.sendResult(emptyList())
+        }
+    }
 
-            // We try to return cached media items if we have any
-            val playlists = KeyValueStorage.getCachedPlaylists()
+    private fun loadCachedAlbums(result: Result<List<MediaBrowserCompat.MediaItem>>) {
+        if (getActiveAccount().username == null) {
+            result.sendResult(emptyList())
+            return
+        }
+        val albums = KeyValueStorage.getCachedAlbums()
+        CoroutineScope(Dispatchers.IO).launch { warmCaches(subsonicClient) }
+        if (albums.isNotEmpty()) {
+            runBlocking(Dispatchers.IO) {
+                result.sendResult(subsonicClient.getAlbumsAsPlaylistsItems(albums))
+            }
+        } else {
+            result.sendResult(emptyList())
+        }
+    }
 
-            // Fetch new songs for the next time
-            CoroutineScope(Dispatchers.IO).launch {
-                load(subsonicClient)
-            }
-            // We do have some songs!
-            if (playlists.isNotEmpty()) {
-                runBlocking(Dispatchers.IO) {
-                    result.sendResult(subsonicClient.getPlaylistsAsMediaItems(playlists))
-                }
-            } else {
-                // We have nothing for the user at this time, returning an empty list so as to not block the UI.
-                result.sendResult(listOf())
-            }
-        } else if (parentMediaId == "MOSTPLAYED") {
-            // We're not logged in on a server, we bail
-            if (getActiveAccount().username == null) {
-                result.sendResult(listOf())
-                return
-            }
-
-            // We try to return cached media items if we have any
-            val albums = KeyValueStorage.getCachedAlbums()
-
-            // Fetch new songs for the next time
-            CoroutineScope(Dispatchers.IO).launch {
-                load(subsonicClient)
-            }
-            // We do have some songs!
-            if (albums.isNotEmpty()) {
-                runBlocking(Dispatchers.IO) {
-                    result.sendResult(subsonicClient.getAlbumsAsPlaylistsItems(albums))
-                }
-            } else {
-                // We have nothing for the user at this time, returning an empty list so as to not block the UI.
-                result.sendResult(listOf())
+    private fun loadPlaylistTracks(
+        playlistId: String,
+        result: Result<List<MediaBrowserCompat.MediaItem>>
+    ) {
+        if (getActiveAccount().username == null) {
+            result.sendResult(emptyList())
+            return
+        }
+        result.detach()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val playlist = subsonicClient.getPlaylist(playlistId)
+                val items = subsonicClient.getSongsAsMediaItems(playlist.entry)
+                result.sendResult(items)
+            } catch (e: Exception) {
+                Log.e("MediaBrowser", e.message ?: "playlist load failed")
+                result.sendResult(emptyList())
             }
         }
     }
@@ -179,34 +173,40 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
         extras: Bundle?,
         result: Result<MutableList<MediaBrowserCompat.MediaItem>>
     ) {
-        val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
-        intent.putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
-        intent.putExtra(SearchManager.QUERY, query)
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        val pendingIntent =
-            PendingIntent.getBroadcast(App.context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-        pendingIntent.send()
+        // Route through the same Assistant/search path as MediaSession.
+        val focus = extras?.getString(MediaStore.EXTRA_MEDIA_FOCUS)
+        when {
+            query.isBlank() -> Globals.NotifyObservers("SLPLAY", "")
+            focus == MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE ->
+                Globals.NotifyObservers(
+                    "SLPLAYSEARCHARTIST",
+                    extras?.getString(MediaStore.EXTRA_MEDIA_ARTIST) ?: query
+                )
+            focus == MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE -> {
+                val album = extras?.getString(MediaStore.EXTRA_MEDIA_ALBUM) ?: ""
+                val artist = extras?.getString(MediaStore.EXTRA_MEDIA_ARTIST) ?: ""
+                Globals.NotifyObservers("SLPLAYSEARCHALBUM", "$album $artist".trim())
+            }
+            else -> Globals.NotifyObservers(
+                "SLPLAYSEARCH",
+                query.replace("on sonicsound", "", ignoreCase = true).trim()
+            )
+        }
+        result.sendResult(mutableListOf())
     }
 
-    fun load(
-        subsonicClient: SubsonicClient
-    ) {
-        try {
-            // Repopulate the media items cache
-            val songs = subsonicClient.getRandomSongs()
-            KeyValueStorage.setCachedSongs(songs)
-            val albums = subsonicClient.getTopAlbums()
-            KeyValueStorage.setCachedAlbums(albums)
-            val playlists = subsonicClient.getPlaylists()
-            KeyValueStorage.setCachedPlaylists(
-                playlists.subList(
-                    0,
-                    if (playlists.size > 9) 9 else playlists.size
+    companion object {
+        fun warmCaches(subsonicClient: SubsonicClient) {
+            try {
+                KeyValueStorage.setCachedSongs(subsonicClient.getRandomSongs())
+                KeyValueStorage.setCachedAlbums(subsonicClient.getTopAlbums())
+                val playlists = subsonicClient.getPlaylists()
+                KeyValueStorage.setCachedPlaylists(
+                    playlists.subList(0, minOf(playlists.size, 20))
                 )
-            )
-        } catch (e: Exception) {
-            // Something _awful_ happened. The user doesn't need to know about it
-            Log.e("MediaBrowser", e.message!!)
+            } catch (e: Exception) {
+                Log.e("MediaBrowser", e.message ?: "cache warm failed")
+            }
         }
     }
 }

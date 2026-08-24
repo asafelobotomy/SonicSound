@@ -48,6 +48,32 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
+  android-unsigned-release:
+    name: Unsigned release APK (F-Droid style)
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Assemble unsigned release
+        run: cd android && ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SonicSound-release-unsigned
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
   android-release:
     name: Android release APK
     if: startsWith(github.ref, 'refs/tags/v')

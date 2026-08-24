@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  SonicSound talks to self-hosted Subsonic/Navidrome servers, often on LAN HTTP.
-  Prefer HTTPS when the server supports it. Cleartext is permitted for that home-server use case.
+  SonicSound connects to self-hosted Subsonic/Navidrome servers.
+  Cleartext HTTP is permitted for LAN servers that do not offer TLS.
+  Prefer HTTPS when your server supports it (no app setting required —
+  use an https:// account URL).
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">

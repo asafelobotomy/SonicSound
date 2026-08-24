@@ -84,7 +84,7 @@ class SubsonicDownloads(
     }
 
     fun unregisterSong(id: String) {
-        val s: Song? = db.songDao().get(id) ?: return
+        val s = db.songDao().get(id) ?: return
         val albumId = s.albumId
         try {
             db.songDao().delete(s)
@@ -96,7 +96,7 @@ class SubsonicDownloads(
     }
 
     private fun checkAndUnregisterAlbum(id: String) {
-        val a: Album? = db.albumDao().get(id) ?: return
+        val a = db.albumDao().get(id) ?: return
         if (db.songDao().getByAlbum(id).isEmpty()) {
             val artistId = a.artistId
             try {
@@ -110,7 +110,7 @@ class SubsonicDownloads(
     }
 
     private fun checkAndUnregisterArtist(id: String) {
-        val a: Artist? = db.artistDao().get(id) ?: return
+        val a = db.artistDao().get(id) ?: return
         if (db.albumDao().getByArtist(id).isEmpty()) {
             try {
                 db.artistDao().delete(a)

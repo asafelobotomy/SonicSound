@@ -1,4 +1,6 @@
 package app.sonicsound
+
+import app.sonicsound.services.MediaBrowserService
 import app.sonicsound.subsonic.SubsonicClient
 
 import android.app.Application
@@ -21,18 +23,14 @@ class App : Application() {
         super.onCreate()
         application = this
         CoroutineScope(Dispatchers.IO).launch {
-            // If we're logged in a server
             if (KeyValueStorage.getActiveAccount().username != null) {
-                val songs = KeyValueStorage.getCachedSongs()
-                // If we don't already have cached items
-                if (songs.isEmpty()) {
-                    // Repopulate the media items cache
-                    val subsonicClient = SubsonicClient(KeyValueStorage.getActiveAccount())
-                    val s = subsonicClient.getRandomSongs()
-                    KeyValueStorage.setCachedSongs(s)
+                try {
+                    val client = SubsonicClient(KeyValueStorage.getActiveAccount())
+                    MediaBrowserService.warmCaches(client)
+                } catch (e: Exception) {
+                    Log.e("SonicSound", e.message ?: "cache warm failed")
                 }
             }
-            return@launch
         }
         val uiModeManager: UiModeManager =
             this.applicationContext.getSystemService(UI_MODE_SERVICE) as UiModeManager

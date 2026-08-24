@@ -58,7 +58,7 @@ class BackendAccounts(
                 "android.permission.CAMERA"
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            MainActivity.requestPermissionLauncher.launch("android.permission.CAMERA")
+            MainActivity.requestPermissionLauncher?.launch("android.permission.CAMERA")
         }
         call.resolve(responses.ok(""))
     }

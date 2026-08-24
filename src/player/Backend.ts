@@ -11,6 +11,7 @@ import {
 } from "../Plugins/VLC";
 import { basicParamsFor, loadStoredContext } from "./accounts";
 import { backendApi } from "./backendApi";
+import type { BackendApiMethods } from "./backendApiMethods";
 import {
     emptyPlaylist,
     emptyTrack,
@@ -31,6 +32,7 @@ function isValidIp(ip: string): boolean {
 /**
  * Web/PWA Capacitor backend: HTMLAudioElement playback + Subsonic REST.
  */
+export interface Backend extends BackendApiMethods {}
 export class Backend extends WebPlugin implements IBackendPlugin {
     currentPlaylist: IPlaylist = emptyPlaylist();
     originalCurrentPlaylist: IAlbumSongResponse[] = [];
@@ -343,46 +345,4 @@ export class Backend extends WebPlugin implements IBackendPlugin {
     removeAllListeners() {
         return super.removeAllListeners();
     }
-
-    // Bound from backendApi via Object.assign — declared for TypeScript.
-    removeFromPlaylist!: typeof backendApi.removeFromPlaylist;
-    createPlaylist!: typeof backendApi.createPlaylist;
-    removePlaylist!: typeof backendApi.removePlaylist;
-    updatePlaylist!: typeof backendApi.updatePlaylist;
-    addToPlaylist!: typeof backendApi.addToPlaylist;
-    downloadAlbum!: typeof backendApi.downloadAlbum;
-    getCoverCacheSize!: typeof backendApi.getCoverCacheSize;
-    clearCoverCache!: typeof backendApi.clearCoverCache;
-    getOfflineMode!: typeof backendApi.getOfflineMode;
-    setOfflineMode!: typeof backendApi.setOfflineMode;
-    getSongStatus!: typeof backendApi.getSongStatus;
-    getSettings!: typeof backendApi.getSettings;
-    setSettings!: typeof backendApi.setSettings;
-    getCameraPermission!: typeof backendApi.getCameraPermission;
-    getCameraPermissionStatus!: typeof backendApi.getCameraPermissionStatus;
-    getCurrentPlaylist!: typeof backendApi.getCurrentPlaylist;
-    getActiveAccount!: typeof backendApi.getActiveAccount;
-    deleteAccount!: typeof backendApi.deleteAccount;
-    getAccounts!: typeof backendApi.getAccounts;
-    getTopAlbums!: typeof backendApi.getTopAlbums;
-    getRandomSongs!: typeof backendApi.getRandomSongs;
-    getPlaylists!: typeof backendApi.getPlaylists;
-    getPlaylist!: typeof backendApi.getPlaylist;
-    getAlbumArt!: typeof backendApi.getAlbumArt;
-    getSongArt!: typeof backendApi.getSongArt;
-    loadContext!: typeof backendApi.loadContext;
-    getSpotifyToken!: typeof backendApi.getSpotifyToken;
-    login!: typeof backendApi.login;
-    getContext!: typeof backendApi.getContext;
-    setContext!: typeof backendApi.setContext;
-    getSong!: typeof backendApi.getSong;
-    getSimilarSongs!: typeof backendApi.getSimilarSongs;
-    getArtists!: typeof backendApi.getArtists;
-    search!: typeof backendApi.search;
-    getArtist!: typeof backendApi.getArtist;
-    getAlbums!: typeof backendApi.getAlbums;
-    getAlbum!: typeof backendApi.getAlbum;
-    getArtistInfo!: typeof backendApi.getArtistInfo;
-    getLyrics!: typeof backendApi.getLyrics;
-    getArtistArt!: typeof backendApi.getArtistArt;
 }

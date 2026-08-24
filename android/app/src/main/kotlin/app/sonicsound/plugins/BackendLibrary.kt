@@ -255,4 +255,14 @@ class BackendLibrary(
             call.resolve(responses.error(e.message))
         }
     }
+
+    fun getLyrics(call: PluginCall) {
+        try {
+            val artist = call.getString("artist") ?: throw ParameterException("artist")
+            val title = call.getString("title") ?: throw ParameterException("title")
+            call.resolve(responses.ok(client.getLyrics(artist, title)))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
 }

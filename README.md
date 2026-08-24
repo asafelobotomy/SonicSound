@@ -9,7 +9,7 @@ Fork of [SonicLair](https://github.com/thelinkin3000/SonicLair) — rebranded, m
 - **Android phone** (Capacitor)
 - **Android TV** (Leanback + Capacitor TV UI, QR/UDP pairing, jukebox)
 - **PWA / web** (Vite)
-- Desktop shell via Tauri (legacy support)
+- Desktop shell (`src-tauri/`) deferred — not in the active npm toolchain
 
 ## Features
 
@@ -21,12 +21,24 @@ Fork of [SonicLair](https://github.com/thelinkin3000/SonicLair) — rebranded, m
 - Android Auto media browser (legacy)
 - API version negotiation for older Airsonic / Subsonic servers
 
+## Layout
+
+| Path | Purpose |
+|------|---------|
+| `src/` | React UI, Subsonic client, Capacitor plugins |
+| `android/` | Native Android + TV |
+| `brand/` | Logo masters (derive public/ and platform icons from here) |
+| `public/` | Favicon, PWA icons, manifest |
+| `docs/` | Changelog, store screenshots |
+| `scripts/` | LOC gate and helper scripts |
+
 ## Develop
 
 ```bash
 npm install
 npm start          # Vite dev server
 npm test           # Vitest
+npm run lint       # ESLint (max-lines gate)
 npm run lint:loc   # Fail if any .ts/.tsx/.kt/.java file exceeds 400 LOC
 npm run build      # Production web bundle → build/
 ```
@@ -46,7 +58,7 @@ Application id: `app.sonicsound`
 
 ### Environment
 
-Optional Spotify similarity art (web):
+Optional Spotify similarity art (**dev web only** — not shipped in production web builds):
 
 ```
 VITE_SPOTIFY_CLIENT_ID=

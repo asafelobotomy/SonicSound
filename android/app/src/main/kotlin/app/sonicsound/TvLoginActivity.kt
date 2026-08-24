@@ -1,18 +1,25 @@
 package app.sonicsound
-import app.sonicsound.subsonic.SubsonicClient
 
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.*
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.widget.doOnTextChanged
+import androidx.lifecycle.lifecycleScope
+import app.sonicsound.models.Account
+import app.sonicsound.subsonic.SubsonicClient
 import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import app.sonicsound.models.Account
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class TvLoginActivity : AppCompatActivity() {
     private lateinit var userInput: EditText
@@ -23,11 +30,24 @@ class TvLoginActivity : AppCompatActivity() {
     private lateinit var urlLayout: TextInputLayout
     private lateinit var loginButton: Button
     private lateinit var plaintext: SwitchCompat
-
+    private var wsLoginObserver: WsLogin? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_tv_login)
+        supportActionBar?.hide()
+        bindUi()
+        wsLoginObserver = WsLogin().also { Globals.RegisterObserver(it) }
+        val account = KeyValueStorage.getActiveAccount()
+        if (account.username != null) {
+            tryLogin(account)
+        }
+    }
+
+    override fun onDestroy() {
+        wsLoginObserver?.let { Globals.UnregisterObserver(it) }
+        wsLoginObserver = null
+        super.onDestroy()
     }
 
     private fun getFormData(): FormData {
@@ -39,7 +59,7 @@ class TvLoginActivity : AppCompatActivity() {
         )
     }
 
-    inner class FormData(
+    class FormData(
         val username: String,
         val password: String,
         val url: String,
@@ -60,36 +80,35 @@ class TvLoginActivity : AppCompatActivity() {
     }
 
     private fun tryLogin(account: Account) {
-        val client = SubsonicClient(account)
-        try {
-            runBlocking(Dispatchers.IO) {
-                client.login(
-                    account.username!!,
-                    account.password,
-                    account.url,
-                    account.usePlaintext
-                )
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    SubsonicClient(account).login(
+                        account.username!!,
+                        account.password,
+                        account.url,
+                        account.usePlaintext
+                    )
+                }
+                startActivity(Intent(this@TvLoginActivity, TvActivity::class.java))
+                finish()
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@TvLoginActivity,
+                    e.message ?: "There was an unexpected error",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-            val intent = Intent(this, TvActivity::class.java)
-            finish()
-            startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                e.message ?: "There was an unexpected error",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 
     inner class WsLogin : IBroadcastObserver {
         override fun update(action: String?, value: String?) {
             if (action == "WSLOGIN") {
-                val account: Account
                 try {
-                    account = Gson().fromJson(value, Account::class.java)
+                    val account = Gson().fromJson(value, Account::class.java)
                     tryLogin(account)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     Toast.makeText(
                         this@TvLoginActivity,
                         "The account received is malformed.",
@@ -98,17 +117,9 @@ class TvLoginActivity : AppCompatActivity() {
                 }
             }
         }
-
     }
 
-    override fun onAttachedToWindow() {
-        supportActionBar?.hide()
-        super.onAttachedToWindow()
-        Globals.RegisterObserver(WsLogin())
-        val account = KeyValueStorage.getActiveAccount()
-        if (account.username != null) {
-            tryLogin(account)
-        }
+    private fun bindUi() {
         plaintext = findViewById(R.id.switch_plaintext)
         userInput = findViewById(R.id.username_input)
         passwordInput = findViewById(R.id.password_input)
@@ -153,9 +164,8 @@ class TvLoginActivity : AppCompatActivity() {
         val image: ImageView = findViewById(R.id.iv_qr_login)
         val text: TextView = findViewById(R.id.tv_qr_login)
         val layout: LinearLayout = findViewById(R.id.qr_login_container)
-        val ip = if (App.localIp == null) "127.0.0.1" else "${App.localIp}"
-        val bitmap = Helpers.encodeAsBitmap(ip)
-        image.setImageBitmap(bitmap)
+        val ip = App.localIp ?: "127.0.0.1"
+        image.setImageBitmap(Helpers.encodeAsBitmap(ip))
         text.text = ip
         val qrButton: Button = findViewById(R.id.btn_tv_qr)
         qrButton.setOnClickListener {

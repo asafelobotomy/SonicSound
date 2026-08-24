@@ -30,6 +30,10 @@ export default function AlbumCard({
     const { stateContext, setStateContext } = useContext(StateContext);
     const [androidTv, setAndroidTv] = useState<boolean>(false);
     useEffect(() => {
+        if (!item?.id) {
+            setCoverArt("");
+            return;
+        }
         const func = async () => {
             const ret = await VLC.getAlbumArt({ id: item.id });
             if (ret.status === "ok") {
@@ -41,7 +45,7 @@ export default function AlbumCard({
         return () => {
             clearTimeout(handler);
         };
-    }, [coverArt, item]);
+    }, [item.id]);
 
     const [style, setStyle] = useState<any>({});
     const onload = (ev: any) => {

@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { AppContext } from "../AppContext";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import logo from "../logo.svg";
+import logo from "../assets/logo.png";
 import { motion, useAnimation } from "framer-motion";
 import { Toast } from "@capacitor/toast";
 import AccountItem from "./AccountItem";
@@ -34,7 +34,6 @@ export default function PlayTest() {
 
     const hash = useCallback(
         async (data: FormData) => {
-            debugger;
             const ret = await VLC.login(data);
             if (ret.status === "ok") {
                 setContext(ret.value!);

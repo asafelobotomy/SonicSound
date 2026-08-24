@@ -17,6 +17,10 @@ export function PlaylistItem({
     const navigate = useNavigate();
     const [coverArt, setCoverArt] = useState<string>("");
     useEffect(() => {
+        if (!item.coverArt) {
+            setCoverArt("");
+            return;
+        }
         const func = async () => {
             const ret = await VLC.getAlbumArt({ id: item.coverArt });
             if (ret.status === "ok") {
@@ -24,7 +28,7 @@ export function PlaylistItem({
             }
         };
         func();
-    }, [coverArt, item.coverArt]);
+    }, [item.coverArt]);
     const nav = useCallback(
         (id: string) => {
             navigate(`/playlist`, { state: { id: item.id } });

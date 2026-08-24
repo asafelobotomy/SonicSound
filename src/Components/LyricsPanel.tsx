@@ -13,7 +13,7 @@ export default function LyricsPanel({ artist, title }: LyricsPanelProps) {
     const [loading, setLoading] = useState(false);
 
     const load = useCallback(async () => {
-        if (!artist || !title || !VLC.getLyrics) {
+        if (!artist || !title) {
             Toast.show({ text: "Lyrics not available" });
             return;
         }

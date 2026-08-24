@@ -10,10 +10,12 @@
 .App-logo {
   height: 20vh;
   pointer-events: none;
+  filter: invert(1);
 }
 
 .logo-header {
   height: 5vh;
+  filter: invert(1);
 }
 
 .App-header {

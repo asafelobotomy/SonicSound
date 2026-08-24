@@ -1,5 +1,13 @@
-## Copy to local.properties (gitignored). Do not commit secrets.
-# sdk.dir=/path/to/Android/Sdk
+## Copy this file to local.properties (gitignored). Do not commit secrets.
+#
+# Required for local Android builds:
+#   1. Install JDK 17+
+#   2. Install Android SDK (API 34) via Android Studio or sdkmanager
+#   3. Set sdk.dir below to your SDK path
+#
+# sdk.dir=/home/YOU/Android/Sdk
+#   macOS example: /Users/YOU/Library/Android/sdk
+#   Windows example: C\:\\Users\\YOU\\AppData\\Local\\Android\\Sdk
 #
 # Release signing (optional; debug builds work without these):
 # sonicsound.keystore=/absolute/path/to/release.jks
@@ -7,6 +15,11 @@
 # sonicsound.keyAlias=releasekey
 # sonicsound.keyPassword=
 #
-# Optional Spotify similarity features:
+# Optional Spotify similarity features (native BuildConfig only — never ship
+# client secrets in production web/Vite bundles):
 # spotify.clientId=
 # spotify.clientSecret=
+#
+# Equivalent env vars: SONICSOUND_KEYSTORE, SONICSOUND_KEYSTORE_PASSWORD,
+# SONICSOUND_KEY_ALIAS, SONICSOUND_KEY_PASSWORD, SPOTIFY_CLIENT_ID,
+# SPOTIFY_CLIENT_SECRET

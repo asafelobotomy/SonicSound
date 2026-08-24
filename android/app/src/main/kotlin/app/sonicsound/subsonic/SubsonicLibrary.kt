@@ -13,6 +13,7 @@ import app.sonicsound.models.ArtistInfo
 import app.sonicsound.models.ArtistInfoResponse
 import app.sonicsound.models.ArtistSubsonicResponse
 import app.sonicsound.models.ArtistsSubsonicResponse
+import app.sonicsound.models.LyricsResponse
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.PlaylistResponse
 import app.sonicsound.models.PlaylistsResponse
@@ -266,11 +267,13 @@ class SubsonicLibrary(
         if (!response.isSuccessful) throw Exception(response.message)
         val body = response.body?.string()
         val realResponse =
-            JSObject(body).getJSObject("data")?.getJSObject("artists")?.getJSONArray("items")
+            JSObject(body).getJSObject("artists")?.getJSONArray("items")
                 ?: return null
         val first = realResponse.getJSONObject(0) ?: return null
         if (first.getString("name") == name) {
-            return first.getJSONArray("images").getJSONObject(0)?.getString("url")
+            val images = first.getJSONArray("images")
+            if (images.length() == 0) return null
+            return images.getJSONObject(0)?.getString("url")
         }
         return null
     }
@@ -284,5 +287,16 @@ class SubsonicLibrary(
             coverCache.getLocalArtistArtUri(id)
         )
         return art
+    }
+
+    fun getLyrics(artist: String, title: String): String {
+        val p = params()
+        p["artist"] = artist
+        p["title"] = title
+        val response = http.makeSubsonicRequest<LyricsResponse>(
+            listOf("rest", "getLyrics"),
+            p
+        )
+        return response?.lyrics?.value ?: ""
     }
 }

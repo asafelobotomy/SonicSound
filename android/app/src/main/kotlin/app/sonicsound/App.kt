@@ -73,18 +73,23 @@ class App : Application() {
             Log.e("SonicSound", ex.message!!)
         } // for now eat exceptions
 
-        udpServer = UDPServer(
-            InetAddress.getByName(localIp),
-            InetAddress.getByName(localBroadcast),
-            isTv
-        )
         if (isTv) {
             server = MessageServer(30001)
             server!!.start()
-            CoroutineScope(Dispatchers.IO).launch {
-
-                udpServer!!.receiveUDP()
+        }
+        if (localIp != null && localBroadcast != null) {
+            udpServer = UDPServer(
+                InetAddress.getByName(localIp),
+                InetAddress.getByName(localBroadcast),
+                isTv
+            )
+            if (isTv) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    udpServer!!.receiveUDP()
+                }
             }
+        } else {
+            Log.w("SonicSound", "No LAN IP found; UDP discovery disabled")
         }
     }
 

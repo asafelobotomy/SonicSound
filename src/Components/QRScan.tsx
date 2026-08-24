@@ -92,7 +92,7 @@ export default function QRScan() {
                         <div
                             key={s}
                             className="list-group-item text-center text-white"
-                            onClick={() => connect(`${s}j`)}
+                            onClick={() => connect(s)}
                         >
                             <FontAwesomeIcon icon={faTv} /> {s}
                         </div>

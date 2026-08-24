@@ -19,6 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint:loc
+      - run: npm run lint
       - run: npm test
       - run: npm run build
 
@@ -86,4 +87,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: android/out/*.apk
-          body_path: changelog.md
+          body_path: docs/CHANGELOG.md

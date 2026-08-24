@@ -18,7 +18,7 @@ def hasReleaseSigning = keystorePath != null && keystorePassword != null && keyP
 
 android {
     namespace "app.sonicsound"
-    compileSdkVersion rootProject.ext.compileSdkVersion
+    compileSdk rootProject.ext.compileSdkVersion
 
     compileOptions{
         coreLibraryDesugaringEnabled true
@@ -66,11 +66,11 @@ android {
             }
         }
     }
-    packagingOptions {
+    packaging {
         resources.excludes += "DebugProbesKt.bin"
     }
 
-    lintOptions {
+    lint {
         warningsAsErrors true
         disable 'VectorPath', 'Overdraw', 'TypographyEllipsis', 'InvalidSetHasFixedSize', 'UnusedResources', 'IconXmlAndPng', 'IconLauncherShape', 'IconDipSize', 'IconDuplicatesConfig', 'IconLocation', 'IconDensities', 'IconDuplicates'
     }

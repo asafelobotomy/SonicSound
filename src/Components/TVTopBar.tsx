@@ -24,19 +24,19 @@ export function TVTopBar() {
             );
         };
         fetch();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [navigate]);
 
     return (
         <div className="d-flex w-100 justify-content-between align-items-center my-2">
             <div style={{ margin: "auto" }}></div>
             <img
-                alt=""
-                src="favicon.svg"
+                alt="SonicSound"
+                src="/logo192.png"
                 style={{
                     height: "4vh",
+                    filter: "invert(1)",
                 }}
-            ></img>
+            />
             <span className="section-header px-3 text-white">SonicSound</span>
             <div style={{ margin: "auto" }}></div>
             {websocketConnected && (

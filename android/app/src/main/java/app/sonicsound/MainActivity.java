@@ -35,11 +35,6 @@ public class MainActivity extends BridgeActivity {
         if (uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) {
             Intent intent = new Intent(this, TvLoginActivity.class);
             startActivity(intent);
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
             finish();
         }
 

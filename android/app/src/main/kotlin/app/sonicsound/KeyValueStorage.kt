@@ -1,175 +1,137 @@
 package app.sonicsound
 
 import android.content.Context
+import android.content.SharedPreferences
+import app.sonicsound.models.Account
+import app.sonicsound.models.Album
+import app.sonicsound.models.Playlist
+import app.sonicsound.models.Settings
+import app.sonicsound.models.Song
 import com.google.gson.Gson
-import app.sonicsound.models.*
 
 class KeyValueStorage {
     companion object {
+        private const val PREFS_NAME = "sonicSound"
+        private const val PREFS_LEGACY = "sonicLair"
+        private const val MIGRATED_KEY = "_migratedFromSonicLair"
+
+        private fun prefs(): SharedPreferences {
+            val ctx = App.context
+            val current = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (!current.getBoolean(MIGRATED_KEY, false)) {
+                val legacy = ctx.getSharedPreferences(PREFS_LEGACY, Context.MODE_PRIVATE)
+                if (legacy.all.isNotEmpty()) {
+                    val editor = current.edit()
+                    for ((key, value) in legacy.all) {
+                        when (value) {
+                            is String -> editor.putString(key, value)
+                            is Boolean -> editor.putBoolean(key, value)
+                            is Int -> editor.putInt(key, value)
+                            is Long -> editor.putLong(key, value)
+                            is Float -> editor.putFloat(key, value)
+                            is Set<*> -> {
+                                @Suppress("UNCHECKED_CAST")
+                                editor.putStringSet(key, value as Set<String>)
+                            }
+                        }
+                    }
+                    editor.putBoolean(MIGRATED_KEY, true)
+                    editor.apply()
+                } else {
+                    current.edit().putBoolean(MIGRATED_KEY, true).apply()
+                }
+            }
+            return current
+        }
+
         fun getSettings(): Settings {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            val currentSettings = sharedPref.getString("settings", "")
+            val raw = prefs().getString("settings", "")
             return try {
-                val settings: Settings = Gson().fromJson(currentSettings, Settings::class.java)
-                settings
-            } catch (exception: Exception) {
+                Gson().fromJson(raw, Settings::class.java)
+            } catch (_: Exception) {
                 Settings(0, "")
             }
         }
 
         fun setSettings(settings: Settings) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                putString("settings", Gson().toJson(settings))
-                apply()
-            }
+            prefs().edit().putString("settings", Gson().toJson(settings)).apply()
         }
 
         fun getActiveAccount(): Account {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            val activeAccount = sharedPref.getString("activeAccount", "")
+            val raw = prefs().getString("activeAccount", "")
             return try {
-                val account: Account = Gson().fromJson(activeAccount, Account::class.java)
-                account
-            } catch (exception: Exception) {
+                Gson().fromJson(raw, Account::class.java)
+            } catch (_: Exception) {
                 Account(null, "", "", "", false)
             }
         }
 
         fun setActiveAccount(account: Account) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                putString("activeAccount", Gson().toJson(account))
-                apply()
-            }
+            prefs().edit().putString("activeAccount", Gson().toJson(account)).apply()
         }
 
         fun getAccounts(): List<Account> {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            val activeAccount = sharedPref.getString("accounts", "")
+            val raw = prefs().getString("accounts", "")
             return try {
-                val accounts: List<Account> =
-                    Gson().fromJson(activeAccount, Array<Account>::class.java).toList()
-                accounts
-            } catch (exception: Exception) {
+                Gson().fromJson(raw, Array<Account>::class.java).toList()
+            } catch (_: Exception) {
                 emptyList()
             }
         }
 
         fun setAccounts(accounts: List<Account>) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                val value = Gson().toJson(accounts)
-                putString("accounts", value)
-                apply()
-            }
+            prefs().edit().putString("accounts", Gson().toJson(accounts)).apply()
         }
 
         fun getCachedSongs(): List<Song> {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            val activeAccount = sharedPref.getString("cachedSongs", "")
+            val raw = prefs().getString("cachedSongs", "")
             return try {
-                val mediaItems: List<Song> =
-                    Gson().fromJson(activeAccount, Array<Song>::class.java)
-                        .toList()
-                mediaItems
-            } catch (exception: Exception) {
+                Gson().fromJson(raw, Array<Song>::class.java).toList()
+            } catch (_: Exception) {
                 emptyList()
             }
         }
 
-        fun setCachedSongs(accounts: List<Song>) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                val value = Gson().toJson(accounts)
-                putString("cachedSongs", value)
-                apply()
-            }
+        fun setCachedSongs(songs: List<Song>) {
+            prefs().edit().putString("cachedSongs", Gson().toJson(songs)).apply()
         }
 
         fun getCachedPlaylists(): List<Playlist> {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            val activeAccount = sharedPref.getString("cachedPlaylists", "")
+            val raw = prefs().getString("cachedPlaylists", "")
             return try {
-                val mediaItems: List<Playlist> =
-                    Gson().fromJson(activeAccount, Array<Playlist>::class.java)
-                        .toList()
-                mediaItems
-            } catch (exception: Exception) {
+                Gson().fromJson(raw, Array<Playlist>::class.java).toList()
+            } catch (_: Exception) {
                 emptyList()
             }
         }
 
-        fun setCachedPlaylists(accounts: List<Playlist>) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                val value = Gson().toJson(accounts)
-                putString("cachedPlaylists", value)
-                apply()
-            }
+        fun setCachedPlaylists(playlists: List<Playlist>) {
+            prefs().edit().putString("cachedPlaylists", Gson().toJson(playlists)).apply()
         }
+
         fun getCachedAlbums(): List<Album> {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            val activeAccount = sharedPref.getString("cachedAlbums", "")
+            val raw = prefs().getString("cachedAlbums", "")
             return try {
-                val mediaItems: List<Album> =
-                    Gson().fromJson(activeAccount, Array<Album>::class.java)
-                        .toList()
-                mediaItems
-            } catch (exception: Exception) {
+                Gson().fromJson(raw, Array<Album>::class.java).toList()
+            } catch (_: Exception) {
                 emptyList()
             }
         }
 
-        fun setCachedAlbums(accounts: List<Album>) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                val value = Gson().toJson(accounts)
-                putString("cachedAlbums", value)
-                apply()
-            }
+        fun setCachedAlbums(albums: List<Album>) {
+            prefs().edit().putString("cachedAlbums", Gson().toJson(albums)).apply()
         }
 
-        fun getOfflineMode(): Boolean {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            return sharedPref.getBoolean("offlineMode", false)
-        }
+        fun getOfflineMode(): Boolean = prefs().getBoolean("offlineMode", false)
 
         fun setOfflineMode(value: Boolean) {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                putBoolean("offlineMode", value)
-                apply()
-            }
+            prefs().edit().putBoolean("offlineMode", value).apply()
         }
 
-        fun getTranscoding(): String {
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            return sharedPref.getString("transcoding", "")!!
-        }
+        fun getTranscoding(): String = prefs().getString("transcoding", "") ?: ""
 
-        fun setTranscoding(value: String){
-            val sharedPref =
-                App.context.getSharedPreferences("sonicLair", Context.MODE_PRIVATE)
-            with(sharedPref.edit()) {
-                putString("transcoding", value)
-                apply()
-            }
+        fun setTranscoding(value: String) {
+            prefs().edit().putString("transcoding", value).apply()
         }
     }
 }

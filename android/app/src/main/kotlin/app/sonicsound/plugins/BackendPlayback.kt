@@ -202,6 +202,8 @@ class BackendPlayback(
         try {
             val track = call.getInt("track") ?: throw ParameterException("track")
             if (webSocketConnected) {
+                sendWs("skipTo", track.toString())
+                call.resolve(responses.ok(""))
                 return
             }
             if (mBound) binder!!.skipTo(track)

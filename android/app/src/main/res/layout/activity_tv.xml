@@ -36,6 +36,7 @@
                 android:layout_height="match_parent"
                 android:layout_gravity="end"
                 android:src="@drawable/ic_logo"
+                android:tint="#FFFFFF"
                 tools:ignore="ContentDescription" />
         </LinearLayout>
 

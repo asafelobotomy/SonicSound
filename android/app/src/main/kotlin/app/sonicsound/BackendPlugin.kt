@@ -90,9 +90,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     }
 
     override fun handleOnPause() {
-        super.handleOnDestroy()
-        Globals.UnregisterObserver(this)
-        registered = false
+        super.handleOnPause()
     }
 
     override fun handleOnResume() {
@@ -184,6 +182,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun playPlaylist(call: PluginCall) = playback.playPlaylist(call)
     @PluginMethod fun clearCoverCache(call: PluginCall) = library.clearCoverCache(call)
     @PluginMethod fun getCoverCacheSize(call: PluginCall) = library.getCoverCacheSize(call)
+    @PluginMethod fun getLyrics(call: PluginCall) = library.getLyrics(call)
 
     override fun update(action: String, value: String?) {
         try {

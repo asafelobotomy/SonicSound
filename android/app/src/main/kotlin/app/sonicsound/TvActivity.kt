@@ -165,6 +165,12 @@ class TvActivity : AppCompatActivity() {
             }
         }
 
+        fun seek(position: Float) {
+            if (mBound) {
+                binder!!.seek(position)
+            }
+        }
+
         fun next() {
             if (mBound) {
                 binder!!.next()

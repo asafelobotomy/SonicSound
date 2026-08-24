@@ -179,7 +179,9 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
     }
 
     private fun setPlaylistAndPlay(playlist: Playlist, track: Int, seek: Float, playing: Boolean) {
-        if (engine.isPlaying) return
+        if (engine.isPlaying) {
+            engine.pause()
+        }
         queue.playlist = playlist
         queue.currentTrack = playlist.entry[track]
         engine.loadMedia(queue.currentTrack!!)

@@ -5,11 +5,24 @@
     {
       "src": "favicon.svg",
       "sizes": "any",
-      "purpose": "maskable any"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#626c80",
-  "background_color": "#282c34"
+  "theme_color": "#0a0a0a",
+  "background_color": "#0a0a0a"
 }

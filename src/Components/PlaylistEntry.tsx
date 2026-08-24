@@ -48,6 +48,10 @@ export function PlaylistEntry({
 
     const [coverArt, setCoverArt] = useState<string>("");
     useEffect(() => {
+        if (!item.albumId) {
+            setCoverArt("");
+            return;
+        }
         const func = async () => {
             const ret = await VLC.getAlbumArt({ id: item.albumId });
             if (ret.status === "ok") {
@@ -55,7 +59,7 @@ export function PlaylistEntry({
             }
         };
         func();
-    }, [coverArt, item.albumId]);
+    }, [item.albumId]);
     useEffect(() => {
         const f = async () => {
             if (vlcListener.current) {

@@ -124,6 +124,25 @@ class NowPlayingFragment(val bind: TvActivity.TvActivityBind, val client: Subson
         secondLine = view.findViewById(R.id.tv_now_playing_second_line)
         image = view.findViewById(R.id.img_now_playing_album_art)
         sbProgress = view.findViewById(R.id.sb_now_playing_progress)
+        sbProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    currentTimeText.text = secondsToHHSS(
+                        floor(
+                            (progress / 100.0) *
+                                (bind.getCurrentState()?.currentTrack?.duration ?: 0)
+                        ).toInt()
+                    )
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                val progress = seekBar?.progress ?: return
+                bind.seek(progress / 100f)
+            }
+        })
         currentTimeText = view.findViewById(R.id.tv_current_time)
         durationText = view.findViewById(R.id.tv_track_duration)
         val image: ImageView = view.findViewById(R.id.img_now_playing_album_art)

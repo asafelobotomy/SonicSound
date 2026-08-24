@@ -111,7 +111,7 @@ export interface IBackendPlugin extends Plugin {
     getWebsocketStatus(): Promise<IBackendResponse<boolean>>;
     sendUdpBroadcast(): Promise<IBackendResponse<String>>;
     shufflePlaylist(): Promise<IBackendResponse<string>>;
-    getLyrics?(options: {
+    getLyrics(options: {
         artist: string;
         title: string;
     }): Promise<IBackendResponse<string>>;

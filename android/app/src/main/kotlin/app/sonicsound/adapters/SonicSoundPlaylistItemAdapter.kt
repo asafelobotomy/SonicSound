@@ -24,6 +24,7 @@ class SonicSoundPlaylistItemAdapter(
     private val onItemClick: ((Int) -> Unit)? = null,
 ) : RecyclerView.Adapter<SonicSoundPlaylistItemAdapter.ViewHolder>() {
     private var selectedIndex: Int = -1
+    private var pendingFocusIndex: Int = -1
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val image: ImageView = view.findViewById(R.id.iv_playlist_item_image)
@@ -41,6 +42,8 @@ class SonicSoundPlaylistItemAdapter(
     override fun onBindViewHolder(viewHolder: ViewHolder, position: Int) {
         viewHolder.firstLine.text = dataSet[position].firstLine()
         viewHolder.secondLine.text = dataSet[position].secondLine()
+        viewHolder.firstLine.isSelected = true
+        viewHolder.secondLine.isSelected = true
         viewHolder.image.loadUrl(dataSet[position].image)
         viewHolder.image.clipToOutline = true
         applySelected(viewHolder, position == selectedIndex)
@@ -49,12 +52,20 @@ class SonicSoundPlaylistItemAdapter(
             if (idx != RecyclerView.NO_POSITION) onItemClick?.invoke(idx)
         }
         viewHolder.container.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus && position != selectedIndex) {
-                viewHolder.container.background =
-                    ContextCompat.getDrawable(context, R.drawable.round_outline_selector)
+            if (hasFocus) {
+                viewHolder.firstLine.isSelected = true
+                viewHolder.secondLine.isSelected = true
+                if (position != selectedIndex) {
+                    viewHolder.container.background =
+                        ContextCompat.getDrawable(context, R.drawable.round_outline_selector)
+                }
             } else {
                 applySelected(viewHolder, position == selectedIndex)
             }
+        }
+        if (position == pendingFocusIndex) {
+            pendingFocusIndex = -1
+            viewHolder.container.post { viewHolder.container.requestFocus() }
         }
     }
 
@@ -65,16 +76,41 @@ class SonicSoundPlaylistItemAdapter(
         )
     }
 
-    fun updateSelected(index: Int) {
-        if (index >= 0 && index < dataSet.size) {
-            val lastSelected = selectedIndex
-            selectedIndex = index
-            notifyItemChanged(index)
-            if (lastSelected >= 0) notifyItemChanged(lastSelected)
-            layoutManager.scrollToPositionWithOffset(
-                selectedIndex,
-                recyclerView.height / 2 - (itemHeight / 2)
-            )
+    fun updateSelected(index: Int, keepFocus: Boolean = false) {
+        if (index < 0 || index >= dataSet.size) return
+        val lastSelected = selectedIndex
+        selectedIndex = index
+        if (keepFocus) pendingFocusIndex = index
+        notifyItemChanged(index)
+        if (lastSelected >= 0 && lastSelected != index) notifyItemChanged(lastSelected)
+        layoutManager.scrollToPositionWithOffset(
+            selectedIndex,
+            recyclerView.height / 2 - (itemHeight / 2)
+        )
+        if (keepFocus) {
+            recyclerView.post {
+                val holder = recyclerView.findViewHolderForAdapterPosition(index)
+                holder?.itemView?.requestFocus()
+            }
+        }
+    }
+
+    fun focusItem(index: Int) {
+        if (index < 0 || index >= dataSet.size) return
+        pendingFocusIndex = index
+        notifyItemChanged(index)
+        recyclerView.post {
+            val holder = recyclerView.findViewHolderForAdapterPosition(index) ?: return@post
+            val card = holder.itemView.findViewById<View>(R.id.cv_playlist_item_container)
+            (card ?: holder.itemView).requestFocus()
+        }
+    }
+
+    fun sameEntries(newSet: List<ICardViewModel>): Boolean {
+        if (newSet.size != dataSet.size) return false
+        return newSet.indices.all { i ->
+            newSet[i].firstLine() == dataSet[i].firstLine() &&
+                newSet[i].secondLine() == dataSet[i].secondLine()
         }
     }
 

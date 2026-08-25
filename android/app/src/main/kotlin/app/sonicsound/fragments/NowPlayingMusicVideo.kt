@@ -1,5 +1,6 @@
 package app.sonicsound.fragments
 
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
@@ -29,7 +30,7 @@ class NowPlayingMusicVideo(
     private val bind: TvActivity.TvActivityBind,
     private val art: ImageView,
     private val container: FrameLayout,
-    private val button: Button,
+    private val button: View,
 ) {
     private var controller: YoutubeIframeController? = null
     private var modeEnabled = false
@@ -133,7 +134,9 @@ class NowPlayingMusicVideo(
         val track = state?.currentTrack
         if (track == null || track.id.isBlank()) return
         modeEnabled = true
-        button.setText(R.string.stop_music_video)
+        button.contentDescription =
+            fragment.getString(R.string.stop_music_video)
+        if (button is Button) button.setText(R.string.stop_music_video)
         ensureController()
         activeTrackId = null
         loadFor(track, state.playing || true)
@@ -145,7 +148,9 @@ class NowPlayingMusicVideo(
         activeTrackId = null
         lastSeekSec = -1f
         advancing = false
-        button.setText(R.string.play_music_video)
+        button.contentDescription =
+            fragment.getString(R.string.play_music_video)
+        if (button is Button) button.setText(R.string.play_music_video)
         container.isVisible = false
         art.isVisible = true
         controller?.pause()

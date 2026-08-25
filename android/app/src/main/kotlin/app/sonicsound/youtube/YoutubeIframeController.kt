@@ -45,6 +45,11 @@ class YoutubeIframeController(context: Context) {
         webView.setBackgroundColor(Color.BLACK)
         webView.webChromeClient = WebChromeClient()
         webView.webViewClient = WebViewClient()
+        webView.isFocusable = false
+        webView.isFocusableInTouchMode = false
+        webView.isClickable = false
+        // Block native YouTube chrome / touch gestures; SonicSound owns playback UI.
+        webView.setOnTouchListener { _, _ -> true }
         webView.addJavascriptInterface(Bridge(), "SonicSoundBridge")
         webView.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,

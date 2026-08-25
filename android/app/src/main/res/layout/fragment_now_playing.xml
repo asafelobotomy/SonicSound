@@ -19,12 +19,13 @@
         android:background="#CC282c34" />
 
     <LinearLayout
+        android:id="@+id/ll_now_playing_chrome"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:paddingStart="8dp"
-        android:paddingEnd="8dp"
         android:paddingTop="4dp"
+        android:paddingEnd="8dp"
         android:paddingBottom="4dp">
 
         <LinearLayout
@@ -35,34 +36,36 @@
             android:baselineAligned="false"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="8dp"
-            android:paddingTop="4dp">
+            android:paddingHorizontal="4dp">
 
-            <LinearLayout
+            <FrameLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1.15"
-                android:gravity="center"
-                android:orientation="vertical"
+                android:layout_weight="1"
                 android:paddingEnd="8dp"
                 tools:ignore="NestedWeights">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="6dp">
+                    android:layout_height="match_parent">
 
                     <FrameLayout
                         android:id="@+id/fl_now_playing_media"
                         android:layout_width="0dp"
                         android:layout_height="0dp"
-                        android:background="@drawable/round_outline"
+                        android:background="@android:color/transparent"
+                        android:clickable="true"
+                        android:contentDescription="@string/fullscreen_media"
+                        android:focusable="true"
+                        android:foreground="@drawable/focus_frame_selector"
+                        android:padding="4dp"
+                        android:tag="primary_focus"
                         app:layout_constraintBottom_toBottomOf="parent"
-                        app:layout_constraintDimensionRatio="16:9"
+                        app:layout_constraintDimensionRatio="H,1:1"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintWidth_max="720dp">
+                        app:layout_constraintWidth_max="860dp">
 
                         <ImageView
                             android:id="@+id/img_now_playing_album_art"
@@ -70,7 +73,7 @@
                             android:layout_height="match_parent"
                             android:contentDescription="@string/album_art_image_on_playing"
                             android:focusable="false"
-                            android:scaleType="centerCrop" />
+                            android:scaleType="fitCenter" />
 
                         <FrameLayout
                             android:id="@+id/fl_music_video"
@@ -79,77 +82,33 @@
                             android:visibility="gone" />
                     </FrameLayout>
                 </androidx.constraintlayout.widget.ConstraintLayout>
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/btn_music_video"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/round_outline_selector"
-                        android:drawableStart="@drawable/ic_nav_videos"
-                        android:drawablePadding="6dp"
-                        android:fontFamily="@font/montserrat"
-                        android:paddingHorizontal="10dp"
-                        android:paddingVertical="4dp"
-                        android:text="@string/play_music_video"
-                        android:textAllCaps="false"
-                        android:textColor="#fff"
-                        android:textSize="12sp" />
-
-                    <ImageButton
-                        android:id="@+id/btn_like"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/round_outline_selector"
-                        android:contentDescription="@string/like_song"
-                        android:padding="6dp"
-                        android:src="@drawable/ic_nav_unlike" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tv_now_playing_first_line"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/montserrat"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textColor="#fff"
-                    android:textSize="18sp" />
-
-                <TextView
-                    android:id="@+id/tv_now_playing_second_line"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/montserrat"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textColor="#ccffffff"
-                    android:textSize="13sp" />
-            </LinearLayout>
+            </FrameLayout>
 
             <LinearLayout
                 android:id="@+id/ll_container_list"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
+                android:layout_weight="0.95"
+                android:minWidth="280dp"
                 android:orientation="vertical"
                 android:paddingStart="4dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/montserrat"
+                    android:paddingBottom="4dp"
+                    android:text="@string/queue_header"
+                    android:textColor="#99ffffff"
+                    android:textSize="13sp" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rv_now_playing_playlist"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:clipToPadding="false"
-                    android:paddingVertical="4dp" />
+                    android:paddingVertical="2dp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -158,13 +117,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:paddingVertical="2dp">
+            android:paddingVertical="4dp">
 
             <ImageButton
                 android:id="@+id/btn_shuffle"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:layout_marginHorizontal="6dp"
+                android:layout_marginHorizontal="5dp"
                 android:background="@drawable/round_outline_selector"
                 android:contentDescription="@string/button_content_description"
                 android:padding="4dp"
@@ -172,21 +131,10 @@
                 android:src="@drawable/ic_shuffle_fill" />
 
             <ImageButton
-                android:id="@+id/btn_rewind"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="6dp"
-                android:background="@drawable/round_outline_selector"
-                android:contentDescription="@string/button_content_description"
-                android:padding="4dp"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_rewind" />
-
-            <ImageButton
                 android:id="@+id/btn_prev"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:layout_marginHorizontal="6dp"
+                android:layout_marginHorizontal="5dp"
                 android:background="@drawable/round_outline_selector"
                 android:contentDescription="@string/button_content_description"
                 android:padding="4dp"
@@ -197,7 +145,7 @@
                 android:id="@+id/btn_play_pause"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:layout_marginHorizontal="6dp"
+                android:layout_marginHorizontal="5dp"
                 android:background="@drawable/round_outline_selector"
                 android:contentDescription="@string/button_content_description"
                 android:padding="4dp"
@@ -208,7 +156,7 @@
                 android:id="@+id/btn_next"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:layout_marginHorizontal="6dp"
+                android:layout_marginHorizontal="5dp"
                 android:background="@drawable/round_outline_selector"
                 android:contentDescription="@string/button_content_description"
                 android:padding="4dp"
@@ -216,22 +164,34 @@
                 android:src="@drawable/ic_skip_forward" />
 
             <ImageButton
-                android:id="@+id/btn_speed"
+                android:id="@+id/btn_music_video"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:layout_marginHorizontal="6dp"
+                android:layout_marginHorizontal="5dp"
                 android:background="@drawable/round_outline_selector"
-                android:contentDescription="@string/button_content_description"
+                android:contentDescription="@string/play_music_video"
                 android:padding="4dp"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_speed" />
+                android:src="@drawable/ic_nav_videos" />
+
+            <ImageButton
+                android:id="@+id/btn_like"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginHorizontal="5dp"
+                android:background="@drawable/round_outline_selector"
+                android:contentDescription="@string/like_song"
+                android:padding="4dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_nav_unlike" />
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/ll_scrubber_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingBottom="4dp">
+            android:paddingTop="4dp">
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -262,11 +222,283 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="40dp"
+                android:focusable="true"
                 android:max="100"
                 android:maxHeight="4dp"
                 android:minHeight="4dp"
                 android:progressTint="@color/sonicsound_item_highlight"
                 android:thumbTint="@color/sonicsound_item_highlight" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_track_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="2dp">
+
+            <TextView
+                android:id="@+id/tv_now_playing_first_line"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="@font/montserrat"
+                android:gravity="center"
+                android:maxLines="1"
+                android:textColor="#fff"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_now_playing_second_line"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="@font/montserrat"
+                android:gravity="center"
+                android:maxLines="1"
+                android:textColor="#ccffffff"
+                android:textSize="14sp" />
+        </LinearLayout>
     </LinearLayout>
+
+    <!-- Fullscreen art / music video overlay -->
+    <FrameLayout
+        android:id="@+id/fl_fullscreen_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6282c34"
+        android:clickable="true"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/img_fs_backdrop"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.35"
+            android:contentDescription="@string/album_art_image_on_playing"
+            android:scaleType="centerCrop" />
+
+        <FrameLayout
+            android:id="@+id/fl_fs_media"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:id="@+id/img_fs_art"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/album_art_image_on_playing"
+                android:maxHeight="560dp"
+                android:maxWidth="900dp"
+                android:scaleType="fitCenter" />
+
+            <View
+                android:id="@+id/v_fs_focus_anchor"
+                android:layout_width="1dp"
+                android:layout_height="1dp"
+                android:layout_gravity="center"
+                android:background="@android:color/transparent"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_fs_bottom"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingHorizontal="40dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/tv_fs_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="@font/montserrat"
+                android:gravity="center"
+                android:maxLines="2"
+                android:paddingHorizontal="16dp"
+                android:textColor="#fff"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_fs_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/montserrat"
+                android:gravity="center"
+                android:maxLines="1"
+                android:paddingHorizontal="16dp"
+                android:textColor="#ccffffff"
+                android:textSize="15sp" />
+
+            <LinearLayout
+                android:id="@+id/ll_fs_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/ll_fs_buttons"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/btn_fs_shuffle"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/button_content_description"
+                        android:focusable="true"
+                        android:src="@drawable/ic_shuffle_fill" />
+
+                    <ImageButton
+                        android:id="@+id/btn_fs_prev"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/button_content_description"
+                        android:focusable="true"
+                        android:src="@drawable/ic_skip_back" />
+
+                    <ImageButton
+                        android:id="@+id/btn_fs_play"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/button_content_description"
+                        android:focusable="true"
+                        android:src="@drawable/ic_play" />
+
+                    <ImageButton
+                        android:id="@+id/btn_fs_next"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/button_content_description"
+                        android:focusable="true"
+                        android:src="@drawable/ic_skip_forward" />
+
+                    <ImageButton
+                        android:id="@+id/btn_fs_music_video"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/play_music_video"
+                        android:focusable="true"
+                        android:src="@drawable/ic_nav_videos" />
+
+                    <ImageButton
+                        android:id="@+id/btn_fs_like"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/like_song"
+                        android:focusable="true"
+                        android:src="@drawable/ic_nav_unlike" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/ll_fs_scrubber"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical">
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="24dp">
+
+                        <TextView
+                            android:id="@+id/tv_fs_current_time"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/montserrat"
+                            android:textColor="#fff"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tv_fs_duration"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentEnd="true"
+                            android:fontFamily="@font/montserrat"
+                            android:textColor="#fff"
+                            android:textSize="12sp"
+                            tools:ignore="RelativeOverlap" />
+                    </RelativeLayout>
+
+                    <SeekBar
+                        android:id="@+id/sb_fs_progress"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="16dp"
+                        android:focusable="true"
+                        android:max="100"
+                        android:progressTint="@color/sonicsound_item_highlight"
+                        android:thumbTint="@color/sonicsound_item_highlight" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_fs_next"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/round_outline"
+            android:focusable="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="@string/next_up"
+                android:focusable="false"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_skip_forward"
+                android:tint="#ccffffff" />
+
+            <TextView
+                android:id="@+id/tv_fs_next_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/montserrat"
+                android:maxWidth="140dp"
+                android:maxLines="1"
+                android:textColor="#ccffffff"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </FrameLayout>
 </FrameLayout>

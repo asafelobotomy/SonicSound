@@ -14,6 +14,7 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import app.sonicsound.fragments.AlbumDetailFragment
 import app.sonicsound.fragments.AlbumsFragment
 import app.sonicsound.fragments.ArtistsFragment
 import app.sonicsound.fragments.HomeFragment
@@ -23,6 +24,7 @@ import app.sonicsound.fragments.PlaylistsFragment
 import app.sonicsound.fragments.RadioFragment
 import app.sonicsound.fragments.SearchFragment
 import app.sonicsound.fragments.VideosFragment
+import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.models.Playlist
 import app.sonicsound.services.MusicService
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +61,10 @@ class TvActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        val current = supportFragmentManager.findFragmentById(R.id.fg_container)
+        if (current is NowPlayingFragment && current.handleBackPress()) {
+            return
+        }
         if (supportFragmentManager.backStackEntryCount == 0) {
             @Suppress("DEPRECATION")
             super.onBackPressed()
@@ -173,8 +179,32 @@ class TvActivity : AppCompatActivity() {
             show(ArtistsFragment(client, activityBind, id, name))
         }
 
-        private fun showPlaying() {
+        fun showAlbum(id: String, name: String) {
+            show(AlbumDetailFragment(client, activityBind, id, name))
+        }
+
+        fun showPlaying() {
+            val current = supportFragmentManager.findFragmentById(R.id.fg_container)
+            if (current === playingFragment) {
+                focusContent()
+                return
+            }
             show(playingFragment)
+        }
+
+        /** Hide sidebar + content padding for true fullscreen Now Playing media. */
+        fun setImmersive(on: Boolean) {
+            findViewById<View>(R.id.menu_container).visibility =
+                if (on) View.GONE else View.VISIBLE
+            val content = findViewById<View>(R.id.fg_container)
+            if (on) {
+                content.setPadding(0, 0, 0, 0)
+            } else {
+                val top = resources.getDimensionPixelSize(R.dimen.tv_content_padding)
+                val end = resources.getDimensionPixelSize(R.dimen.tv_content_padding)
+                val bottom = resources.getDimensionPixelSize(R.dimen.tv_section_gap)
+                content.setPadding(0, top, end, bottom)
+            }
         }
     }
 
@@ -183,6 +213,13 @@ class TvActivity : AppCompatActivity() {
             .replace(R.id.fg_container, fragment)
             .addToBackStack(null)
             .commit()
+        supportFragmentManager.executePendingTransactions()
+        focusContent()
+    }
+
+    private fun focusContent() {
+        currentFocus?.clearFocus()
+        findViewById<View>(R.id.fg_container).requestPrimaryFocus()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

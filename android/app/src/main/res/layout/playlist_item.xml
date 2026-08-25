@@ -5,8 +5,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginVertical="2dp"
-    android:focusable="true"
     android:clickable="true"
+    android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground"
     app:cardBackgroundColor="#00000000"
     app:cardCornerRadius="6dp"
@@ -40,9 +40,11 @@
                 android:id="@+id/tv_playlist_item_first_line"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
+                android:ellipsize="marquee"
+                android:focusable="false"
                 android:fontFamily="@font/montserrat"
-                android:maxLines="1"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:singleLine="true"
                 android:textColor="#fff"
                 android:textSize="14sp" />
 
@@ -50,9 +52,11 @@
                 android:id="@+id/tv_playlist_item_second_line"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
+                android:ellipsize="marquee"
+                android:focusable="false"
                 android:fontFamily="@font/montserrat"
-                android:maxLines="1"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:singleLine="true"
                 android:textColor="#99ffffff"
                 android:textSize="11sp" />
         </LinearLayout>

@@ -57,7 +57,7 @@ class SonicSoundCardAdapter(
         val item = dataSet[pos]
         onItem?.invoke(item)
         when (item) {
-            is Album -> bind.playAlbum(item.id, 0)
+            is Album -> bind.showAlbum(item.id, item.name)
             is Song -> bind.playRadio(item.id)
             is Playlist -> bind.playPlaylist(item.id, 0)
             is InternetRadioStation -> bind.playInternetRadio(item.streamUrl, item.name)

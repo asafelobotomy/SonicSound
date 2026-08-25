@@ -214,6 +214,12 @@ export const backendApi = {
     async getArtistArt(this: Backend, o: { id: string }) {
         const artist = await this.getArtist({ id: o.id });
         if (artist.status !== "ok" || !artist.value) return okResponse("");
+        const cover = artist.value.coverArt;
+        if (cover?.startsWith("http")) return okResponse(cover);
+        if (cover) {
+            return okResponse(lib.coverArtUrl(this.url(), this.params(), cover));
+        }
+        const fromId = lib.coverArtUrl(this.url(), this.params(), o.id);
         const info = await this.getArtistInfo({ id: o.id });
         if (info.status === "ok" && info.value?.largeImageUrl) {
             return okResponse(info.value.largeImageUrl);
@@ -225,12 +231,12 @@ export const backendApi = {
             );
             if (items.length > 0 && items[0].name === artist.value.name) {
                 const img = items[0].images[1] ?? items[0].images[0];
-                return okResponse(img?.url ?? "");
+                if (img?.url) return okResponse(img.url);
             }
         } catch {
             /* optional */
         }
-        return okResponse("");
+        return okResponse(fromId);
     },
     async star(this: Backend, o: { id: string }) {
         return stars.starSong(this.url(), this.params(), o.id);

@@ -4,13 +4,12 @@ SonicSound supports optional music-video search via the **official YouTube Data 
 
 ## Setup
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), enable **YouTube Data API v3**.
-2. Create an OAuth client of type **TVs and Limited Input devices**.
-3. Open SonicSound **Settings** → enable music video search → paste the **OAuth client ID** (secret optional) → **Sign in with Google**.
-4. On a phone/computer, open [google.com/device](https://www.google.com/device) and enter the code shown on the TV.
-5. Optionally enable **Allow any YouTube channel** (default off = VEVO / Official / artist channels only).
+1. In [Google Cloud Console](https://console.cloud.google.com/), enable **YouTube Data API v3** and create an OAuth client for your Android package (or TV device client).
+2. Open SonicSound **Settings** → enable music video search → **Sign in with Google**.
+3. Pick the Google account already signed into the TV and allow YouTube access.
+4. Optionally enable **Allow any YouTube channel** (default off = VEVO / Official / artist channels only).
 
-API keys remain an optional fallback only; prefer OAuth.
+No manual API key is required on TV when Google account authorization succeeds.
 
 ## Now Playing (queue mode)
 

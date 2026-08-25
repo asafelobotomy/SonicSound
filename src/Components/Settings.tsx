@@ -284,8 +284,8 @@ export default function Settings() {
                     </label>
                 </div>
                 <div className="subtitle text-white mb-2">
-                    Create an OAuth client of type “TVs and Limited Input devices”
-                    in Google Cloud, enable YouTube Data API v3, then Sign in. See{" "}
+                    On Android TV, Sign in uses the Google account on the device.
+                    On web, use a TV OAuth client ID if prompted. See{" "}
                     <a href={YT_OAUTH_DOCS} target="_blank" rel="noreferrer">
                         device OAuth docs
                     </a>

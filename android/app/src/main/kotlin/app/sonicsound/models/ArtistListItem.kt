@@ -5,4 +5,5 @@ class ArtistListItem(
     val name: String,
     val albumCount: Int,
     val artistImageUrl: String? = null,
+    val coverArt: String? = null,
 )

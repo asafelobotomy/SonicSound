@@ -64,7 +64,12 @@ class SubsonicLibrary(
         artistsResponse?.artists?.index.orEmpty().forEach { artistIndex ->
             ret.addAll(artistIndex.artist.orEmpty().map { artistItem ->
                 Artist(artistItem.id, artistItem.name, artistItem.albumCount).also { artist ->
-                    artist.coverArt = artistItem.artistImageUrl.orEmpty()
+                    val http = artistItem.artistImageUrl?.takeIf {
+                        it.startsWith("http", ignoreCase = true)
+                    }
+                    artist.coverArt = http
+                        ?: artistItem.coverArt?.takeIf { it.isNotBlank() }
+                        ?: artistItem.artistImageUrl.orEmpty()
                 }
             })
         }
@@ -284,19 +289,28 @@ class SubsonicLibrary(
 
     fun getArtistArt(id: String): String {
         val artist = getArtist(id)
-        val fromCover = artist.coverArt.takeIf { it.startsWith("http", ignoreCase = true) }
+        val cover = artist.coverArt
+        val fromHttp = cover.takeIf { it.startsWith("http", ignoreCase = true) }
         val fromInfo = runCatching { getArtistInfo(id).largeImageUrl }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
-        val art = fromCover
-            ?: fromInfo
-            ?: getSpotifyArtistArt(artist.name)
+        val fromCoverId = when {
+            cover.isNotBlank() && !cover.startsWith("http", ignoreCase = true) ->
+                coverCache.getAlbumArt(cover)
+            else -> coverCache.getAlbumArt(id)
+        }
+        val fromSpotify = runCatching { getSpotifyArtistArt(artist.name) }.getOrNull()
+        val art = fromHttp ?: fromCoverId.takeIf { it.isNotBlank() } ?: fromInfo ?: fromSpotify
             ?: return ""
-        coverCache.cacheRemoteImage(
-            art,
-            coverCache.getArtistArtsDirectory(),
-            coverCache.getLocalArtistArtUri(id)
-        )
+        if (art.startsWith("http", ignoreCase = true) &&
+            !art.contains("/rest/getCoverArt")
+        ) {
+            coverCache.cacheRemoteImage(
+                art,
+                coverCache.getArtistArtsDirectory(),
+                coverCache.getLocalArtistArtUri(id)
+            )
+        }
         return art
     }
 

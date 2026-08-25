@@ -2,6 +2,7 @@
 <resources>
     <item name="sonicsound_background" type="color">#282c34</item>
     <item name="sonicsound_item_highlight" type="color">#626c80</item>
+    <item name="scrubber_thumb_armed" type="color">#FFFFFF</item>
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
         <!-- Customize your theme here. -->

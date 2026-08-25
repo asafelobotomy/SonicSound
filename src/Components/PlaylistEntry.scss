@@ -8,6 +8,33 @@
         height: 40px;
         border-radius: 5px;
         object-fit: cover;
+        flex-shrink: 0;
+    }
+
+    span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+        display: block;
+    }
+
+    &:hover span,
+    &.highlight span {
+        animation: now-playing-marquee 8s linear infinite;
+        text-overflow: clip;
+        overflow: visible;
+    }
+}
+
+@keyframes now-playing-marquee {
+    0%,
+    15% {
+        transform: translateX(0);
+    }
+    85%,
+    100% {
+        transform: translateX(calc(-100% + 120px));
     }
 }
 

@@ -120,7 +120,8 @@ class ArtistsFragment : Fragment {
                                     artist.coverArt
                                 artist.coverArt.isNotBlank() ->
                                     client.getAlbumArt(artist.coverArt)
-                                else -> ""
+                                else ->
+                                    client.getAlbumArt(artist.id)
                             }
                         }
                     }

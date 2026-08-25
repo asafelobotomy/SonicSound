@@ -13,7 +13,12 @@
     <string name="account_button_content">Account</string>
     <string name="settings_button_content">Settings</string>
     <string name="jukebox_button_content">Jukebox</string>
-    <string name="playing_button_content">Playing</string>
+    <string name="playing_button_content">Now Playing</string>
+    <string name="play_album">Play album</string>
+    <string name="album_songs_empty">No songs in this album.</string>
+    <string name="queue_header">Queue</string>
+    <string name="next_up">Next</string>
+    <string name="fullscreen_media">Fullscreen</string>
     <string name="videos_button_content">Videos</string>
     <string name="artists_header">Artists</string>
     <string name="albums_empty">No albums found.</string>
@@ -43,7 +48,7 @@
     <string name="youtube_oauth_waiting">Waiting for Google approval…</string>
     <string name="youtube_oauth_code_fmt">Enter code: %1$s</string>
     <string name="youtube_oauth_needs_client">Add a Google OAuth client ID (TVs and Limited Input devices).</string>
-    <string name="youtube_oauth_hint">Create an OAuth client of type “TVs and Limited Input devices” in Google Cloud, enable YouTube Data API v3, then Sign in. Opens google.com/device.</string>
+    <string name="youtube_oauth_hint">Uses the Google account on this TV. The app must have an Android OAuth client in Google Cloud (package app.sonicsound + signing SHA-1) with YouTube Data API v3 enabled.</string>
     <string name="like_song">Like</string>
     <string name="unlike_song">Unlike</string>
     <string name="like_failed">Could not update like</string>

@@ -30,7 +30,9 @@ class Artist(
     private var _image: String = ""
 
     override var image: String
-        get() = _image.ifBlank { coverArt }
+        get() = _image.ifBlank {
+            coverArt.takeIf { it.startsWith("http", ignoreCase = true) }.orEmpty()
+        }
         set(value) {
             _image = value
         }

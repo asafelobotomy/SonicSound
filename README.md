@@ -1,5 +1,7 @@
 # SonicSound
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5R225QZH3)
+
 Album-centered music client for Subsonic-compatible servers (Navidrome, Airsonic, etc.).
 
 Fork of [SonicLair](https://github.com/thelinkin3000/SonicLair) — rebranded, modernized, and maintained as **SonicSound**.

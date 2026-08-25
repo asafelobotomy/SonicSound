@@ -6,7 +6,7 @@ class AlbumResponse(val album: AlbumWithSongs) : SubsonicResponse()
 
 class PlaylistsResponse(val playlists: PlaylistsInnerResponse) : SubsonicResponse()
 
-class PlaylistsInnerResponse(val playlist: List<Playlist>)
+class PlaylistsInnerResponse(val playlist: List<Playlist>?)
 
 class PlaylistResponse(val playlist: Playlist) : SubsonicResponse()
 
@@ -20,7 +20,7 @@ class Playlist(
     val duration: Int,
     val created: String,
     val coverArt: String?,
-    var entry: List<Song>
+    var entry: List<Song>?
 ) : ICardViewModel {
     override fun firstLine(): String {
         return name

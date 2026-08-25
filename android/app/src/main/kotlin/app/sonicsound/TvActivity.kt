@@ -1,6 +1,6 @@
 package app.sonicsound
-import app.sonicsound.subsonic.SubsonicClient
 
+import app.sonicsound.subsonic.SubsonicClient
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -13,32 +13,33 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import app.sonicsound.fragments.HomeFragment
+import app.sonicsound.fragments.JukeboxFragment
+import app.sonicsound.fragments.NowPlayingFragment
+import app.sonicsound.fragments.PlaylistsFragment
+import app.sonicsound.fragments.RadioFragment
+import app.sonicsound.fragments.SearchFragment
+import app.sonicsound.models.Playlist
+import app.sonicsound.services.MusicService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import app.sonicsound.fragments.*
-import app.sonicsound.models.Playlist
-import app.sonicsound.services.MusicService
 
 class TvActivity : AppCompatActivity() {
     private val client: SubsonicClient = SubsonicClient(KeyValueStorage.getActiveAccount())
-    private val _homeFragment: HomeFragment = HomeFragment(this.TvActivityBind(), client)
-    private val _playingFragment: NowPlayingFragment =
-        NowPlayingFragment(this.TvActivityBind(), client)
-    private val _jukeboxFragment: JukeboxFragment = JukeboxFragment()
-    private val _searchFragment: SearchFragment = SearchFragment(client, this.TvActivityBind())
-    private val _playlistFragment: PlaylistsFragment =
-        PlaylistsFragment(client, this.TvActivityBind())
-    private val _accountFragment: AccountFragment = AccountFragment()
+    private val activityBind = TvActivityBind()
+    private val homeFragment: HomeFragment = HomeFragment(activityBind, client)
+    private val playingFragment: NowPlayingFragment = NowPlayingFragment(activityBind, client)
+    private val jukeboxFragment: JukeboxFragment = JukeboxFragment()
+    private val searchFragment: SearchFragment = SearchFragment(client, activityBind)
+    private val playlistFragment: PlaylistsFragment = PlaylistsFragment(client, activityBind)
+    private val radioFragment: RadioFragment = RadioFragment(client, activityBind)
+    private val accountFragment: AccountFragment = AccountFragment(client)
     private lateinit var phoneConnected: ImageView
     private var binder: MusicService.LocalBinder? = null
     private var mBound = false
     private val connection: ServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(
-            className: ComponentName,
-            service: IBinder
-        ) {
-            // We've bound to LocalService, cast the IBinder and get LocalService instance
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
             Log.i("ServiceBinder", "Binding service")
             binder = service as MusicService.LocalBinder
             mBound = true
@@ -50,11 +51,12 @@ class TvActivity : AppCompatActivity() {
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         val count = supportFragmentManager.backStackEntryCount
         if (count == 0) {
+            @Suppress("DEPRECATION")
             super.onBackPressed()
-            //additional code
         } else {
             supportFragmentManager.popBackStack()
         }
@@ -64,15 +66,14 @@ class TvActivity : AppCompatActivity() {
         override fun update(action: String?, value: String?) {
             if (action == "WS") {
                 this@TvActivity.runOnUiThread {
-                phoneConnected.visibility = if (value == "true") View.VISIBLE else View.INVISIBLE
-
+                    phoneConnected.visibility =
+                        if (value == "true") View.VISIBLE else View.INVISIBLE
                 }
             }
             if (action == "EX") {
                 Toast.makeText(this@TvActivity, value, Toast.LENGTH_SHORT).show()
             }
         }
-
     }
 
     inner class TvActivityBind {
@@ -102,16 +103,11 @@ class TvActivity : AppCompatActivity() {
                 intent.putExtra("track", track)
                 App.context.startService(intent)
             }
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _playingFragment)
-                .addToBackStack(null)
-
-                .commit()
+            showPlaying()
         }
 
-        fun shuffle(){
-            if(mBound){
+        fun shuffle() {
+            if (mBound) {
                 binder!!.shuffle()
             }
         }
@@ -127,12 +123,16 @@ class TvActivity : AppCompatActivity() {
                 intent.putExtra("id", id)
                 App.context.startService(intent)
             }
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _playingFragment)
-                .addToBackStack(null)
+            showPlaying()
+        }
 
-                .commit()
+        fun playInternetRadio(streamUrl: String, name: String) {
+            if (mBound) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    binder!!.playInternetRadio(streamUrl, name)
+                }
+            }
+            showPlaying()
         }
 
         fun playPlaylist(id: String, track: Int) {
@@ -147,12 +147,7 @@ class TvActivity : AppCompatActivity() {
                 intent.putExtra("track", track)
                 App.context.startService(intent)
             }
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _playingFragment)
-                .addToBackStack(null)
-
-                .commit()
+            showPlaying()
         }
 
         fun playPause() {
@@ -183,18 +178,24 @@ class TvActivity : AppCompatActivity() {
             }
         }
 
+        private fun showPlaying() {
+            supportFragmentManager
+                .beginTransaction()
+                .replace(R.id.fg_container, playingFragment)
+                .addToBackStack(null)
+                .commit()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        super.onCreate(null)
         setContentView(R.layout.activity_tv)
         supportActionBar?.hide()
         supportFragmentManager
             .beginTransaction()
-            .replace(R.id.fg_container, _homeFragment)
+            .replace(R.id.fg_container, homeFragment)
             .addToBackStack(null)
             .commit()
-        // Bind to LocalService
         val intent = Intent(App.context, MusicService::class.java)
         App.context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         Globals.RegisterObserver(this.TvActivityObserver())
@@ -203,61 +204,47 @@ class TvActivity : AppCompatActivity() {
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         phoneConnected = findViewById(R.id.iv_phone_connected)
-        val homeButton: Button = findViewById(R.id.btn_home)
-        homeButton.setOnClickListener {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _homeFragment)
+        findViewById<Button>(R.id.btn_home).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, homeFragment)
                 .addToBackStack(null)
-
                 .commit()
         }
-        val playingButton: Button = findViewById(R.id.btn_playing)
-        playingButton.setOnClickListener {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _playingFragment)
+        findViewById<Button>(R.id.btn_playing).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, playingFragment)
                 .addToBackStack(null)
-
                 .commit()
         }
-        val jukeboxButton: Button = findViewById(R.id.btn_jukebox)
-        jukeboxButton.setOnClickListener {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _jukeboxFragment)
+        findViewById<Button>(R.id.btn_jukebox).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, jukeboxFragment)
                 .addToBackStack(null)
-
                 .commit()
         }
-        val searchButton: Button = findViewById(R.id.btn_search)
-        searchButton.setOnClickListener {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _searchFragment)
+        findViewById<Button>(R.id.btn_search).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, searchFragment)
                 .addToBackStack(null)
-
                 .commit()
         }
-        val playlistsButton: Button = findViewById(R.id.btn_playlists)
-        playlistsButton.setOnClickListener {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _playlistFragment)
+        findViewById<Button>(R.id.btn_playlists).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, playlistFragment)
                 .addToBackStack(null)
-
                 .commit()
         }
-        val accountButton: Button = findViewById(R.id.btn_account)
-        accountButton.setOnClickListener {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.fg_container, _accountFragment)
+        findViewById<Button>(R.id.btn_radio).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, radioFragment)
                 .addToBackStack(null)
-
+                .commit()
+        }
+        findViewById<Button>(R.id.btn_account).setOnClickListener {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, accountFragment)
+                .addToBackStack(null)
                 .commit()
         }
     }
-
-
 }

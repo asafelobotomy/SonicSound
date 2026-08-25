@@ -1,30 +1,36 @@
 package app.sonicsound.fragments
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import app.sonicsound.R
-import app.sonicsound.subsonic.SubsonicClient
 import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundCardAdapter
-import app.sonicsound.models.Album
 import app.sonicsound.models.ICardViewModel
-import app.sonicsound.models.Song
+import app.sonicsound.subsonic.SubsonicClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class HomeFragment(val bind: TvActivity.TvActivityBind, val client: SubsonicClient) : Fragment() {
+class HomeFragment : Fragment {
+    private lateinit var bind: TvActivity.TvActivityBind
+    private lateinit var client: SubsonicClient
     private lateinit var topAlbumsAdapter: SonicSoundCardAdapter
     private lateinit var recentAlbumsAdapter: SonicSoundCardAdapter
     private lateinit var newAlbumsAdapter: SonicSoundCardAdapter
     private lateinit var randomSongsAdapter: SonicSoundCardAdapter
 
+    constructor() : super()
+
+    constructor(bind: TvActivity.TvActivityBind, client: SubsonicClient) : super() {
+        this.bind = bind
+        this.client = client
+    }
 
     private fun setUpRecyclerView(rc: RecyclerView, a: SonicSoundCardAdapter) {
         rc.setHasFixedSize(true)
@@ -36,95 +42,57 @@ class HomeFragment(val bind: TvActivity.TvActivityBind, val client: SubsonicClie
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        // Load items
-        CoroutineScope(Dispatchers.IO).launch {
-            val topAlbums = client.getTopAlbums()
-            topAlbums.forEach {
-                it.image = client.getAlbumArt(it.id)
-            }
-            requireActivity().runOnUiThread {
-                topAlbumsAdapter.setNewDataSet(topAlbums)
-            }
+        if (!::client.isInitialized || !::bind.isInitialized) {
+            return
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            val randomSongs = client.getRandomSongs()
-
-            randomSongs.forEach {
-                it.image = client.getAlbumArt(it.albumId)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val topAlbums = withContext(Dispatchers.IO) {
+                client.getTopAlbums().onEach { it.image = client.getAlbumArt(it.id) }
             }
-            requireActivity().runOnUiThread {
-                randomSongsAdapter.setNewDataSet(randomSongs)
-            }
+            topAlbumsAdapter.setNewDataSet(topAlbums)
         }
-        CoroutineScope(Dispatchers.IO).launch {
-
-            val recentAlbums = client.getTopAlbums("recent")
-            recentAlbums.forEach {
-                it.image = client.getAlbumArt(it.id)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val randomSongs = withContext(Dispatchers.IO) {
+                client.getRandomSongs().onEach { it.image = client.getAlbumArt(it.albumId) }
             }
-            requireActivity().runOnUiThread {
-                recentAlbumsAdapter.setNewDataSet(recentAlbums)
-            }
+            randomSongsAdapter.setNewDataSet(randomSongs)
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            val newAlbums = client.getTopAlbums("newest")
-            // Load
-            newAlbums.forEach {
-                it.image = client.getAlbumArt(it.id)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val recentAlbums = withContext(Dispatchers.IO) {
+                client.getTopAlbums("recent").onEach { it.image = client.getAlbumArt(it.id) }
             }
-            requireActivity().runOnUiThread {
-                newAlbumsAdapter.setNewDataSet(newAlbums)
-            }
-
+            recentAlbumsAdapter.setNewDataSet(recentAlbums)
         }
-
+        viewLifecycleOwner.lifecycleScope.launch {
+            val newAlbums = withContext(Dispatchers.IO) {
+                client.getTopAlbums("newest").onEach { it.image = client.getAlbumArt(it.id) }
+            }
+            newAlbumsAdapter.setNewDataSet(newAlbums)
+        }
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
     ): View? {
-        // Inflate the layout for this fragment
         val v = inflater.inflate(R.layout.fragment_home, container, false)
-
-        val topAlbumsRecycler = v.findViewById(R.id.rv_topAlbums) as RecyclerView
-        val randomSongsRecycler = v.findViewById(R.id.rv_randomSongs) as RecyclerView
-        val recentAlbumsRecycler = v.findViewById(R.id.rv_recentAlbums) as RecyclerView
-        val newAlbumsRecycler = v.findViewById(R.id.rv_newAlbums) as RecyclerView
-        val topAlbums: List<ICardViewModel> = listOf()
-        val randomSongs: List<ICardViewModel> = listOf()
-        val recentAlbums: List<ICardViewModel> = listOf()
-        val newAlbums: List<ICardViewModel> = listOf()
-        topAlbumsAdapter =
-            SonicSoundCardAdapter(
-                topAlbums,
-                topAlbumsRecycler,
-                bind,
-            )
-        randomSongsAdapter =
-            SonicSoundCardAdapter(
-                randomSongs,
-                randomSongsRecycler,
-                bind,
-            )
-        recentAlbumsAdapter =
-            SonicSoundCardAdapter(
-                recentAlbums,
-                recentAlbumsRecycler,
-                bind,
-            )
-        newAlbumsAdapter =
-            SonicSoundCardAdapter(
-                newAlbums,
-                newAlbumsRecycler,
-                bind,
-            )
+        if (!::bind.isInitialized) {
+            return v
+        }
+        val topAlbumsRecycler = v.findViewById<RecyclerView>(R.id.rv_topAlbums)
+        val randomSongsRecycler = v.findViewById<RecyclerView>(R.id.rv_randomSongs)
+        val recentAlbumsRecycler = v.findViewById<RecyclerView>(R.id.rv_recentAlbums)
+        val newAlbumsRecycler = v.findViewById<RecyclerView>(R.id.rv_newAlbums)
+        val empty: List<ICardViewModel> = listOf()
+        topAlbumsAdapter = SonicSoundCardAdapter(empty, topAlbumsRecycler, bind)
+        randomSongsAdapter = SonicSoundCardAdapter(empty, randomSongsRecycler, bind)
+        recentAlbumsAdapter = SonicSoundCardAdapter(empty, recentAlbumsRecycler, bind)
+        newAlbumsAdapter = SonicSoundCardAdapter(empty, newAlbumsRecycler, bind)
         setUpRecyclerView(topAlbumsRecycler, topAlbumsAdapter)
         setUpRecyclerView(randomSongsRecycler, randomSongsAdapter)
         setUpRecyclerView(recentAlbumsRecycler, recentAlbumsAdapter)
         setUpRecyclerView(newAlbumsRecycler, newAlbumsAdapter)
-        //topAlbumsRecycler.children.first().requestFocus()
         return v
     }
-
 }

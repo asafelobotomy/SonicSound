@@ -133,6 +133,21 @@ class BackendPlayback(
         }
     }
 
+    fun playInternetRadio(call: PluginCall) {
+        try {
+            val streamUrl = call.getString("streamUrl") ?: throw ParameterException("streamUrl")
+            val name = call.getString("name") ?: "Radio"
+            if (!mBound) {
+                call.resolve(responses.error("Music service not bound"))
+                return
+            }
+            binder!!.playInternetRadio(streamUrl, name)
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
     fun playAlbum(call: PluginCall) {
         try {
             val id = call.getString("album") ?: throw ParameterException("album")

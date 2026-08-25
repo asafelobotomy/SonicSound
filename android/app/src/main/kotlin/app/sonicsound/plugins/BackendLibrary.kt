@@ -265,4 +265,12 @@ class BackendLibrary(
             call.resolve(responses.error(e.message))
         }
     }
+
+    fun getInternetRadioStations(call: PluginCall) {
+        try {
+            call.resolve(responses.okArray(client.getInternetRadioStations()))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
 }

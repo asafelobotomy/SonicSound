@@ -183,7 +183,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
             engine.pause()
         }
         queue.playlist = playlist
-        queue.currentTrack = playlist.entry[track]
+        queue.currentTrack = playlist.entry.orEmpty()[track]
         engine.loadMedia(queue.currentTrack!!)
         engine.seek(seek)
         if (playing) engine.play()
@@ -260,6 +260,9 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         fun setVolume(volume: Int) = engine.setVolume(volume)
         fun playRadio(id: String) = CoroutineScope(IO).launch {
             commander.playRadio(id)
+        }
+        fun playInternetRadio(streamUrl: String, name: String) = CoroutineScope(IO).launch {
+            commander.playInternetRadio(streamUrl, name)
         }
         fun playAlbum(id: String, track: Int) = CoroutineScope(IO).launch {
             commander.playAlbum(id, track)

@@ -93,7 +93,11 @@ class BackendAccounts(
         try {
             val cacheSize = call.getInt("cacheSize") ?: throw ParameterException("cacheSize")
             val transcoding = call.getString("transcoding") ?: ""
-            setSettings(Settings(cacheSize, transcoding))
+            val current = getSettings()
+            val eqEnabled = call.getBoolean("eqEnabled") ?: current.eqEnabled
+            val replayGainEnabled =
+                call.getBoolean("replayGainEnabled") ?: current.replayGainEnabled
+            setSettings(Settings(cacheSize, transcoding, eqEnabled, replayGainEnabled))
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))

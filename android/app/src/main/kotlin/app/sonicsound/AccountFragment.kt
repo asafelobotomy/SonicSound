@@ -8,11 +8,13 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.widget.SwitchCompat
 import androidx.fragment.app.Fragment
 import app.sonicsound.models.Account
+import app.sonicsound.models.Settings
 import app.sonicsound.subsonic.SubsonicClient
 
-class AccountFragment : Fragment() {
+class AccountFragment : Fragment {
     private lateinit var user: TextView
     private lateinit var server: TextView
     private lateinit var type: TextView
@@ -20,11 +22,17 @@ class AccountFragment : Fragment() {
     private lateinit var cacheInfo: TextView
     private lateinit var logout: Button
     private lateinit var clearCache: Button
+    private lateinit var eqSwitch: SwitchCompat
+    private lateinit var replayGainSwitch: SwitchCompat
+
+    constructor() : super()
+
+    constructor(@Suppress("UNUSED_PARAMETER") client: SubsonicClient) : super()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View? {
         return inflater.inflate(R.layout.fragment_account, container, false)
     }
@@ -38,12 +46,24 @@ class AccountFragment : Fragment() {
         cacheInfo = view.findViewById(R.id.tv_cache_info)
         logout = view.findViewById(R.id.btn_logout)
         clearCache = view.findViewById(R.id.btn_clear_cache)
+        eqSwitch = view.findViewById(R.id.switch_eq)
+        replayGainSwitch = view.findViewById(R.id.switch_replaygain)
 
         val account = KeyValueStorage.getActiveAccount()
         user.text = account.username
         server.text = account.url
         type.text = account.type
         plaintext.visibility = if (account.usePlaintext) View.VISIBLE else View.INVISIBLE
+
+        val settings = KeyValueStorage.getSettings()
+        eqSwitch.isChecked = settings.eqEnabled
+        replayGainSwitch.isChecked = settings.replayGainEnabled
+        eqSwitch.setOnCheckedChangeListener { _, checked ->
+            persistAudioSettings(eqEnabled = checked, replayGainEnabled = replayGainSwitch.isChecked)
+        }
+        replayGainSwitch.setOnCheckedChangeListener { _, checked ->
+            persistAudioSettings(eqEnabled = eqSwitch.isChecked, replayGainEnabled = checked)
+        }
 
         refreshCacheInfo()
 
@@ -65,6 +85,23 @@ class AccountFragment : Fragment() {
             startActivity(intent)
             activity?.finish()
         }
+    }
+
+    private fun persistAudioSettings(eqEnabled: Boolean, replayGainEnabled: Boolean) {
+        val current = KeyValueStorage.getSettings()
+        KeyValueStorage.setSettings(
+            Settings(
+                current.cacheSize,
+                current.transcoding,
+                eqEnabled,
+                replayGainEnabled
+            )
+        )
+        Toast.makeText(
+            requireContext(),
+            "Audio settings saved. Restart playback to apply.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun refreshCacheInfo() {

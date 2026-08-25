@@ -159,7 +159,7 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val playlist = subsonicClient.getPlaylist(playlistId)
-                val items = subsonicClient.getSongsAsMediaItems(playlist.entry)
+                val items = subsonicClient.getSongsAsMediaItems(playlist.entry.orEmpty())
                 result.sendResult(items)
             } catch (e: Exception) {
                 Log.e("MediaBrowser", e.message ?: "playlist load failed")

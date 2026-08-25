@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.lifecycleScope
+import app.sonicsound.discovery.SubsonicLanDiscovery
 import app.sonicsound.models.Account
 import app.sonicsound.subsonic.SubsonicClient
 import com.google.android.material.textfield.TextInputLayout
@@ -29,6 +30,8 @@ class TvLoginActivity : AppCompatActivity() {
     private lateinit var passwordLayout: TextInputLayout
     private lateinit var urlLayout: TextInputLayout
     private lateinit var loginButton: Button
+    private lateinit var discoverButton: Button
+    private lateinit var discoverResults: LinearLayout
     private lateinit var plaintext: SwitchCompat
     private var wsLoginObserver: WsLogin? = null
 
@@ -127,6 +130,7 @@ class TvLoginActivity : AppCompatActivity() {
         userLayout = findViewById(R.id.username_input_layout)
         passwordLayout = findViewById(R.id.password_input_layout)
         urlLayout = findViewById(R.id.url_input_layout)
+        discoverResults = findViewById(R.id.ll_discover_results)
         userInput.doOnTextChanged { text, _, _, _ ->
             if ((text?.toString() ?: "") == "") {
                 userLayout.isErrorEnabled = true
@@ -161,6 +165,8 @@ class TvLoginActivity : AppCompatActivity() {
                 Toast.makeText(this, errors, Toast.LENGTH_SHORT).show()
             }
         }
+        discoverButton = findViewById(R.id.btn_discover_servers)
+        discoverButton.setOnClickListener { runDiscovery() }
         val image: ImageView = findViewById(R.id.iv_qr_login)
         val text: TextView = findViewById(R.id.tv_qr_login)
         val layout: LinearLayout = findViewById(R.id.qr_login_container)
@@ -171,6 +177,39 @@ class TvLoginActivity : AppCompatActivity() {
         qrButton.setOnClickListener {
             layout.visibility =
                 if (layout.visibility == View.VISIBLE) View.INVISIBLE else View.VISIBLE
+        }
+    }
+
+    private fun runDiscovery() {
+        discoverButton.isEnabled = false
+        discoverResults.removeAllViews()
+        Toast.makeText(this, R.string.discovering_servers, Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val found = withContext(Dispatchers.IO) {
+                SubsonicLanDiscovery.discover(this@TvLoginActivity)
+            }
+            discoverButton.isEnabled = true
+            if (found.isEmpty()) {
+                Toast.makeText(
+                    this@TvLoginActivity,
+                    R.string.no_servers_found,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+            for (base in found) {
+                val button = Button(this@TvLoginActivity).apply {
+                    text = base
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setBackgroundResource(R.drawable.round_outline_selector)
+                    isAllCaps = false
+                    setOnClickListener {
+                        urlInput.setText(base)
+                        urlLayout.isErrorEnabled = false
+                    }
+                }
+                discoverResults.addView(button)
+            }
         }
     }
 }

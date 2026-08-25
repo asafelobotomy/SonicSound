@@ -260,3 +260,41 @@ export async function fetchLyrics(
         return errorResponse(err?.message ?? "Lyrics unavailable");
     }
 }
+
+export interface IInternetRadioStation {
+    id: string;
+    name: string;
+    streamUrl: string;
+    homePageUrl?: string;
+}
+
+export async function fetchInternetRadioStations(
+    baseUrl: string,
+    params: IBasicParams
+): Promise<IBackendResponse<IInternetRadioStation[]>> {
+    try {
+        const ret = await axios.get<{
+            "subsonic-response": {
+                status: string;
+                internetRadioStations?: {
+                    internetRadioStation?: IInternetRadioStation[];
+                };
+                error?: { message?: string };
+            };
+        }>(`${baseUrl}/rest/getInternetRadioStations`, { params });
+        if (ret?.status !== 200) return errorResponse(ret?.statusText);
+        if (ret?.data["subsonic-response"]?.status !== "ok") {
+            return errorResponse(
+                ret?.data["subsonic-response"]?.error?.message
+            );
+        }
+        const stations =
+            ret.data["subsonic-response"].internetRadioStations
+                ?.internetRadioStation ?? [];
+        return okResponse(stations);
+    } catch (e: unknown) {
+        const err = e as { message?: string };
+        return errorResponse(err?.message ?? "Radio stations unavailable");
+    }
+}
+

@@ -13,6 +13,8 @@ import app.sonicsound.models.ArtistInfo
 import app.sonicsound.models.ArtistInfoResponse
 import app.sonicsound.models.ArtistSubsonicResponse
 import app.sonicsound.models.ArtistsSubsonicResponse
+import app.sonicsound.models.InternetRadioStation
+import app.sonicsound.models.InternetRadioStationsResponse
 import app.sonicsound.models.LyricsResponse
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.PlaylistResponse
@@ -59,8 +61,8 @@ class SubsonicLibrary(
             params()
         )
         val ret: MutableList<Artist> = mutableListOf()
-        artistsResponse!!.artists.index.forEach { artistIndex ->
-            ret.addAll(artistIndex.artist.map { artistItem ->
+        artistsResponse?.artists?.index.orEmpty().forEach { artistIndex ->
+            ret.addAll(artistIndex.artist.orEmpty().map { artistItem ->
                 Artist(artistItem.id, artistItem.name, artistItem.albumCount)
             })
         }
@@ -87,7 +89,7 @@ class SubsonicLibrary(
             ret.addAll(
                 http.makeSubsonicRequest<AlbumsResponse>(
                     listOf("rest", "getAlbumList2"), p
-                )!!.albumList2.album
+                )?.albumList2?.album.orEmpty()
             )
             if (ret.size % 500 != 0) more = false
             page++
@@ -115,7 +117,7 @@ class SubsonicLibrary(
         p["size"] = size.toString()
         return http.makeSubsonicRequest<AlbumsResponse>(
             listOf("rest", "getAlbumList2"), p
-        )!!.albumList2.album
+        )?.albumList2?.album.orEmpty()
     }
 
     fun scrobble(id: String) {
@@ -129,7 +131,7 @@ class SubsonicLibrary(
         p["size"] = "10"
         return http.makeSubsonicRequest<RandomSongsResponse>(
             listOf("rest", "getRandomSongs"), p
-        )!!.randomSongs.song
+        )?.randomSongs?.song.orEmpty()
     }
 
     fun getSimilarSongs(id: String): List<Song> {
@@ -137,7 +139,7 @@ class SubsonicLibrary(
         p["id"] = id
         return http.makeSubsonicRequest<SimilarSongsResponse>(
             listOf("rest", "getSimilarSongs2"), p
-        )!!.similarSongs2.song
+        )?.similarSongs2?.song.orEmpty()
     }
 
     fun getSong(id: String): Song {
@@ -155,7 +157,7 @@ class SubsonicLibrary(
     fun getPlaylists(): List<Playlist> {
         return http.makeSubsonicRequest<PlaylistsResponse>(
             listOf("rest", "getPlaylists"), params()
-        )!!.playlists.playlist
+        )?.playlists?.playlist.orEmpty()
     }
 
     fun removePlaylist(id: String) {
@@ -187,7 +189,7 @@ class SubsonicLibrary(
         http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "updatePlaylist"), p, true)
         val songsParams = params()
         songsParams["playlistId"] = playlist.id
-        songsParams["songId"] = playlist.entry.joinToString(",") { it.id }
+        songsParams["songId"] = playlist.entry.orEmpty().joinToString(",") { it.id }
         return http.makeSubsonicRequest<PlaylistResponse>(
             listOf("rest", "createPlaylist"), songsParams
         )!!.playlist
@@ -298,5 +300,12 @@ class SubsonicLibrary(
             p
         )
         return response?.lyrics?.value ?: ""
+    }
+
+    fun getInternetRadioStations(): List<InternetRadioStation> {
+        return http.makeSubsonicRequest<InternetRadioStationsResponse>(
+            listOf("rest", "getInternetRadioStations"),
+            params()
+        )?.internetRadioStations?.internetRadioStation.orEmpty()
     }
 }

@@ -80,8 +80,20 @@ class VlcEngine(
         mAudioManager.registerAudioDeviceCallback(DeviceCallback(), null)
     }
 
+    private fun buildLibVlcArgs(): ArrayList<String> {
+        val settings = KeyValueStorage.getSettings()
+        val libArgs = ArrayList(args)
+        if (settings.eqEnabled) {
+            libArgs.add("--audio-filter=equalizer")
+        }
+        if (settings.replayGainEnabled) {
+            libArgs.add("--audio-replay-gain-mode=track")
+        }
+        return libArgs
+    }
+
     fun create(eventListener: MediaPlayer.EventListener) {
-        mLibVLC = LibVLC(App.context, args)
+        mLibVLC = LibVLC(App.context, buildLibVlcArgs())
         mediaPlayer = MediaPlayer(mLibVLC)
         mediaPlayer!!.setEventListener(eventListener)
     }
@@ -207,5 +219,12 @@ class VlcEngine(
         } else {
             Log.w("VlcEngine", "No URI for track ${currentTrack.id}")
         }
+    }
+
+    fun loadStreamUrl(url: String) {
+        val media = Media(mLibVLC, Uri.parse(url))
+        if (mediaPlayer!!.isPlaying) mediaPlayer!!.pause()
+        mediaPlayer!!.media = media
+        media.release()
     }
 }

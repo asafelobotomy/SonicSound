@@ -5,30 +5,30 @@
     android:layout_height="match_parent"
     android:background="@color/sonicsound_background"
     android:orientation="vertical"
-    tools:context="fragments.PlaylistsFragment">
+    tools:context="fragments.RadioFragment">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="@font/montserrat"
         android:gravity="start"
-        android:text="@string/playlist"
+        android:text="@string/radio"
         android:textColor="#fff"
         android:textSize="25sp" />
 
     <TextView
-        android:id="@+id/tv_playlists_empty"
+        android:id="@+id/tv_radio_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="@font/montserrat"
         android:paddingTop="24dp"
-        android:text="@string/playlists_empty"
+        android:text="@string/radio_empty"
         android:textColor="#99ffffff"
         android:textSize="18sp"
         android:visibility="gone" />
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_playlists"
+        android:id="@+id/rv_radio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 

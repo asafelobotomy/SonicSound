@@ -92,7 +92,7 @@ class BackendWebsocket(
                 val playlist = binder!!.getPlaylist()
                 val request = SetPlaylistAndPlayRequest(
                     playlist,
-                    playlist.entry.indexOf(binder!!.getCurrentState().currentTrack),
+                    playlist.entry.orEmpty().indexOf(binder!!.getCurrentState().currentTrack),
                     binder!!.getCurrentState().position,
                     binder!!.getCurrentState().playing
                 )

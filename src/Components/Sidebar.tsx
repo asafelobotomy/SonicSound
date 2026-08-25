@@ -4,6 +4,7 @@ import {
     faListOl,
     faMagnifyingGlass,
     faQrcode,
+    faRadio,
     faUserAlt,
     faUsers,
 } from "@fortawesome/free-solid-svg-icons";
@@ -78,6 +79,12 @@ export default function Sidebar({
                     className="sidebar-item d-flex align-items-center justify-content-center text-white"
                 >
                     <FontAwesomeIcon icon={faListOl} />
+                </div>
+                <div
+                    onClick={() => nav("/radio")}
+                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
+                >
+                    <FontAwesomeIcon icon={faRadio} />
                 </div>
                 {Capacitor.getPlatform() === "android" && (
                     <div

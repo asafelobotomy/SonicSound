@@ -150,8 +150,8 @@ class PlaybackCommander(
         queue.reset()
         try {
             val pl = subsonicClient.getPlaylist(id)
-            queue.setEntries(pl, pl.entry[track])
-            maybePrefetch(pl.entry)
+            queue.setEntries(pl, pl.entry.orEmpty()[track])
+            maybePrefetch(pl.entry.orEmpty())
             engine.loadMedia(queue.currentTrack!!)
             onPlay()
         } catch (e: Exception) {
@@ -185,6 +185,41 @@ class PlaybackCommander(
             queue.setEntries(pl, songs[track])
             maybePrefetch(songs)
             engine.loadMedia(queue.currentTrack!!)
+            onPlay()
+        } catch (e: Exception) {
+            Globals.NotifyObservers("EX", e.message)
+        }
+    }
+
+    fun playInternetRadio(streamUrl: String, name: String) {
+        queue.reset()
+        try {
+            val song = Song(
+                id = "radio:${name.hashCode()}",
+                parent = streamUrl,
+                title = name,
+                duration = 0,
+                track = 0,
+                artist = "Internet Radio",
+                album = name,
+                albumId = "",
+                coverArt = ""
+            )
+            val songs = listOf(song)
+            val pl = Playlist(
+                "current",
+                name,
+                "Internet Radio",
+                getActiveAccount().username ?: "guest",
+                false,
+                1,
+                0,
+                "",
+                "",
+                songs
+            )
+            queue.setEntries(pl, song)
+            engine.loadStreamUrl(streamUrl)
             onPlay()
         } catch (e: Exception) {
             Globals.NotifyObservers("EX", e.message)

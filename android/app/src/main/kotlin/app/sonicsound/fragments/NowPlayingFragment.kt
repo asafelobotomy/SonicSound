@@ -2,7 +2,6 @@ package app.sonicsound.fragments
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,22 +10,27 @@ import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
+import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.getcapacitor.JSObject
-import app.sonicsound.*
-import app.sonicsound.subsonic.SubsonicClient
+import app.sonicsound.CurrentState
+import app.sonicsound.Globals
+import app.sonicsound.IBroadcastObserver
+import app.sonicsound.R
+import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundPlaylistItemAdapter
 import app.sonicsound.extensions.loadUrl
-import app.sonicsound.models.ICardViewModel
+import app.sonicsound.subsonic.SubsonicClient
+import com.getcapacitor.JSObject
 import kotlin.math.floor
 
-class NowPlayingFragment(val bind: TvActivity.TvActivityBind, val client: SubsonicClient) :
-    Fragment() {
+class NowPlayingFragment : Fragment {
+    private lateinit var bind: TvActivity.TvActivityBind
+    private lateinit var client: SubsonicClient
     private lateinit var firstLine: TextView
     private lateinit var secondLine: TextView
     private lateinit var image: ImageView
+    private lateinit var backdrop: ImageView
     private lateinit var btnPlay: ImageButton
     private lateinit var btnShuffle: ImageButton
     private lateinit var sbProgress: SeekBar
@@ -34,95 +38,84 @@ class NowPlayingFragment(val bind: TvActivity.TvActivityBind, val client: Subson
     private lateinit var playlistAdapter: SonicSoundPlaylistItemAdapter
     private lateinit var currentTimeText: TextView
     private lateinit var durationText: TextView
+    private val observer = NowPlayingObserver()
 
+    constructor() : super()
 
-    private val observer = this.NowPlayingObserver()
+    constructor(bind: TvActivity.TvActivityBind, client: SubsonicClient) : super() {
+        this.bind = bind
+        this.client = client
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Globals.RegisterObserver(observer)
+        if (::bind.isInitialized) {
+            Globals.RegisterObserver(observer)
+        }
     }
 
     override fun onDestroy() {
+        if (::bind.isInitialized) {
+            Globals.UnregisterObserver(observer)
+        }
         super.onDestroy()
-        Globals.UnregisterObserver(observer)
     }
 
     inner class NowPlayingObserver : IBroadcastObserver {
         override fun update(action: String?, value: String?) {
+            if (!::btnPlay.isInitialized) return
             when (action) {
-                "MSplaylistUpdated" -> {
-                    getCurrentState()
-                }
-                "MScurrentTrack" -> {
-                    getCurrentState()
-                }
-                "MSplay" -> {
-                    btnPlay.setImageDrawable(
-                        ResourcesCompat.getDrawable(
-                            resources,
-                            R.drawable.ic_pause_icon,
-                            null
-                        )
-                    )
-                }
-                "MSpaused" -> {
-                    btnPlay.setImageDrawable(
-                        ResourcesCompat.getDrawable(
-                            resources,
-                            R.drawable.ic_play,
-                            null
-                        )
-                    )
-                }
+                "MSplaylistUpdated", "MScurrentTrack" -> getCurrentState()
+                "MSplay" -> btnPlay.setImageDrawable(
+                    ResourcesCompat.getDrawable(resources, R.drawable.ic_pause_icon, null)
+                )
+                "MSpaused" -> btnPlay.setImageDrawable(
+                    ResourcesCompat.getDrawable(resources, R.drawable.ic_play, null)
+                )
                 "MSprogress" -> {
                     val time = JSObject(value)
                     val progress: Double? = try {
                         time.getDouble("time")
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
                     if (progress != null) {
                         sbProgress.progress = floor(progress * 100).toInt()
-                        currentTimeText.text = secondsToHHSS(
-                            floor(progress * bind.getCurrentState()!!.currentTrack.duration)
-                                .toInt()
-                        )
+                        val state = bind.getCurrentState()
+                        if (state != null) {
+                            currentTimeText.text = secondsToHHSS(
+                                floor(progress * state.currentTrack.duration).toInt()
+                            )
+                        }
                     }
                 }
             }
         }
-
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
     ): View? {
-        // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_now_playing, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        if (!::client.isInitialized || !::bind.isInitialized) {
+            return
+        }
         btnPlay = view.findViewById(R.id.btn_play_pause)
-        btnPlay.setOnClickListener {
-            bind.playPause()
-        }
-        val btnPrev = view.findViewById<ImageButton>(R.id.btn_prev)
-        btnPrev.setOnClickListener {
-            bind.prev()
-        }
-        val btnNext = view.findViewById<ImageButton>(R.id.btn_next)
-        btnNext.setOnClickListener {
-            bind.next()
-        }
-        btnShuffle = view.findViewById<ImageButton>(R.id.btn_shuffle)
-        btnShuffle.setOnClickListener {
-            bind.shuffle()
-        }
+        btnPlay.setOnClickListener { bind.playPause() }
+        view.findViewById<ImageButton>(R.id.btn_prev).setOnClickListener { bind.prev() }
+        view.findViewById<ImageButton>(R.id.btn_next).setOnClickListener { bind.next() }
+        btnShuffle = view.findViewById(R.id.btn_shuffle)
+        btnShuffle.setOnClickListener { bind.shuffle() }
         firstLine = view.findViewById(R.id.tv_now_playing_first_line)
         secondLine = view.findViewById(R.id.tv_now_playing_second_line)
         image = view.findViewById(R.id.img_now_playing_album_art)
+        backdrop = view.findViewById(R.id.img_now_playing_backdrop)
         sbProgress = view.findViewById(R.id.sb_now_playing_progress)
         sbProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -145,27 +138,22 @@ class NowPlayingFragment(val bind: TvActivity.TvActivityBind, val client: Subson
         })
         currentTimeText = view.findViewById(R.id.tv_current_time)
         durationText = view.findViewById(R.id.tv_track_duration)
-        val image: ImageView = view.findViewById(R.id.img_now_playing_album_art)
         image.clipToOutline = true
 
-        playlistRecyclerView = view.findViewById(R.id.rv_now_playing_playlist) as RecyclerView
-        val playlist: List<ICardViewModel> = listOf()
+        playlistRecyclerView = view.findViewById(R.id.rv_now_playing_playlist)
         val manager = LinearLayoutManager(this.context)
         manager.orientation = RecyclerView.VERTICAL
-
-        playlistAdapter =
-            SonicSoundPlaylistItemAdapter(
-                playlist,
-                requireContext(),
-                playlistRecyclerView,
-                manager,
-                (60 * resources.displayMetrics.density + 0.5f).toInt()
-            )
+        playlistAdapter = SonicSoundPlaylistItemAdapter(
+            listOf(),
+            requireContext(),
+            playlistRecyclerView,
+            manager,
+            (60 * resources.displayMetrics.density + 0.5f).toInt()
+        )
         playlistRecyclerView.setHasFixedSize(true)
         playlistRecyclerView.layoutManager = manager
         playlistRecyclerView.adapter = playlistAdapter
         getCurrentState()
-
     }
 
     private fun secondsToHHSS(seconds: Int): String {
@@ -176,59 +164,43 @@ class NowPlayingFragment(val bind: TvActivity.TvActivityBind, val client: Subson
 
     @SuppressLint("SetTextI18n")
     fun getCurrentState() {
-        val currentState = bind.getCurrentState()
+        if (!::bind.isInitialized || !::client.isInitialized) return
+        val currentState: CurrentState? = bind.getCurrentState()
         if (currentState != null && currentState.currentTrack.id != "") {
             firstLine.text = currentState.currentTrack.title
             secondLine.text =
                 "by ${currentState.currentTrack.artist} from ${currentState.currentTrack.album}"
-            image.loadUrl(client.getAlbumArt(currentState.currentTrack.albumId))
+            val artUrl = client.getAlbumArt(currentState.currentTrack.albumId)
+            image.loadUrl(artUrl)
+            backdrop.loadUrl(artUrl)
+            backdrop.alpha = 0.35f
             durationText.text = secondsToHHSS(currentState.currentTrack.duration)
-            val currentPlaylist = bind.getCurrentPlaylist()
-            if(currentState.playing){
-                btnPlay.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                        resources,
-                        R.drawable.ic_pause_icon,
-                        null
-                    )
+            btnPlay.setImageDrawable(
+                ResourcesCompat.getDrawable(
+                    resources,
+                    if (currentState.playing) R.drawable.ic_pause_icon else R.drawable.ic_play,
+                    null
                 )
-            }
-            else{
-                btnPlay.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                        resources,
-                        R.drawable.ic_play,
-                        null
-                    )
+            )
+            btnShuffle.setImageDrawable(
+                ResourcesCompat.getDrawable(
+                    resources,
+                    if (currentState.shuffling) {
+                        R.drawable.ic_shuffle_fill_primary
+                    } else {
+                        R.drawable.ic_shuffle_fill
+                    },
+                    null
                 )
-            }
-            if(currentState.shuffling){
-                btnShuffle.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                        resources,
-                        R.drawable.ic_shuffle_fill_primary,
-                        null
-                    )
-                )
-            }
-            else{
-                btnShuffle.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                        resources,
-                        R.drawable.ic_shuffle_fill,
-                        null
-                    )
-                )
-            }
-            if (currentPlaylist != null && currentPlaylist.entry.any()) {
-                val list = currentPlaylist.entry
-                for (song in list) {
+            )
+            val entries = bind.getCurrentPlaylist()?.entry.orEmpty()
+            if (entries.isNotEmpty()) {
+                for (song in entries) {
                     song.image = client.getAlbumArt(song.albumId)
                 }
-                playlistAdapter.setNewDataSet(currentPlaylist.entry)
-                playlistAdapter.updateSelected(currentPlaylist.entry.indexOf(currentState.currentTrack))
+                playlistAdapter.setNewDataSet(entries)
+                playlistAdapter.updateSelected(entries.indexOf(currentState.currentTrack))
             }
         }
-
     }
 }

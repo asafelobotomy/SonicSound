@@ -195,5 +195,7 @@ class SubsonicClient(var initialAccount: Account) {
     fun clearCoverCache(): Long = coverCache.clearCache()
     fun getLyrics(artist: String, title: String): String =
         library.getLyrics(artist, title)
+
+    fun getInternetRadioStations() = library.getInternetRadioStations()
 }
 

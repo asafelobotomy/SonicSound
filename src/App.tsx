@@ -47,6 +47,7 @@ import Playlists from "./Components/Playlists";
 import Playlist from "./Components/Playlist";
 import EditPlaylist from "./Components/EditPlaylist";
 import TVPlaylists from "./Components/TVPlaylists";
+import Radio from "./Components/Radio";
 
 function App() {
     const [context, setContext] = useState<IAccount>(AppContextDefValue);
@@ -201,6 +202,10 @@ function App() {
                                                 <Route
                                                     path="/playlists"
                                                     element={<Playlists />}
+                                                />
+                                                <Route
+                                                    path="/radio"
+                                                    element={<Radio />}
                                                 />
                                                 <Route
                                                     path="/playlist"

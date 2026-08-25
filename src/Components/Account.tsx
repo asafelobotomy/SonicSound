@@ -14,6 +14,8 @@ import "./Account.scss";
 export default function Account() {
     const { context, setContext } = useContext(AppContext);
     const [offlineMode, setOfflineMode] = useState<boolean>(false);
+    const [eqEnabled, setEqEnabled] = useState<boolean>(false);
+    const [replayGainEnabled, setReplayGainEnabled] = useState<boolean>(false);
     const logout = useCallback(() => {
         const newContext: IAccount = {
             username: null,
@@ -42,13 +44,17 @@ export default function Account() {
     );
 
     const hash = useCallback(async (data: ISettings) => {
-        const ret = await VLC.setSettings(data);
+        const ret = await VLC.setSettings({
+            ...data,
+            eqEnabled,
+            replayGainEnabled,
+        });
         if (ret.status === "ok") {
             Toast.show({ text: "Settings saved correctly" });
         } else {
             Toast.show({ text: ret.error });
         }
-    }, []);
+    }, [eqEnabled, replayGainEnabled]);
     useEffect(() => {
         const f = async () => {
             try {
@@ -59,6 +65,8 @@ export default function Account() {
                 }
                 const transcoding = settings.value?.transcoding ?? "";
                 setValue("transcoding", transcoding);
+                setEqEnabled(settings.value?.eqEnabled ?? false);
+                setReplayGainEnabled(settings.value?.replayGainEnabled ?? false);
                 const offlineMode = (await VLC.getOfflineMode()).value;
                 setOfflineMode(offlineMode!);
             } catch (e: any) {
@@ -172,6 +180,38 @@ export default function Account() {
                         (May appear as "format" in your server){" "}
                         {Capacitor.getPlatform() === "android" &&
                             "(Used only with mobile data, on WIFI the client won't ask for transcoding.)"}
+                    </div>
+                    <div className="section-header text-white mt-3">
+                        Audio
+                    </div>
+                    <div className="form-check form-switch">
+                        <input
+                            className="form-check-input"
+                            type="checkbox"
+                            checked={eqEnabled}
+                            onChange={() => setEqEnabled(!eqEnabled)}
+                            id="eqSwitch"
+                        />
+                        <label className="form-check-label text-white" htmlFor="eqSwitch">
+                            Audio equalizer
+                        </label>
+                    </div>
+                    <div className="form-check form-switch mb-2">
+                        <input
+                            className="form-check-input"
+                            type="checkbox"
+                            checked={replayGainEnabled}
+                            onChange={() =>
+                                setReplayGainEnabled(!replayGainEnabled)
+                            }
+                            id="rgSwitch"
+                        />
+                        <label className="form-check-label text-white" htmlFor="rgSwitch">
+                            ReplayGain
+                        </label>
+                    </div>
+                    <div className="subtitle text-white">
+                        On Android these apply the next time LibVLC starts.
                     </div>
                     {Capacitor.getPlatform() === "android" && (
                         <>

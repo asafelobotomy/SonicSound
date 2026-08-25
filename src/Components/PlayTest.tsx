@@ -30,6 +30,7 @@ export default function PlayTest() {
     const [androidTv, setAndroidTv] = useState<boolean>(false);
     const [localIp, setLocalIp] = useState<string>("");
     const [showQr, setShowQr] = useState<boolean>(false);
+    const [showPassword, setShowPassword] = useState<boolean>(false);
     const controls = useAnimation();
 
     const hash = useCallback(
@@ -233,15 +234,25 @@ export default function PlayTest() {
                             </div>
                         )}
                         <div ref={passwordRef} className={"col-12 mb-3"}>
-                            <input
-                                {...register("password", { required: true })}
-                                type={"password"}
-                                className={classNames(
-                                    "form-control",
-                                    passwordFocused ? "form-focused" : ""
-                                )}
-                                placeholder={"Password"}
-                            />
+                            <div className="input-group">
+                                <input
+                                    {...register("password", { required: true })}
+                                    type={showPassword ? "text" : "password"}
+                                    className={classNames(
+                                        "form-control",
+                                        passwordFocused ? "form-focused" : ""
+                                    )}
+                                    placeholder={"Password"}
+                                />
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-light"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    tabIndex={-1}
+                                >
+                                    {showPassword ? "Hide" : "Show"}
+                                </button>
+                            </div>
                         </div>
                         {errors && errors.password && (
                             <div className="col-12 text-danger">

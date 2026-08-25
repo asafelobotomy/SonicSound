@@ -5,9 +5,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.core.view.marginLeft
 import androidx.core.view.marginRight
-import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -22,10 +22,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class PlaylistsFragment : Fragment {
+class RadioFragment : Fragment {
     private lateinit var client: SubsonicClient
     private lateinit var bind: TvActivity.TvActivityBind
-    private lateinit var playlistsRecycler: RecyclerView
+    private lateinit var radioRecycler: RecyclerView
     private lateinit var emptyView: TextView
     private var density: Float = 0f
     private var width: Int = 0
@@ -42,7 +42,7 @@ class PlaylistsFragment : Fragment {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View? {
-        return inflater.inflate(R.layout.fragment_playlists, container, false)
+        return inflater.inflate(R.layout.fragment_radio, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -50,27 +50,25 @@ class PlaylistsFragment : Fragment {
         if (!::client.isInitialized || !::bind.isInitialized) {
             return
         }
-        playlistsRecycler = view.findViewById(R.id.rv_playlists)
-        emptyView = view.findViewById(R.id.tv_playlists_empty)
+        radioRecycler = view.findViewById(R.id.rv_radio)
+        emptyView = view.findViewById(R.id.tv_radio_empty)
         view.post {
             density = resources.displayMetrics.density
             width = view.width
             viewLifecycleOwner.lifecycleScope.launch {
-                val playlists: List<ICardViewModel> = withContext(Dispatchers.IO) {
-                    client.getPlaylists().onEach { playlist ->
-                        playlist.image = client.getAlbumArt(playlist.coverArt ?: "")
-                    }
+                val stations: List<ICardViewModel> = withContext(Dispatchers.IO) {
+                    client.getInternetRadioStations()
                 }
-                emptyView.isVisible = playlists.isEmpty()
-                playlistsRecycler.isVisible = playlists.isNotEmpty()
-                val adapter = SonicSoundCardAdapter(playlists, playlistsRecycler, bind)
-                setUpRecyclerView(playlistsRecycler, adapter)
-                playlistsRecycler.layoutManager?.getChildAt(0)?.post {
-                    val child = playlistsRecycler.layoutManager?.getChildAt(0) ?: return@post
+                emptyView.isVisible = stations.isEmpty()
+                radioRecycler.isVisible = stations.isNotEmpty()
+                val adapter = SonicSoundCardAdapter(stations, radioRecycler, bind)
+                setUpRecyclerView(radioRecycler, adapter)
+                radioRecycler.layoutManager?.getChildAt(0)?.post {
+                    val child = radioRecycler.layoutManager?.getChildAt(0) ?: return@post
                     val w = child.width + child.marginLeft + child.marginRight
                     if (w > 0) {
                         val columns = ceil(width / w.toFloat()).toInt().coerceAtLeast(1)
-                        (playlistsRecycler.layoutManager as GridLayoutManager).spanCount = columns
+                        (radioRecycler.layoutManager as GridLayoutManager).spanCount = columns
                     }
                 }
             }

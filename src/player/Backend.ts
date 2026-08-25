@@ -266,6 +266,31 @@ export class Backend extends WebPlugin implements IBackendPlugin {
         return okResponse("");
     }
 
+    async playInternetRadio(o: { streamUrl: string; name: string }) {
+        const track: IAlbumSongResponse = {
+            ...emptyTrack(),
+            id: `radio:${o.name}`,
+            title: o.name,
+            artist: "Internet Radio",
+            album: o.name,
+            duration: 0,
+        };
+        this.currentTrack = track;
+        this.currentPlaylist = {
+            ...emptyPlaylist(),
+            id: "current",
+            name: o.name,
+            comment: "Internet Radio",
+            entry: [track],
+            songCount: 1,
+        };
+        this.audio.src = o.streamUrl;
+        await this.audio.play();
+        this.isPlaying = true;
+        this.notifyListeners("play", null);
+        return okResponse("");
+    }
+
     async play() {
         if (this.currentTrack && !this.isPlaying) await this.audio.play();
         return okResponse("");

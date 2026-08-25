@@ -1,3 +1,11 @@
+# 0.2.4
+
+- Shield QoL: null-safe playlists (no empty-list crash), fragment restore hardening
+- Login: password visibility (TV + web), LAN IP fix for QR/UDP, Subsonic/Navidrome LAN discover
+- Internet Radio via getInternetRadioStations (TV + web)
+- TV Now Playing backdrop polish; optional LibVLC EQ/ReplayGain settings
+- Docs: music videos deferred to official YouTube API + IFrame only (no scrapers)
+
 # 0.2.3
 
 - Fix Shield crash: compile Globals/IBroadcastObserver as Kotlin (Java under kotlin/ was omitted from the APK)

@@ -61,5 +61,6 @@
     "security": {
       "csp": null
     }
-  }
+  },
+  "version": "0.2.4"
 }

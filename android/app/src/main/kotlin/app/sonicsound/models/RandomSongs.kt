@@ -1,3 +1,3 @@
 package app.sonicsound.models
 
-class RandomSongs(val song: List<Song>)
+class RandomSongs(val song: List<Song>?)

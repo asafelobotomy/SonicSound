@@ -124,6 +124,14 @@ export const backendApi = {
     async getPlaylists(this: Backend) {
         return playlists.fetchPlaylists(this.url(), this.params());
     },
+    async getInternetRadioStations(this: Backend) {
+        return lib.fetchInternetRadioStations(this.url(), this.params());
+    },
+    async discoverServers(this: Backend) {
+        return errorResponse<string[]>(
+            "LAN discovery is only available on Android TV"
+        );
+    },
     async getPlaylist(this: Backend, o: { id: string }) {
         return playlists.fetchPlaylist(this.url(), this.params(), o.id);
     },

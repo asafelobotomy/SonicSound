@@ -30,6 +30,15 @@
     <string name="albums_header">Albums</string>
     <string name="songs_header">Songs</string>
     <string name="playlist">Playlists</string>
+    <string name="playlists_empty">No playlists yet. Create some on your Navidrome server.</string>
+    <string name="radio_button_content">Radio</string>
+    <string name="radio">Internet Radio</string>
+    <string name="radio_empty">No radio stations configured on the server.</string>
+    <string name="discover_servers">Discover servers</string>
+    <string name="discovering_servers">Scanning LAN…</string>
+    <string name="no_servers_found">No Subsonic servers found on LAN</string>
+    <string name="eq_enabled">Audio equalizer</string>
+    <string name="replaygain_enabled">ReplayGain</string>
     <string name="plaintext_warning_login">Use plaintext password (insecure on http connections, needed for some servers)</string>
     <string name="using_plaintext_password">Using plaintext password</string>
     <string name="logout">Logout</string>

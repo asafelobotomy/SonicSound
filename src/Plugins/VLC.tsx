@@ -9,6 +9,7 @@ import {
 } from "../Models/API/Responses/IArtistResponse";
 import { IPlaylist } from "../Models/API/Responses/IPlaylistsResponse";
 import { IAccount } from "../Models/AppContext";
+import { IInternetRadioStation } from "../subsonic/endpoints/library";
 
 export interface IBackendResponse<T> {
     status: string;
@@ -26,6 +27,8 @@ export interface ICurrentState {
 export interface ISettings {
     cacheSize: number;
     transcoding: string;
+    eqEnabled?: boolean;
+    replayGainEnabled?: boolean;
 }
 
 export interface IBackendPlugin extends Plugin {
@@ -56,6 +59,10 @@ export interface IBackendPlugin extends Plugin {
         track: number;
     }): Promise<IBackendResponse<string>>;
     playRadio(options: { song: string }): Promise<IBackendResponse<string>>;
+    playInternetRadio(options: {
+        streamUrl: string;
+        name: string;
+    }): Promise<IBackendResponse<string>>;
     playPlaylist(options: {
         playlist: string;
         track: number;
@@ -80,6 +87,10 @@ export interface IBackendPlugin extends Plugin {
     getRandomSongs(): Promise<IBackendResponse<IAlbumSongResponse[]>>;
     getPlaylists(): Promise<IBackendResponse<IPlaylist[]>>;
     getPlaylist(options: { id: string }): Promise<IBackendResponse<IPlaylist>>;
+    getInternetRadioStations(): Promise<
+        IBackendResponse<IInternetRadioStation[]>
+    >;
+    discoverServers(): Promise<IBackendResponse<string[]>>;
     login(options: {
         username: string;
         password: string;

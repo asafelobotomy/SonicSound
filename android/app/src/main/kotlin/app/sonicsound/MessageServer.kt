@@ -198,7 +198,7 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
                                     command.data,
                                     SetPlaylistAndPlayRequest::class.java
                                 )
-                                if (request.track >= request.playlist.entry.size) {
+                                if (request.track >= request.playlist.entry.orEmpty().size) {
                                     throw Exception("The track parameter was out of bounds")
                                 }
                             } catch (e: Exception) {

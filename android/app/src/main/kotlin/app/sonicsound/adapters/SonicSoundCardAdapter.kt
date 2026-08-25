@@ -14,6 +14,7 @@ import app.sonicsound.TvActivity
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.models.Album
 import app.sonicsound.models.ICardViewModel
+import app.sonicsound.models.InternetRadioStation
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.Song
 
@@ -72,8 +73,10 @@ class SonicSoundCardAdapter(
             bind.playAlbum(item.id, 0)
         } else if (item is Song) {
             bind.playRadio(item.id)
-        } else if(item is Playlist){
-            bind.playPlaylist(item.id,0)
+        } else if (item is Playlist) {
+            bind.playPlaylist(item.id, 0)
+        } else if (item is InternetRadioStation) {
+            bind.playInternetRadio(item.streamUrl, item.name)
         }
     }
 

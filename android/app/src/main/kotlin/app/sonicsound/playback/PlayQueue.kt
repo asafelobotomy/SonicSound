@@ -11,11 +11,13 @@ class PlayQueue {
     var currentTrack: Song? = null
     var shuffling: Boolean = false
 
+    private fun entries(): List<Song> = playlist.entry.orEmpty()
+
     fun shufflePlaylist() {
         if (shuffling) {
             playlist.entry = originalPlaylist.toList()
         } else {
-            playlist.entry = shuffle(playlist.entry)
+            playlist.entry = shuffle(entries())
         }
         shuffling = !shuffling
     }
@@ -24,31 +26,38 @@ class PlayQueue {
         val ret = list.shuffled().toMutableList()
         if (currentTrack != null) {
             val index = ret.indexOf(currentTrack)
-            ret[index] = ret[0]
-            ret[0] = currentTrack!!
+            if (index >= 0) {
+                ret[index] = ret[0]
+                ret[0] = currentTrack!!
+            }
         }
         return ret
     }
 
     fun skipTo(track: Int): Song {
-        if (track >= playlist.entry.size) {
+        val list = entries()
+        if (track < 0 || track >= list.size) {
             throw Exception("Track does not exist on playlist")
         }
-        currentTrack = playlist.entry[track]
+        currentTrack = list[track]
         return currentTrack!!
     }
 
     fun next(): Song? {
-        if (playlist.entry.indexOf(currentTrack) < playlist.entry.size - 1) {
-            currentTrack = playlist.entry[playlist.entry.indexOf(currentTrack) + 1]
+        val list = entries()
+        val idx = list.indexOf(currentTrack)
+        if (idx >= 0 && idx < list.size - 1) {
+            currentTrack = list[idx + 1]
             return currentTrack
         }
         return null
     }
 
     fun prev(): Song? {
-        if (playlist.entry.indexOf(currentTrack) > 0) {
-            currentTrack = playlist.entry[playlist.entry.indexOf(currentTrack) - 1]
+        val list = entries()
+        val idx = list.indexOf(currentTrack)
+        if (idx > 0) {
+            currentTrack = list[idx - 1]
             return currentTrack
         }
         return null
@@ -58,7 +67,7 @@ class PlayQueue {
 
     fun setEntries(newPlaylist: Playlist, track: Song) {
         playlist = newPlaylist
-        originalPlaylist = newPlaylist.entry.toList()
+        originalPlaylist = newPlaylist.entry.orEmpty().toList()
         currentTrack = track
     }
 

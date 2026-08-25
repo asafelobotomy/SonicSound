@@ -150,6 +150,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun seek(call: PluginCall) = playback.seek(call)
     @PluginMethod fun setVolume(call: PluginCall) = playback.setVolume(call)
     @PluginMethod fun playRadio(call: PluginCall) = playback.playRadio(call)
+    @PluginMethod fun playInternetRadio(call: PluginCall) = playback.playInternetRadio(call)
     @PluginMethod fun playAlbum(call: PluginCall) = playback.playAlbum(call)
     @PluginMethod fun downloadAlbum(call: PluginCall) = library.downloadAlbum(call)
     @PluginMethod fun next(call: PluginCall) = playback.next(call)
@@ -183,6 +184,8 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun clearCoverCache(call: PluginCall) = library.clearCoverCache(call)
     @PluginMethod fun getCoverCacheSize(call: PluginCall) = library.getCoverCacheSize(call)
     @PluginMethod fun getLyrics(call: PluginCall) = library.getLyrics(call)
+    @PluginMethod fun getInternetRadioStations(call: PluginCall) =
+        library.getInternetRadioStations(call)
 
     override fun update(action: String?, value: String?) {
         try {

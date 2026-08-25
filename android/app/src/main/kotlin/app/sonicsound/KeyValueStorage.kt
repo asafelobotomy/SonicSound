@@ -47,9 +47,9 @@ class KeyValueStorage {
         fun getSettings(): Settings {
             val raw = prefs().getString("settings", "")
             return try {
-                Gson().fromJson(raw, Settings::class.java)
+                Gson().fromJson(raw, Settings::class.java) ?: Settings()
             } catch (_: Exception) {
-                Settings(0, "")
+                Settings()
             }
         }
 

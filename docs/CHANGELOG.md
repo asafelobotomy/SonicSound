@@ -1,3 +1,8 @@
+# 0.2.3
+
+- Fix Shield crash: compile Globals/IBroadcastObserver as Kotlin (Java under kotlin/ was omitted from the APK)
+- Harden LAN discovery null handling on Android TV
+
 # 0.2.2
 
 - Ship arm64-v8a-only APKs for Shield Pro / modern devices (drops unused 32-bit VLC libs)

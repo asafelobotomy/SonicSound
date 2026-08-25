@@ -184,8 +184,11 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun getCoverCacheSize(call: PluginCall) = library.getCoverCacheSize(call)
     @PluginMethod fun getLyrics(call: PluginCall) = library.getLyrics(call)
 
-    override fun update(action: String, value: String?) {
+    override fun update(action: String?, value: String?) {
         try {
+            if (action == null) {
+                return
+            }
             if (action == "SLCANCEL" && mBound) {
                 App.context.unbindService(connection)
                 mBound = false
@@ -200,7 +203,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
                 websocket.onObserverUpdate(action, value)
             }
         } catch (e: Exception) {
-            Log.e("SonicSound", e.message!!)
+            Log.e("SonicSound", e.message ?: "observer update failed")
         }
     }
 

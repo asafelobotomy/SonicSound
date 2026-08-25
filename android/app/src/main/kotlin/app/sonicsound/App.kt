@@ -55,20 +55,21 @@ class App : Application() {
                 }
                 val addrs: MutableList<InterfaceAddress> = intf.interfaceAddresses
                 for (addr in addrs) {
-                    val a: String = addr.address.hostAddress!!.replace("/", "")
-                    if (!addr.address.isLoopbackAddress
-                        && (a.subSequence(0, 7) == "192.168"
-                                || a.subSequence(0, 2) == "10"
-                                || a.subSequence(0, 3) == "172")
+                    val address = addr.address ?: continue
+                    val a: String = (address.hostAddress ?: continue).replace("/", "")
+                    if (!address.isLoopbackAddress
+                        && (a.startsWith("192.168")
+                                || a.startsWith("10.")
+                                || a.startsWith("172."))
                     ) {
                         localIp = a
-                        localBroadcast = addr.broadcast.hostAddress!!
+                        localBroadcast = addr.broadcast?.hostAddress
                     }
                 }
             }
 
         } catch (ex: Exception) {
-            Log.e("SonicSound", ex.message!!)
+            Log.e("SonicSound", ex.message ?: "LAN discovery failed")
         } // for now eat exceptions
 
         if (isTv) {

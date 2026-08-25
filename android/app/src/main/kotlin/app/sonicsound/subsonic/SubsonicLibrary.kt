@@ -64,7 +64,7 @@ class SubsonicLibrary(
         artistsResponse?.artists?.index.orEmpty().forEach { artistIndex ->
             ret.addAll(artistIndex.artist.orEmpty().map { artistItem ->
                 Artist(artistItem.id, artistItem.name, artistItem.albumCount).also { artist ->
-                    artist.coverArt = artistItem.artistImageUrl
+                    artist.coverArt = artistItem.artistImageUrl.orEmpty()
                 }
             })
         }
@@ -284,7 +284,14 @@ class SubsonicLibrary(
 
     fun getArtistArt(id: String): String {
         val artist = getArtist(id)
-        val art = getSpotifyArtistArt(artist.name) ?: getArtistInfo(id).largeImageUrl
+        val fromCover = artist.coverArt.takeIf { it.startsWith("http", ignoreCase = true) }
+        val fromInfo = runCatching { getArtistInfo(id).largeImageUrl }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+        val art = fromCover
+            ?: fromInfo
+            ?: getSpotifyArtistArt(artist.name)
+            ?: return ""
         coverCache.cacheRemoteImage(
             art,
             coverCache.getArtistArtsDirectory(),

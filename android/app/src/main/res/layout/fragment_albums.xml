@@ -26,7 +26,9 @@
             android:id="@+id/sp_albums_sort"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minWidth="160dp" />
+            android:minWidth="140dp"
+            android:popupBackground="#282c34"
+            android:spinnerMode="dropdown" />
     </LinearLayout>
 
     <TextView
@@ -34,7 +36,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="@font/montserrat"
-        android:paddingTop="24dp"
+        android:paddingTop="@dimen/tv_section_gap"
         android:text="@string/albums_empty"
         android:textColor="#99ffffff"
         android:textSize="18sp"
@@ -43,6 +45,8 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_albums"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:paddingTop="@dimen/tv_section_gap"
+        android:clipToPadding="false" />
 
 </LinearLayout>

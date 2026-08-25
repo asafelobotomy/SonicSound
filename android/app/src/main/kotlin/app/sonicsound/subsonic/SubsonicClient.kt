@@ -51,6 +51,10 @@ class SubsonicClient(var initialAccount: Account) {
         accountProvider = { account },
         paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() }
     )
+    private val stars = SubsonicStars(
+        http = http,
+        paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() }
+    )
     private val downloads = SubsonicDownloads(
         http = http,
         accountProvider = { account },
@@ -160,6 +164,8 @@ class SubsonicClient(var initialAccount: Account) {
     fun getSpotifyToken(): String = library.getSpotifyToken()
     fun scrobble(id: String) = library.scrobble(id)
     fun getArtistArt(id: String): String = library.getArtistArt(id)
+    fun star(id: String) = stars.star(id)
+    fun unstar(id: String) = stars.unstar(id)
     fun getLocalAlbumArt(id: String): String = coverCache.getLocalAlbumArt(id)
     fun getLocalArtistArt(id: String): String = coverCache.getLocalArtistArt(id)
     fun getRandomSongs(): List<Song> = library.getRandomSongs()

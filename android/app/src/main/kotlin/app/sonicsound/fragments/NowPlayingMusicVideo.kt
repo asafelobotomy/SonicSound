@@ -14,6 +14,7 @@ import app.sonicsound.TvActivity
 import app.sonicsound.models.Song
 import app.sonicsound.youtube.YoutubeDataApi
 import app.sonicsound.youtube.YoutubeIframeController
+import app.sonicsound.youtube.YoutubeOAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -117,7 +118,10 @@ class NowPlayingMusicVideo(
 
     private fun enable() {
         val settings = KeyValueStorage.getSettings()
-        if (!settings.youtubeVideosEnabled || settings.youtubeApiKey.isBlank()) {
+        if (!settings.youtubeVideosEnabled ||
+            (YoutubeOAuth.validAccessToken().isBlank() &&
+                settings.youtubeApiKey.isBlank())
+        ) {
             Toast.makeText(
                 fragment.requireContext(),
                 R.string.music_video_needs_api,
@@ -174,12 +178,10 @@ class NowPlayingMusicVideo(
 
     private fun loadFor(track: Song, playing: Boolean) {
         val settings = KeyValueStorage.getSettings()
-        val apiKey = settings.youtubeApiKey
         val allowAny = settings.youtubeAllowAnyChannel
         fragment.viewLifecycleOwner.lifecycleScope.launch {
             val video = withContext(Dispatchers.IO) {
                 YoutubeDataApi.searchMusicVideo(
-                    apiKey,
                     track.artist,
                     track.title,
                     allowAnyChannel = allowAny,

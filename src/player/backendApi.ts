@@ -10,6 +10,7 @@ import {
 import { errorResponse, okResponse } from "../subsonic/errors";
 import * as lib from "../subsonic/endpoints/library";
 import * as playlists from "../subsonic/endpoints/playlists";
+import * as stars from "../subsonic/endpoints/stars";
 import {
     clearSpotifyTokenCache,
     getSpotifyAccessToken,
@@ -213,6 +214,10 @@ export const backendApi = {
     async getArtistArt(this: Backend, o: { id: string }) {
         const artist = await this.getArtist({ id: o.id });
         if (artist.status !== "ok" || !artist.value) return okResponse("");
+        const info = await this.getArtistInfo({ id: o.id });
+        if (info.status === "ok" && info.value?.largeImageUrl) {
+            return okResponse(info.value.largeImageUrl);
+        }
         try {
             const items = await searchSpotifyArtist(
                 await this.getSpotifyToken(),
@@ -225,9 +230,12 @@ export const backendApi = {
         } catch {
             /* optional */
         }
-        const info = await this.getArtistInfo({ id: o.id });
-        return info.status === "ok"
-            ? okResponse(info.value!.largeImageUrl)
-            : errorResponse(info.error);
+        return okResponse("");
+    },
+    async star(this: Backend, o: { id: string }) {
+        return stars.starSong(this.url(), this.params(), o.id);
+    },
+    async unstar(this: Backend, o: { id: string }) {
+        return stars.unstarSong(this.url(), this.params(), o.id);
     },
 };

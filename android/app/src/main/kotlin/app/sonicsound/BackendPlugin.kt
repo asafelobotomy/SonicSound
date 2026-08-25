@@ -145,6 +145,8 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun getAccounts(call: PluginCall) = accounts.getAccounts(call)
     @PluginMethod fun getAlbumArt(call: PluginCall) = library.getAlbumArt(call)
     @PluginMethod fun getArtistArt(call: PluginCall) = library.getArtistArt(call)
+    @PluginMethod fun star(call: PluginCall) = library.star(call)
+    @PluginMethod fun unstar(call: PluginCall) = library.unstar(call)
     @PluginMethod fun play(call: PluginCall) = playback.play(call)
     @PluginMethod fun pause(call: PluginCall) = playback.pause(call)
     @PluginMethod fun seek(call: PluginCall) = playback.seek(call)

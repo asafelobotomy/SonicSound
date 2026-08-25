@@ -1,22 +1,22 @@
 @import "../Styles/colors.scss";
 
 .sidebar {
-    width: 5rem !important;
+    width: 4.25rem !important;
     background-color: $items-color-highlight !important;
-    height: 80vh;
+    height: 82vh;
     position: absolute;
-    left: calc(100vw - 5.3rem);
+    left: calc(100vw - 4.6rem);
     top: 0;
     transition: ease 0.3s;
-    margin: 10vh 0 0 0;
+    margin: 8vh 12px 0 0;
     border-radius: 10px;
     z-index:3000;
     .sidebar-item {
-        width: 4rem;
-        height: 4rem;
+        width: 3.4rem;
+        height: 3.4rem;
         background-color: $items-color;
         border-radius: 10%;
-        margin-top: 0.5rem;
+        margin-top: 0.35rem;
         transition: ease 0.3s;
 
         &:hover {
@@ -24,19 +24,19 @@
         }
 
         svg {
-            font-size: 2.5rem;
+            font-size: 2rem;
         }
     }
     .last-item{
         margin-top:auto;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
     }
 
     .sidebar-item-borderless {
-        width: 4rem;
-        height: 4rem;
+        width: 3.4rem;
+        height: 3.4rem;
         border-radius: 10%;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
         transition: ease 0.3s;
 
         &:hover {
@@ -44,12 +44,12 @@
         }
 
         svg {
-            font-size: 2.5rem;
+            font-size: 2rem;
         }
 
         .sidebar-logo {
-            width: 2.75rem;
-            height: 2.75rem;
+            width: 2.25rem;
+            height: 2.25rem;
             object-fit: contain;
             filter: invert(1);
         }

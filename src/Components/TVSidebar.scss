@@ -1,20 +1,20 @@
 @import "../Styles/colors.scss";
 
 .sidebar-tv {
-    min-width: 5vw;
+    min-width: 4.5vw;
     width: auto;
     height: 100%;
-
+    overflow: hidden;
     transition: ease 0.3s;
-    margin: 0 0 0 0;
+    margin: 0;
+    padding-top: 4px;
     background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(40, 44, 52, 1));
 
     .sidebar-item {
-        min-width: 5vw;
+        min-width: 4.5vw;
         width: auto;
-        height: 4rem;
-        background-color: $items-color;
-        margin-bottom: 0.5rem;
+        height: 2.6rem;
+        margin-bottom: 0.2rem;
         transition: ease 0.3s;
         background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(40, 44, 52, 1));
 
@@ -23,7 +23,7 @@
         }
 
         svg {
-            font-size: 2.5rem;
+            font-size: 1.55rem;
         }
 
         .item-text {
@@ -36,12 +36,11 @@
         background-color: $items-color-hover !important;
     }
 
-
     .sidebar-item-borderless {
-        width: 4rem;
-        height: 4rem;
+        width: 2.6rem;
+        height: 2.6rem;
         border-radius: 10%;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.2rem;
         transition: ease 0.3s;
 
         &:hover {
@@ -49,7 +48,7 @@
         }
 
         svg {
-            font-size: 2.5rem;
+            font-size: 1.55rem;
         }
     }
 }
@@ -58,17 +57,17 @@
     min-width: 10vw;
     width: auto;
     height: 100%;
-
+    overflow: hidden;
     transition: ease 0.3s;
-    margin: 0 0 0 0;
+    margin: 0;
+    padding-top: 4px;
     background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(40, 44, 52, 1));
 
     .sidebar-item {
         min-width: 10vw;
         width: auto;
-        height: 4rem;
-        background-color: $items-color;
-        margin-bottom: 0.5rem;
+        height: 2.6rem;
+        margin-bottom: 0.2rem;
         transition: ease 0.3s;
         background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(40, 44, 52, 1));
 
@@ -76,16 +75,14 @@
             background-color: $items-color-hover;
         }
 
-
-
         svg {
-            font-size: 2.5rem;
+            font-size: 1.55rem;
         }
 
         .item-text {
             transition: 2s;
-            margin-left: 10px;
-            font-size: large;
+            margin-left: 8px;
+            font-size: 0.95rem;
         }
     }
 
@@ -93,12 +90,11 @@
         background-color: $items-color-hover !important;
     }
 
-
     .sidebar-item-borderless {
-        width: 4rem;
-        height: 4rem;
+        width: 2.6rem;
+        height: 2.6rem;
         border-radius: 10%;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.2rem;
         transition: ease 0.3s;
 
         &:hover {
@@ -106,7 +102,7 @@
         }
 
         svg {
-            font-size: 2.5rem;
+            font-size: 1.55rem;
         }
     }
 }

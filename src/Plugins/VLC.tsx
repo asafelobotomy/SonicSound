@@ -32,6 +32,11 @@ export interface ISettings {
     youtubeApiKey?: string;
     youtubeVideosEnabled?: boolean;
     youtubeAllowAnyChannel?: boolean;
+    youtubeOauthClientId?: string;
+    youtubeOauthClientSecret?: string;
+    youtubeAccessToken?: string;
+    youtubeRefreshToken?: string;
+    youtubeTokenExpiryMs?: number;
 }
 
 export interface IBackendPlugin extends Plugin {
@@ -80,6 +85,8 @@ export interface IBackendPlugin extends Plugin {
     }): Promise<IBackendResponse<IInnerAlbumResponse>>;
     getAlbumArt(options: { id: string }): Promise<IBackendResponse<string>>;
     getArtistArt(options: { id: string }): Promise<IBackendResponse<string>>;
+    star(options: { id: string }): Promise<IBackendResponse<string>>;
+    unstar(options: { id: string }): Promise<IBackendResponse<string>>;
     search(options: {
         query: string;
     }): Promise<IBackendResponse<ISearchResult>>;

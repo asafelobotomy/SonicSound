@@ -82,9 +82,9 @@ class ArtistsFragment : Fragment {
             )
             spinner.adapter = ArrayAdapter(
                 requireContext(),
-                android.R.layout.simple_spinner_dropdown_item,
+                R.layout.spinner_item_white,
                 labels
-            )
+            ).also { it.setDropDownViewResource(R.layout.spinner_dropdown_white) }
             spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(
                     parent: AdapterView<*>?,
@@ -114,11 +114,18 @@ class ArtistsFragment : Fragment {
                     setGrid(recycler, SonicSoundCardAdapter(albums, recycler, bind))
                 } else {
                     allArtists = withContext(Dispatchers.IO) {
-                        client.getArtists().onEach {
-                            it.image = it.coverArt.ifBlank { client.getAlbumArt(it.id) }
+                        client.getArtists().onEach { artist ->
+                            artist.image = when {
+                                artist.coverArt.startsWith("http", ignoreCase = true) ->
+                                    artist.coverArt
+                                artist.coverArt.isNotBlank() ->
+                                    client.getAlbumArt(artist.coverArt)
+                                else -> ""
+                            }
                         }
                     }
                     renderArtists(recycler, empty)
+                    hydrateArtistArts(recycler, empty)
                 }
             }
         }
@@ -129,6 +136,25 @@ class ArtistsFragment : Fragment {
         empty.isVisible = cards.isEmpty()
         recycler.isVisible = cards.isNotEmpty()
         setGrid(recycler, SonicSoundCardAdapter(cards, recycler, bind))
+    }
+
+    private fun hydrateArtistArts(recycler: RecyclerView, empty: TextView) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val missing = allArtists.filter { it.image.isBlank() }
+            for (chunk in missing.chunked(4)) {
+                withContext(Dispatchers.IO) {
+                    chunk.forEach { artist ->
+                        try {
+                            val url = client.getArtistArt(artist.id)
+                            if (url.isNotBlank()) artist.image = url
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+                if (view == null) return@launch
+                renderArtists(recycler, empty)
+            }
+        }
     }
 
     private fun setGrid(rc: RecyclerView, a: SonicSoundCardAdapter) {

@@ -4,13 +4,14 @@ import { faGear } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import classNames from "classnames";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import VLC, { ISettings } from "../Plugins/VLC";
+import { pollToken, startDeviceAuth } from "../youtube/oauth";
 
 const YT_PREMIUM = "https://www.youtube.com/premium";
-const YT_API_DOCS =
-    "https://developers.google.com/youtube/v3/getting-started";
+const YT_OAUTH_DOCS =
+    "https://developers.google.com/identity/protocols/oauth2/limited-input-device";
 
 export default function Settings() {
     const [eqEnabled, setEqEnabled] = useState(false);
@@ -19,10 +20,15 @@ export default function Settings() {
     const [youtubeAllowAnyChannel, setYoutubeAllowAnyChannel] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [artCacheLabel, setArtCacheLabel] = useState("Art cache: …");
+    const [ytStatus, setYtStatus] = useState("YouTube: not signed in");
+    const [ytUserCode, setYtUserCode] = useState("");
+    const [oauthBusy, setOauthBusy] = useState(false);
+    const pollCancel = useRef(false);
     const {
         register,
         handleSubmit,
         setValue,
+        getValues,
         formState: { errors },
     } = useForm<ISettings>();
     const { focused: saveFocused, ref: saveRef } = useFocusable({
@@ -31,7 +37,9 @@ export default function Settings() {
 
     const save = useCallback(
         async (data: ISettings) => {
+            const current = (await VLC.getSettings()).value;
             const ret = await VLC.setSettings({
+                ...current,
                 ...data,
                 eqEnabled,
                 replayGainEnabled,
@@ -60,25 +68,118 @@ export default function Settings() {
         }
     }, []);
 
+    const refreshYtStatus = useCallback(async () => {
+        const s = (await VLC.getSettings()).value;
+        const signedIn = !!(
+            s?.youtubeAccessToken || s?.youtubeRefreshToken
+        );
+        setYtStatus(signedIn ? "YouTube: signed in" : "YouTube: not signed in");
+    }, []);
+
     useEffect(() => {
         const load = async () => {
             const settings = await VLC.getSettings();
             setValue("cacheSize", settings.value?.cacheSize ?? 0);
             setValue("transcoding", settings.value?.transcoding ?? "");
-            setValue("youtubeApiKey", settings.value?.youtubeApiKey ?? "");
+            setValue(
+                "youtubeOauthClientId",
+                settings.value?.youtubeOauthClientId ?? ""
+            );
+            setValue(
+                "youtubeOauthClientSecret",
+                settings.value?.youtubeOauthClientSecret ?? ""
+            );
             setEqEnabled(settings.value?.eqEnabled ?? false);
             setReplayGainEnabled(settings.value?.replayGainEnabled ?? false);
             setYoutubeVideosEnabled(settings.value?.youtubeVideosEnabled ?? false);
             setYoutubeAllowAnyChannel(
                 settings.value?.youtubeAllowAnyChannel ?? false
             );
+            await refreshYtStatus();
             if (Capacitor.getPlatform() === "android") {
                 setOfflineMode((await VLC.getOfflineMode()).value!);
                 refreshArtCache();
             }
         };
         load();
-    }, [setValue, refreshArtCache]);
+        return () => {
+            pollCancel.current = true;
+        };
+    }, [setValue, refreshArtCache, refreshYtStatus]);
+
+    const signInYoutube = useCallback(async () => {
+        await handleSubmit(save)();
+        const clientId = getValues("youtubeOauthClientId")?.trim() ?? "";
+        const clientSecret = getValues("youtubeOauthClientSecret")?.trim() ?? "";
+        if (!clientId) {
+            Toast.show({
+                text: "Add a Google OAuth client ID (TVs and Limited Input).",
+            });
+            return;
+        }
+        setOauthBusy(true);
+        pollCancel.current = false;
+        try {
+            const auth = await startDeviceAuth(clientId);
+            setYtUserCode(`Enter code: ${auth.userCode}`);
+            setYtStatus("Waiting for Google approval…");
+            window.open(auth.verificationUrl, "_blank");
+            const deadline = Date.now() + auth.expiresInSec * 1000;
+            while (!pollCancel.current && Date.now() < deadline) {
+                await new Promise((r) =>
+                    setTimeout(r, auth.intervalSec * 1000)
+                );
+                const tokens = await pollToken(
+                    clientId,
+                    clientSecret,
+                    auth.deviceCode
+                );
+                if (!tokens) continue;
+                const current = (await VLC.getSettings()).value!;
+                await VLC.setSettings({
+                    ...current,
+                    youtubeOauthClientId: clientId,
+                    youtubeOauthClientSecret: clientSecret,
+                    youtubeAccessToken: tokens.accessToken,
+                    youtubeRefreshToken:
+                        tokens.refreshToken ?? current.youtubeRefreshToken ?? "",
+                    youtubeTokenExpiryMs:
+                        Date.now() + tokens.expiresInSec * 1000,
+                    youtubeVideosEnabled: true,
+                });
+                setYoutubeVideosEnabled(true);
+                setYtUserCode("");
+                setYtStatus("YouTube: signed in");
+                Toast.show({ text: "YouTube signed in" });
+                return;
+            }
+            if (!pollCancel.current) {
+                Toast.show({ text: "YouTube sign-in timed out" });
+                await refreshYtStatus();
+            }
+        } catch (e: unknown) {
+            Toast.show({
+                text: (e as Error)?.message ?? "YouTube sign-in failed",
+            });
+            await refreshYtStatus();
+        } finally {
+            setOauthBusy(false);
+        }
+    }, [getValues, handleSubmit, save, refreshYtStatus]);
+
+    const signOutYoutube = useCallback(async () => {
+        pollCancel.current = true;
+        const current = (await VLC.getSettings()).value!;
+        await VLC.setSettings({
+            ...current,
+            youtubeAccessToken: "",
+            youtubeRefreshToken: "",
+            youtubeTokenExpiryMs: 0,
+        });
+        setYtUserCode("");
+        setYtStatus("YouTube: not signed in");
+        Toast.show({ text: "YouTube signed out" });
+    }, []);
 
     return (
         <div className="d-flex flex-column align-items-center overflow-scroll scrollable p-3">
@@ -132,12 +233,39 @@ export default function Settings() {
                     </label>
                 </div>
                 <input
-                    {...register("youtubeApiKey")}
-                    type="password"
+                    {...register("youtubeOauthClientId")}
                     className="form-control mb-1"
-                    placeholder="YouTube Data API key"
+                    placeholder="Google OAuth client ID (TV)"
                     autoComplete="off"
                 />
+                <input
+                    {...register("youtubeOauthClientSecret")}
+                    type="password"
+                    className="form-control mb-1"
+                    placeholder="OAuth client secret (optional)"
+                    autoComplete="off"
+                />
+                <div className="subtitle text-white mb-1">{ytStatus}</div>
+                {ytUserCode && (
+                    <div className="text-white fw-bold mb-1">{ytUserCode}</div>
+                )}
+                <div className="d-flex flex-row gap-2 mb-2">
+                    <button
+                        type="button"
+                        className="btn btn-outline-light btn-sm"
+                        disabled={oauthBusy}
+                        onClick={signInYoutube}
+                    >
+                        Sign in with Google
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-outline-light btn-sm"
+                        onClick={signOutYoutube}
+                    >
+                        Sign out
+                    </button>
+                </div>
                 <div className="form-check form-switch mb-2">
                     <input
                         className="form-check-input"
@@ -156,20 +284,12 @@ export default function Settings() {
                     </label>
                 </div>
                 <div className="subtitle text-white mb-2">
-                    Off (default): only VEVO, artist, and Official channels. On:
-                    any channel if the title matches the song.
-                </div>
-                <div className="subtitle text-white mb-2">
-                    Official{" "}
-                    <a href={YT_API_DOCS} target="_blank" rel="noreferrer">
-                        YouTube Data API v3
-                    </a>{" "}
-                    only. In Now Playing, music videos play YouTube audio (server
-                    muted) and follow the play queue.{" "}
-                    <a href={YT_PREMIUM} target="_blank" rel="noreferrer">
-                        YouTube Premium
-                    </a>{" "}
-                    removes ads when signed in.
+                    Create an OAuth client of type “TVs and Limited Input devices”
+                    in Google Cloud, enable YouTube Data API v3, then Sign in. See{" "}
+                    <a href={YT_OAUTH_DOCS} target="_blank" rel="noreferrer">
+                        device OAuth docs
+                    </a>
+                    .
                 </div>
                 <a
                     className="btn btn-outline-light btn-sm mb-3"

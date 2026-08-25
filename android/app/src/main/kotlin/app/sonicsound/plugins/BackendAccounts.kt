@@ -102,15 +102,38 @@ class BackendAccounts(
                 call.getBoolean("youtubeVideosEnabled") ?: current.youtubeVideosEnabled
             val youtubeAllowAnyChannel =
                 call.getBoolean("youtubeAllowAnyChannel") ?: current.youtubeAllowAnyChannel
+            val youtubeOauthClientId =
+                call.getString("youtubeOauthClientId") ?: current.youtubeOauthClientId
+            val youtubeOauthClientSecret =
+                call.getString("youtubeOauthClientSecret") ?: current.youtubeOauthClientSecret
+            val youtubeAccessToken =
+                if (call.hasOption("youtubeAccessToken")) {
+                    call.getString("youtubeAccessToken").orEmpty()
+                } else {
+                    current.youtubeAccessToken
+                }
+            val youtubeRefreshToken =
+                if (call.hasOption("youtubeRefreshToken")) {
+                    call.getString("youtubeRefreshToken").orEmpty()
+                } else {
+                    current.youtubeRefreshToken
+                }
+            val youtubeTokenExpiryMs =
+                call.getLong("youtubeTokenExpiryMs") ?: current.youtubeTokenExpiryMs
             setSettings(
                 Settings(
-                    cacheSize,
-                    transcoding,
-                    eqEnabled,
-                    replayGainEnabled,
-                    youtubeApiKey,
-                    youtubeVideosEnabled,
-                    youtubeAllowAnyChannel,
+                    cacheSize = cacheSize,
+                    transcoding = transcoding,
+                    eqEnabled = eqEnabled,
+                    replayGainEnabled = replayGainEnabled,
+                    youtubeApiKey = youtubeApiKey,
+                    youtubeVideosEnabled = youtubeVideosEnabled,
+                    youtubeAllowAnyChannel = youtubeAllowAnyChannel,
+                    youtubeOauthClientId = youtubeOauthClientId,
+                    youtubeOauthClientSecret = youtubeOauthClientSecret,
+                    youtubeAccessToken = youtubeAccessToken,
+                    youtubeRefreshToken = youtubeRefreshToken,
+                    youtubeTokenExpiryMs = youtubeTokenExpiryMs,
                 )
             )
             call.resolve(responses.ok(""))

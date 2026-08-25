@@ -273,4 +273,24 @@ class BackendLibrary(
             call.resolve(responses.error(e.message))
         }
     }
+
+    fun star(call: PluginCall) {
+        try {
+            val id = call.getString("id") ?: throw ParameterException("id")
+            client.star(id)
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
+    fun unstar(call: PluginCall) {
+        try {
+            val id = call.getString("id") ?: throw ParameterException("id")
+            client.unstar(id)
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
 }

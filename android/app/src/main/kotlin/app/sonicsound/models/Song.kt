@@ -16,22 +16,32 @@ class Song(
     var album: String,
     var albumId: String,
     var coverArt: String,
+    @Ignore
+    var starred: String? = null,
 ) : ICardViewModel {
-    override fun firstLine(): String {
-        return title
-    }
+    constructor(
+        id: String,
+        parent: String,
+        title: String,
+        duration: Int,
+        track: Int,
+        artist: String,
+        album: String,
+        albumId: String,
+        coverArt: String,
+    ) : this(id, parent, title, duration, track, artist, album, albumId, coverArt, null)
 
-    override fun secondLine(): String {
-        return "by $artist"
-    }
+    val isStarred: Boolean get() = !starred.isNullOrBlank()
+
+    override fun firstLine(): String = title
+
+    override fun secondLine(): String = "by $artist"
 
     @Ignore
     private var _image: String = ""
 
     override var image: String
-        get() {
-            return _image
-        }
+        get() = _image
         set(value) {
             _image = value
         }

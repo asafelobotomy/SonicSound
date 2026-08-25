@@ -54,5 +54,6 @@ export interface IAlbumSongResponse {
     album: string;
     albumId: string;
     coverArt: string;
+    starred?: string;
 }
 

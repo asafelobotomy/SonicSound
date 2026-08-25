@@ -7,11 +7,11 @@ import {
     FocusContext,
     useFocusable,
 } from "@noriginmedia/norigin-spatial-navigation";
-import classnames from "classnames";
 import { IAlbumSongResponse } from "../Models/API/Responses/IArtistResponse";
 import { PluginListenerHandle } from "@capacitor/core";
 import { IPlaylist } from "../Models/API/Responses/IPlaylistsResponse";
 import { PlaylistEntry } from "./PlaylistEntry";
+import TVActionButton from "./TVActionButton";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
     faBackward,
@@ -19,12 +19,15 @@ import {
     faFilm,
     faForward,
     faForwardStep,
+    faHeart,
     faPause,
     faPlay,
 } from "@fortawesome/free-solid-svg-icons";
+import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { Toast } from "@capacitor/toast";
 import YoutubeSyncedEmbed from "./YoutubeSyncedEmbed";
 import { searchMusicVideo } from "../youtube/match";
+import { validAccessToken } from "../youtube/oauth";
 
 export default function NowPlaying() {
     const [currentTrack, setCurrentTrack] = useState<IAlbumSongResponse>(
@@ -37,6 +40,7 @@ export default function NowPlaying() {
     const [videoId, setVideoId] = useState<string | null>(null);
     const [mvMode, setMvMode] = useState(false);
     const [videoActive, setVideoActive] = useState(false);
+    const [liked, setLiked] = useState(false);
     const listeners = useRef<PluginListenerHandle[]>([]);
     const mvModeRef = useRef(false);
     mvModeRef.current = mvMode;
@@ -58,12 +62,14 @@ export default function NowPlaying() {
     const loadMusicVideoForTrack = useCallback(
         async (track: IAlbumSongResponse) => {
             const settings = await VLC.getSettings();
-            const key = settings.value?.youtubeApiKey ?? "";
-            const enabled = settings.value?.youtubeVideosEnabled ?? false;
-            const allowAny = settings.value?.youtubeAllowAnyChannel ?? false;
-            if (!enabled || !key) {
+            const s = settings.value;
+            const enabled = s?.youtubeVideosEnabled ?? false;
+            const allowAny = s?.youtubeAllowAnyChannel ?? false;
+            const token = s ? await validAccessToken(s) : "";
+            const key = s?.youtubeApiKey ?? "";
+            if (!enabled || (!token && !key)) {
                 Toast.show({
-                    text: "Enable Videos and set a YouTube API key in Settings.",
+                    text: "Enable Videos and sign in with YouTube in Settings.",
                 });
                 setMvMode(false);
                 setVideoActive(false);
@@ -72,14 +78,13 @@ export default function NowPlaying() {
                 return;
             }
             const match = await searchMusicVideo(
-                key,
+                { accessToken: token, apiKey: key },
                 track.artist,
                 track.title,
                 allowAny
             );
             if (!mvModeRef.current) return;
             if (!match) {
-                // Stay in MV mode; play this queue item from the server.
                 setVideoId(null);
                 setVideoActive(false);
                 await applyServerAudio(true);
@@ -103,6 +108,7 @@ export default function NowPlaying() {
                 setCoverArt((await VLC.getAlbumArt({ id: coverId })).value!);
             }
             setPlaylist((await VLC.getCurrentPlaylist()).value!!);
+            setLiked(!!currentTrack.starred);
             if (mvModeRef.current && currentTrack.id) {
                 await applyServerAudio(false);
                 await VLC.pause();
@@ -111,6 +117,23 @@ export default function NowPlaying() {
         };
         fetch();
     }, [currentTrack, loadMusicVideoForTrack, applyServerAudio]);
+
+    const toggleLike = useCallback(async () => {
+        if (!currentTrack.id) return;
+        const next = !liked;
+        const ret = next
+            ? await VLC.star({ id: currentTrack.id })
+            : await VLC.unstar({ id: currentTrack.id });
+        if (ret.status !== "ok") {
+            Toast.show({ text: ret.error || "Could not update like" });
+            return;
+        }
+        setLiked(next);
+        setCurrentTrack({
+            ...currentTrack,
+            starred: next ? "now" : undefined,
+        });
+    }, [currentTrack, liked]);
 
     useEffect(() => {
         const get = async () => {
@@ -211,13 +234,9 @@ export default function NowPlaying() {
     const showVideo = mvMode && videoActive && !!videoId;
 
     return (
-        <div className="d-flex flex-column align-items-center justify-content-between h-100 w-100">
-            <div className="m-auto"></div>
-            <div
-                className="d-flex flex-row justify-content-around align-items-center w-100"
-                style={{ height: "auto" }}
-            >
-                <div className="d-flex flex-column align-items-center justify-content-center w-50">
+        <div className="now-playing-tv d-flex flex-column align-items-center justify-content-between">
+            <div className="now-playing-main d-flex flex-row justify-content-between align-items-stretch">
+                <div className="now-playing-media-col d-flex flex-column align-items-center justify-content-center">
                     <div
                         className="current-track-img-tv"
                         style={{ position: "relative", overflow: "hidden" }}
@@ -236,16 +255,28 @@ export default function NowPlaying() {
                             />
                         )}
                     </div>
-                    <button
-                        type="button"
-                        className="btn btn-outline-light btn-sm mt-2"
-                        onClick={toggleMusicVideo}
-                    >
-                        <FontAwesomeIcon icon={faFilm} className="me-2" />
-                        {mvMode ? "Stop Music Videos" : "Play Music Video"}
-                    </button>
-                    <div className="current-track-header flex-row align-items-center justify-content-start">
-                        <div className="ml-2 flex-shrink-5 h-100 d-flex flex-column align-items-start justify-content-end text-center fade-right">
+                    <div className="d-flex flex-row align-items-center gap-2 mt-2">
+                        <button
+                            type="button"
+                            className="btn btn-outline-light btn-sm"
+                            onClick={toggleMusicVideo}
+                        >
+                            <FontAwesomeIcon icon={faFilm} className="me-2" />
+                            {mvMode ? "Stop Music Videos" : "Play Music Video"}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-outline-light btn-sm"
+                            onClick={toggleLike}
+                            aria-label={liked ? "Unlike" : "Like"}
+                        >
+                            <FontAwesomeIcon
+                                icon={liked ? faHeart : faHeartOutline}
+                            />
+                        </button>
+                    </div>
+                    <div className="current-track-header flex-row align-items-center justify-content-start w-100">
+                        <div className="ml-2 flex-shrink-5 h-100 d-flex flex-column align-items-center justify-content-end text-center fade-right w-100">
                             <span
                                 className="text-white no-wrap w-100"
                                 style={{
@@ -261,6 +292,8 @@ export default function NowPlaying() {
                                 style={{
                                     overflow: "hidden",
                                     whiteSpace: "nowrap",
+                                    fontSize: "0.9rem",
+                                    opacity: 0.85,
                                 }}
                             >
                                 {currentTrack.album} by {currentTrack.artist}
@@ -268,12 +301,13 @@ export default function NowPlaying() {
                         </div>
                     </div>
                 </div>
-                <div className="list-group playlist no-scrollable w-50">
+                <div className="list-group now-playing-queue scrollable">
                     {playlist &&
                         playlist.entry.length > 0 &&
                         playlist.entry.map((s) => (
                             <PlaylistEntry
-                                state={undefined}
+                                key={s.id}
+                                state={{ id: "current" }}
                                 item={s}
                                 playlist={playlist}
                                 currentTrack={currentTrack}
@@ -285,10 +319,9 @@ export default function NowPlaying() {
                 </div>
             </div>
 
-            <div className="m-auto"></div>
             <FocusContext.Provider value={focusKey}>
                 <div
-                    className="d-flex flex-row align-items-start justify-content-center p-0"
+                    className="now-playing-controls d-flex flex-row align-items-center justify-content-center"
                     ref={ref}
                 >
                     <TVActionButton
@@ -324,13 +357,12 @@ export default function NowPlaying() {
                     />
                 </div>
             </FocusContext.Provider>
-            <div className="w-50 d-flex flex-row justify-content-between text-white">
-                <span>{SecondsToHHSS(positionSec)}</span>
-                <span>{SecondsToHHSS(currentTrack.duration)}</span>
-            </div>
-            <div className="w-50" style={{ marginBottom: "30px" }}>
+            <div className="now-playing-scrubber d-flex flex-column">
+                <div className="d-flex flex-row justify-content-between text-white small">
+                    <span>{SecondsToHHSS(positionSec)}</span>
+                    <span>{SecondsToHHSS(currentTrack.duration)}</span>
+                </div>
                 <input
-                    disabled
                     type="range"
                     className="w-100"
                     min={0}
@@ -340,36 +372,6 @@ export default function NowPlaying() {
                     onChange={(e) => changePlayTime(e)}
                 />
             </div>
-        </div>
-    );
-}
-
-interface TVActionButtonProps {
-    func: () => void;
-    content: any;
-    preferred?: boolean;
-}
-
-function TVActionButton({ func, content, preferred }: TVActionButtonProps) {
-    const { ref, focused, focusSelf } = useFocusable({ onEnterPress: func });
-    useEffect(() => {
-        if (preferred) {
-            focusSelf();
-        }
-    }, [preferred, focusSelf]);
-    return (
-        <div
-            ref={ref}
-            className={classnames(
-                "m-2",
-                "p-2",
-                "text-white",
-                "tv-button",
-                focused ? "btn-tv-selected" : ""
-            )}
-            onClick={func}
-        >
-            <div className="d-flex flex-column align-items-center ">{content}</div>
         </div>
     );
 }

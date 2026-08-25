@@ -64,9 +64,9 @@ class AlbumsFragment : Fragment {
         )
         spinner.adapter = ArrayAdapter(
             requireContext(),
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.spinner_item_white,
             labels
-        )
+        ).also { it.setDropDownViewResource(R.layout.spinner_dropdown_white) }
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>?,

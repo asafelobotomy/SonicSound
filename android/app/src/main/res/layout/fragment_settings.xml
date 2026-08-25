@@ -112,14 +112,72 @@
         </LinearLayout>
 
         <EditText
-            android:id="@+id/et_youtube_api_key"
+            android:id="@+id/et_youtube_client_id"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="@string/youtube_api_key"
+            android:hint="@string/youtube_oauth_client_id"
+            android:inputType="text"
+            android:textColor="#fff"
+            android:textColorHint="#66ffffff" />
+
+        <EditText
+            android:id="@+id/et_youtube_client_secret"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/youtube_oauth_client_secret"
             android:inputType="textPassword"
             android:textColor="#fff"
             android:textColorHint="#66ffffff" />
+
+        <TextView
+            android:id="@+id/tv_youtube_oauth_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/montserrat"
+            android:textColor="#fff"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tv_youtube_user_code"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/montserrat"
+            android:textColor="#fff"
+            android:textSize="22sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_youtube_signin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/round_outline_selector"
+                android:text="@string/youtube_oauth_signin"
+                android:textAllCaps="false"
+                android:textColor="#fff" />
+
+            <Button
+                android:id="@+id/btn_youtube_signout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/round_outline_selector"
+                android:text="@string/youtube_oauth_signout"
+                android:textAllCaps="false"
+                android:textColor="#fff" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/montserrat"
+            android:text="@string/youtube_oauth_hint"
+            android:textColor="#99ffffff"
+            android:textSize="14sp" />
 
         <TextView
             android:layout_width="match_parent"

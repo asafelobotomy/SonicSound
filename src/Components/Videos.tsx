@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import VLC from "../Plugins/VLC";
 import { Toast } from "@capacitor/toast";
+import { validAccessToken } from "../youtube/oauth";
 
 interface YtItem {
     id: string;
@@ -15,17 +16,17 @@ export default function Videos() {
     const [query, setQuery] = useState("");
     const [items, setItems] = useState<YtItem[]>([]);
     const [hint, setHint] = useState(
-        "Enable Videos and set a YouTube Data API key in Settings."
+        "Enable Videos and sign in with YouTube in Settings."
     );
 
     const search = useCallback(async () => {
         const settings = await VLC.getSettings();
-        const key = settings.value?.youtubeApiKey ?? "";
-        const enabled = settings.value?.youtubeVideosEnabled ?? false;
-        if (!enabled || !key) {
-            setHint(
-                "Enable Videos and set a YouTube Data API key in Settings."
-            );
+        const s = settings.value;
+        const enabled = s?.youtubeVideosEnabled ?? false;
+        const token = s ? await validAccessToken(s) : "";
+        const key = s?.youtubeApiKey ?? "";
+        if (!enabled || (!token && !key)) {
+            setHint("Enable Videos and sign in with YouTube in Settings.");
             setItems([]);
             return;
         }
@@ -33,8 +34,12 @@ export default function Videos() {
         try {
             const url =
                 "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20" +
-                `&q=${encodeURIComponent(query)}&key=${encodeURIComponent(key)}`;
-            const res = await fetch(url);
+                `&q=${encodeURIComponent(query)}` +
+                (key ? `&key=${encodeURIComponent(key)}` : "");
+            const headers: HeadersInit = token
+                ? { Authorization: `Bearer ${token}` }
+                : {};
+            const res = await fetch(url, { headers });
             if (!res.ok) {
                 Toast.show({ text: "YouTube API request failed" });
                 return;
@@ -63,9 +68,12 @@ export default function Videos() {
     }, [query]);
 
     useEffect(() => {
-        /* load hint from settings once */
-        VLC.getSettings().then((s) => {
-            if (s.value?.youtubeVideosEnabled && s.value?.youtubeApiKey) {
+        VLC.getSettings().then(async (s) => {
+            const token = s.value ? await validAccessToken(s.value) : "";
+            if (
+                s.value?.youtubeVideosEnabled &&
+                (token || s.value?.youtubeApiKey)
+            ) {
                 setHint("Search official YouTube results.");
             }
         });
@@ -101,7 +109,7 @@ export default function Videos() {
                 {items.map((it) => (
                     <a
                         key={it.id}
-                        className="d-flex flex-row align-items-center text-decoration-none text-white"
+                        className="d-flex flex-row gap-2 text-decoration-none text-white align-items-center"
                         href={`https://www.youtube.com/watch?v=${it.id}`}
                         target="_blank"
                         rel="noreferrer"
@@ -110,11 +118,12 @@ export default function Videos() {
                             <img
                                 src={it.thumb}
                                 alt=""
-                                style={{ width: 120, height: 68, objectFit: "cover" }}
-                                className="me-3"
+                                width={120}
+                                height={68}
+                                style={{ objectFit: "cover" }}
                             />
                         ) : null}
-                        <div>
+                        <div className="text-start">
                             <div>{it.title}</div>
                             <div className="subtitle">{it.channel}</div>
                         </div>

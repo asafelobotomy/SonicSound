@@ -4,5 +4,5 @@ class ArtistListItem(
     val id: String,
     val name: String,
     val albumCount: Int,
-    val artistImageUrl: String
+    val artistImageUrl: String? = null,
 )

@@ -136,25 +136,23 @@ export function PlaylistEntry({
     }, [actionable, item, playlist.entry, playlist.id]);
 
     const skipTo = useCallback(async () => {
-        if (actionable) {
-            await VLC.skipTo({
-                track: playlist.entry.indexOf(item),
-            });
-        }
-    }, [actionable, item, playlist.entry]);
+        await VLC.skipTo({
+            track: playlist.entry.indexOf(item),
+        });
+    }, [item, playlist.entry]);
 
     useEffect(() => {
         if (
             currentTrack.id === item.id &&
             selfRef.current &&
-            (actionable || androidTv)
+            (actionable || androidTv || state?.id === "current")
         ) {
             selfRef.current.scrollIntoView({
                 behavior: "smooth",
                 block: "center",
             });
         }
-    }, [actionable, androidTv, currentTrack, item.id]);
+    }, [actionable, androidTv, currentTrack, item.id, state?.id]);
 
     useEffect(() => {
         const f = async () => {
@@ -166,10 +164,10 @@ export function PlaylistEntry({
     const onClick = useCallback(async () => {
         if (state && state.id === "current") {
             skipTo();
-        } else {
+        } else if (actionable) {
             playPlaylist();
         }
-    }, [skipTo, playPlaylist, state]);
+    }, [skipTo, playPlaylist, state, actionable]);
 
     return (
         <div

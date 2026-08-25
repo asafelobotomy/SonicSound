@@ -24,6 +24,7 @@ import app.sonicsound.models.ICardViewModel
 import app.sonicsound.models.YoutubeVideo
 import app.sonicsound.subsonic.SubsonicClient
 import app.sonicsound.youtube.YoutubeDataApi
+import app.sonicsound.youtube.YoutubeOAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,7 +66,9 @@ class VideosFragment : Fragment {
 
     private fun runSearch(query: String, empty: TextView, recycler: RecyclerView) {
         val settings = KeyValueStorage.getSettings()
-        if (!settings.youtubeVideosEnabled || settings.youtubeApiKey.isBlank()) {
+        if (!settings.youtubeVideosEnabled ||
+            (YoutubeOAuth.validAccessToken().isBlank() && settings.youtubeApiKey.isBlank())
+        ) {
             empty.text = getString(R.string.videos_empty)
             empty.isVisible = true
             recycler.isVisible = false
@@ -74,7 +77,7 @@ class VideosFragment : Fragment {
         }
         viewLifecycleOwner.lifecycleScope.launch {
             val results: List<ICardViewModel> = withContext(Dispatchers.IO) {
-                YoutubeDataApi.search(settings.youtubeApiKey, query)
+                YoutubeDataApi.searchAuthed(query)
             }
             empty.isVisible = results.isEmpty()
             recycler.isVisible = results.isNotEmpty()

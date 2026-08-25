@@ -74,7 +74,7 @@ export function pickMusicVideo(
 }
 
 export async function searchMusicVideo(
-    apiKey: string,
+    auth: { accessToken?: string; apiKey?: string },
     artist: string,
     title: string,
     allowAnyChannel: boolean
@@ -85,11 +85,19 @@ export async function searchMusicVideo(
         `"${artist}" "${title}"`,
     ];
     const byId = new Map<string, YtCandidate>();
+    const token = auth.accessToken?.trim() ?? "";
+    const key = auth.apiKey?.trim() ?? "";
+    if (!token && !key) return null;
+
     for (const q of queries) {
         const url =
             "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=8" +
-            `&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`;
-        const res = await fetch(url);
+            `&q=${encodeURIComponent(q)}` +
+            (key ? `&key=${encodeURIComponent(key)}` : "");
+        const headers: HeadersInit = token
+            ? { Authorization: `Bearer ${token}` }
+            : {};
+        const res = await fetch(url, { headers });
         if (!res.ok) continue;
         const data = await res.json();
         for (const it of data.items ?? []) {

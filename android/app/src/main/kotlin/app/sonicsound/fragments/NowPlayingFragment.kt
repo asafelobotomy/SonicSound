@@ -5,14 +5,14 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.sonicsound.CurrentState
@@ -25,6 +25,9 @@ import app.sonicsound.extensions.loadUrl
 import app.sonicsound.subsonic.SubsonicClient
 import com.getcapacitor.JSObject
 import kotlin.math.floor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class NowPlayingFragment : Fragment {
     private lateinit var bind: TvActivity.TvActivityBind
@@ -35,12 +38,14 @@ class NowPlayingFragment : Fragment {
     private lateinit var backdrop: ImageView
     private lateinit var btnPlay: ImageButton
     private lateinit var btnShuffle: ImageButton
+    private lateinit var btnLike: ImageButton
     private lateinit var sbProgress: SeekBar
     private lateinit var playlistRecyclerView: RecyclerView
     private lateinit var playlistAdapter: SonicSoundPlaylistItemAdapter
     private lateinit var currentTimeText: TextView
     private lateinit var durationText: TextView
     private var musicVideo: NowPlayingMusicVideo? = null
+    private var liked = false
     private val observer = NowPlayingObserver()
 
     constructor() : super()
@@ -134,6 +139,8 @@ class NowPlayingFragment : Fragment {
         view.findViewById<ImageButton>(R.id.btn_next).setOnClickListener { bind.next() }
         btnShuffle = view.findViewById(R.id.btn_shuffle)
         btnShuffle.setOnClickListener { bind.shuffle() }
+        btnLike = view.findViewById(R.id.btn_like)
+        btnLike.setOnClickListener { toggleLike() }
         firstLine = view.findViewById(R.id.tv_now_playing_first_line)
         secondLine = view.findViewById(R.id.tv_now_playing_second_line)
         image = view.findViewById(R.id.img_now_playing_album_art)
@@ -178,16 +185,21 @@ class NowPlayingFragment : Fragment {
         playlistRecyclerView = view.findViewById(R.id.rv_now_playing_playlist)
         val manager = LinearLayoutManager(this.context)
         manager.orientation = RecyclerView.VERTICAL
+        val itemH = (48 * resources.displayMetrics.density + 0.5f).toInt()
         playlistAdapter = SonicSoundPlaylistItemAdapter(
             listOf(),
             requireContext(),
             playlistRecyclerView,
             manager,
-            (60 * resources.displayMetrics.density + 0.5f).toInt()
-        )
+            itemH,
+        ) { index ->
+            bind.skipTo(index)
+        }
         playlistRecyclerView.setHasFixedSize(true)
         playlistRecyclerView.layoutManager = manager
         playlistRecyclerView.adapter = playlistAdapter
+        playlistRecyclerView.isFocusable = true
+        playlistRecyclerView.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         getCurrentState()
     }
 
@@ -228,13 +240,46 @@ class NowPlayingFragment : Fragment {
                     null
                 )
             )
+            liked = currentState.currentTrack.isStarred
+            updateLikeUi()
             val entries = bind.getCurrentPlaylist()?.entry.orEmpty()
             if (entries.isNotEmpty()) {
                 for (song in entries) {
                     song.image = client.getAlbumArt(song.albumId)
                 }
                 playlistAdapter.setNewDataSet(entries)
-                playlistAdapter.updateSelected(entries.indexOf(currentState.currentTrack))
+                val idx = entries.indexOfFirst { it.id == currentState.currentTrack.id }
+                playlistAdapter.updateSelected(idx)
+            }
+        }
+    }
+
+    private fun updateLikeUi() {
+        if (!::btnLike.isInitialized) return
+        btnLike.setImageResource(
+            if (liked) R.drawable.ic_nav_like else R.drawable.ic_nav_unlike
+        )
+        btnLike.contentDescription =
+            getString(if (liked) R.string.unlike_song else R.string.like_song)
+    }
+
+    private fun toggleLike() {
+        val track = bind.getCurrentState()?.currentTrack ?: return
+        if (track.id.isBlank()) return
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (liked) client.unstar(track.id) else client.star(track.id)
+                }
+                liked = !liked
+                track.starred = if (liked) "now" else null
+                updateLikeUi()
+            } catch (_: Exception) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.like_failed,
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }

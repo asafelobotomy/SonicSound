@@ -142,7 +142,7 @@ function App() {
             <StateContext.Provider value={stateContextValue}>
                 <AppContext.Provider value={contextValue}>
                     {!androidTv && (
-                        <div className="App container-fluid d-flex flex-column justify-content-between">
+                        <div className="App container-fluid d-flex flex-column justify-content-between main-content-pad">
                             <Helmet>
                                 <title>SonicSound</title>
                             </Helmet>

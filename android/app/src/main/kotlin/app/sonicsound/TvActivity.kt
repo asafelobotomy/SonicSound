@@ -153,6 +153,10 @@ class TvActivity : AppCompatActivity() {
             if (mBound) binder!!.prev()
         }
 
+        fun skipTo(track: Int) {
+            if (mBound) binder!!.skipTo(track)
+        }
+
         fun pauseServer() {
             if (mBound) binder!!.pause()
         }

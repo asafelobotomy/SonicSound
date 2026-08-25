@@ -48,6 +48,8 @@ import Playlist from "./Components/Playlist";
 import EditPlaylist from "./Components/EditPlaylist";
 import TVPlaylists from "./Components/TVPlaylists";
 import Radio from "./Components/Radio";
+import Settings from "./Components/Settings";
+import Videos from "./Components/Videos";
 
 function App() {
     const [context, setContext] = useState<IAccount>(AppContextDefValue);
@@ -208,6 +210,14 @@ function App() {
                                                     element={<Radio />}
                                                 />
                                                 <Route
+                                                    path="/videos"
+                                                    element={<Videos />}
+                                                />
+                                                <Route
+                                                    path="/settings"
+                                                    element={<Settings />}
+                                                />
+                                                <Route
                                                     path="/playlist"
                                                     element={<Playlist />}
                                                 />
@@ -289,6 +299,20 @@ function App() {
                                                             element={
                                                                 <Account />
                                                             }
+                                                        />
+                                                        <Route
+                                                            path="/settings"
+                                                            element={
+                                                                <Settings />
+                                                            }
+                                                        />
+                                                        <Route
+                                                            path="/videos"
+                                                            element={<Videos />}
+                                                        />
+                                                        <Route
+                                                            path="/radio"
+                                                            element={<Radio />}
                                                         />
                                                         <Route
                                                             path="/albums"

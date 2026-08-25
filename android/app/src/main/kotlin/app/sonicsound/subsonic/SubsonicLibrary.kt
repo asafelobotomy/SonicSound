@@ -63,7 +63,9 @@ class SubsonicLibrary(
         val ret: MutableList<Artist> = mutableListOf()
         artistsResponse?.artists?.index.orEmpty().forEach { artistIndex ->
             ret.addAll(artistIndex.artist.orEmpty().map { artistItem ->
-                Artist(artistItem.id, artistItem.name, artistItem.albumCount)
+                Artist(artistItem.id, artistItem.name, artistItem.albumCount).also { artist ->
+                    artist.coverArt = artistItem.artistImageUrl
+                }
             })
         }
         return ret

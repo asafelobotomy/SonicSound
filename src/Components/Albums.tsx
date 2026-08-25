@@ -10,12 +10,18 @@ import "./Artists.scss";
 import Loading from "./Loading";
 import useAutoFill from "../Hooks/useAutoFill";
 import VLC from "../Plugins/VLC";
+import {
+    AlbumSort,
+    albumSortOptions,
+    sortAlbums,
+} from "../library/sort";
 
 export default function Albums() {
     const [albums, setAlbums] = useState<IAlbumArtistResponse[]>([]);
     const [filteredAlbums, setFilteredAlbums] = useState<
         IAlbumArtistResponse[]
     >([]);
+    const [sort, setSort] = useState<AlbumSort>("name-asc");
     const [fetched, setFetched] = useState<boolean>(false);
     const [canSearch, setCanSearch] = useState<boolean>(false);
     const searchRef = useRef<HTMLInputElement>(null);
@@ -40,7 +46,7 @@ export default function Albums() {
             const al = await VLC.getAlbums();
             if (al.status === "ok") {
                 setAlbums(al.value!);
-                setFilteredAlbums(al.value!);
+                setFilteredAlbums(sortAlbums(al.value!, "name-asc"));
             }
             setFetched(true);
         };
@@ -49,19 +55,19 @@ export default function Albums() {
         }
     }, [fetched]);
 
+    const applyFilter = useCallback(
+        (source: IAlbumArtistResponse[], query: string, nextSort: AlbumSort) => {
+            const q = query.trim().toUpperCase();
+            const filtered = q
+                ? source.filter((s) => s.name.toUpperCase().includes(q))
+                : source;
+            setFilteredAlbums(sortAlbums(filtered, nextSort));
+        },
+        []
+    );
+
     const search = (val: any) => {
-        if (val.target.value.length === 0) {
-            setFilteredAlbums(albums);
-        } else {
-            setFilteredAlbums(
-                albums.filter(
-                    (s) =>
-                        s.name
-                            .toUpperCase()
-                            .indexOf(val.target.value.toUpperCase()) !== -1
-                )
-            );
-        }
+        applyFilter(albums, val.target.value, sort);
     };
 
     useEffect(() => {
@@ -69,10 +75,6 @@ export default function Albums() {
             searchRef.current!.focus();
         }
     }, [canSearch]);
-
-    const toggleSearch = () => {
-        setCanSearch(!canSearch);
-    };
 
     const { gridProps, autoFillRef, columnCount } = useAutoFill(filteredAlbums);
 
@@ -93,7 +95,6 @@ export default function Albums() {
                     key={`${rowIndex},${columnIndex}`}
                     id={`${rowIndex},${columnIndex}`}
                     className="d-flex flex-column align-items-center justify-content-center"
-
                 >
                     <AlbumCard
                         item={data[index]}
@@ -125,15 +126,35 @@ export default function Albums() {
             <div className="artist-container d-flex flex-column">
                 <div className="d-flex flex-row align-items-center justify-content-between w-100">
                     <div className="section-header text-white">Albums</div>
-                    <button
-                        type="button"
-                        className="btn btn-link text-white"
-                        onClick={toggleSearch}
-                    >
-                        <FontAwesomeIcon
-                            icon={faMagnifyingGlass}
-                        ></FontAwesomeIcon>
-                    </button>
+                    <div className="d-flex flex-row align-items-center gap-2">
+                        <select
+                            className="form-select form-select-sm"
+                            style={{ width: "auto" }}
+                            value={sort}
+                            onChange={(e) => {
+                                const next = e.target.value as AlbumSort;
+                                setSort(next);
+                                applyFilter(
+                                    albums,
+                                    searchRef.current?.value ?? "",
+                                    next
+                                );
+                            }}
+                        >
+                            {albumSortOptions.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            className="btn btn-link text-white"
+                            onClick={() => setCanSearch(!canSearch)}
+                        >
+                            <FontAwesomeIcon icon={faMagnifyingGlass} />
+                        </button>
+                    </div>
                 </div>
                 <input
                     ref={searchRef}

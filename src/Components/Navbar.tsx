@@ -12,7 +12,6 @@ import {
     useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import logo from "../assets/logo.png";
 import VLC from "../Plugins/VLC";
 import "./Navbar.scss";
 
@@ -84,8 +83,6 @@ export default function Navbar({
                     </button>
                 )}
             </div>
-            <img src={logo} className="logo-header" alt="logo" />
-
             <div className="w-100 d-flex flex-row align-items-center justify-content-end">
                 <button
                     className="btn btn-link text-white"

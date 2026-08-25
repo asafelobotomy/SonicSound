@@ -13,9 +13,25 @@ class Artist(
     var coverArt: String = "",
     var albumCount: Int,
     @Ignore
-    var album: List<Album> = listOf()
-){
-    constructor(id: String,
-                name: String,
-                albumCount: Int):this(id, name, "", albumCount, listOf())
+    var album: List<Album> = listOf(),
+) : ICardViewModel {
+    constructor(
+        id: String,
+        name: String,
+        albumCount: Int,
+    ) : this(id, name, "", albumCount, listOf())
+
+    override fun firstLine(): String = name
+
+    override fun secondLine(): String =
+        if (albumCount == 1) "1 album" else "$albumCount albums"
+
+    @Ignore
+    private var _image: String = ""
+
+    override var image: String
+        get() = _image.ifBlank { coverArt }
+        set(value) {
+            _image = value
+        }
 }

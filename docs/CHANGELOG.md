@@ -1,3 +1,10 @@
+# 0.2.5
+
+- TV/web nav: Artists, Albums, Settings, Videos; logo in sidebar; unified nav icons
+- Album/Artist sorting; Settings for EQ, ReplayGain, cache, YouTube API
+- Now Playing music-video mode: YouTube audio, official-channel matching, follows play queue
+- Settings option to allow any YouTube channel when matching songs
+
 # 0.2.4
 
 - Shield QoL: null-safe playlists (no empty-list crash), fragment restore hardening

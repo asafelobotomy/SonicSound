@@ -1,21 +1,15 @@
-import { Capacitor } from "@capacitor/core";
-import { Toast } from "@capacitor/toast";
+import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import { faUser } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import classNames from "classnames";
-import { useCallback, useContext, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useCallback, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppContext } from "../AppContext";
 import { IAccount } from "../Models/AppContext";
-import VLC, { ISettings } from "../Plugins/VLC";
-import "./Account.scss";
 
 export default function Account() {
     const { context, setContext } = useContext(AppContext);
-    const [offlineMode, setOfflineMode] = useState<boolean>(false);
-    const [eqEnabled, setEqEnabled] = useState<boolean>(false);
-    const [replayGainEnabled, setReplayGainEnabled] = useState<boolean>(false);
+    const navigate = useNavigate();
     const logout = useCallback(() => {
         const newContext: IAccount = {
             username: null,
@@ -26,274 +20,39 @@ export default function Account() {
         };
         setContext(newContext);
     }, [setContext]);
-
     const { focused, ref } = useFocusable({ onEnterPress: logout });
-    const {
-        register,
-        handleSubmit,
-        setFocus,
-        formState: { errors },
-        setValue,
-    } = useForm<ISettings>();
-    const { focused: saveSettingsFocused, ref: saveSettingsRef } = useFocusable(
-        {
-            onEnterPress: () => {
-                handleSubmit(hash);
-            },
-        }
-    );
-
-    const hash = useCallback(async (data: ISettings) => {
-        const ret = await VLC.setSettings({
-            ...data,
-            eqEnabled,
-            replayGainEnabled,
-        });
-        if (ret.status === "ok") {
-            Toast.show({ text: "Settings saved correctly" });
-        } else {
-            Toast.show({ text: ret.error });
-        }
-    }, [eqEnabled, replayGainEnabled]);
-    useEffect(() => {
-        const f = async () => {
-            try {
-                const settings = await VLC.getSettings();
-                if (Capacitor.getPlatform() === "android") {
-                    const cacheSize = settings.value?.cacheSize;
-                    setValue("cacheSize", cacheSize!);
-                }
-                const transcoding = settings.value?.transcoding ?? "";
-                setValue("transcoding", transcoding);
-                setEqEnabled(settings.value?.eqEnabled ?? false);
-                setReplayGainEnabled(settings.value?.replayGainEnabled ?? false);
-                const offlineMode = (await VLC.getOfflineMode()).value;
-                setOfflineMode(offlineMode!);
-            } catch (e: any) {
-                setValue("cacheSize", 0);
-                Toast.show({
-                    text: "There was an error retrieving settings from the Phone.",
-                });
-            }
-        };
-        f();
-    }, [setValue]);
-    const onSubmit = handleSubmit(hash);
-    const { ref: cacheSizeRef, focused: cacheSizeFocused } = useFocusable({
-        onEnterPress: () => {
-            setFocus("cacheSize");
-        },
-    });
-    const handleChange = useCallback(
-        async () => {
-            const newOfflineMode = (
-                await VLC.setOfflineMode({ value: !offlineMode })
-            ).value;
-            setOfflineMode(newOfflineMode!);
-            Toast.show({
-                text: `Offline mode ${newOfflineMode ? "enabled" : "disabled"}`,
-            });
-        },
-        [offlineMode]
-    );
-
-    const [artCacheLabel, setArtCacheLabel] = useState("Art cache: …");
-    const refreshArtCache = useCallback(async () => {
-        try {
-            const ret = await VLC.getCoverCacheSize();
-            if (ret.status === "ok" && ret.value) {
-                setArtCacheLabel(
-                    `Art cache: ${Math.round(ret.value.bytes / 1024)} KB`
-                );
-            }
-        } catch {
-            setArtCacheLabel("Art cache: unavailable");
-        }
-    }, []);
-
-    useEffect(() => {
-        if (Capacitor.getPlatform() === "android") {
-            refreshArtCache();
-        }
-    }, [refreshArtCache]);
-
-    const clearArtCache = useCallback(async () => {
-        const ret = await VLC.clearCoverCache();
-        if (ret.status === "ok") {
-            const freed = ret.value?.freedBytes ?? 0;
-            Toast.show({
-                text: `Cleared ${Math.round(freed / 1024)} KB of cached art`,
-            });
-            await refreshArtCache();
-        } else {
-            Toast.show({ text: ret.error });
-        }
-    }, [refreshArtCache]);
 
     return (
         <div className="d-flex flex-column align-items-center justify-content-start overflow-scroll scrollable">
-            <div className="d-flex flex-column align-items-center justify-content-start w-100">
-                <div className="text-white account-icon-container">
-                    <FontAwesomeIcon icon={faUser} size="5x"></FontAwesomeIcon>
-                </div>
-                <div className="text-header text-white">{context.username}</div>
-                <div className="text-white">on {context.url}</div>
-                <div className="text-white">running {context.type}</div>
-                {context.usePlaintext && (
-                    <div className="text-danger">using plaintext password</div>
-                )}
-                <div className="logout-button-container">
-                    <button
-                        ref={ref}
-                        className={classNames(
-                            "btn",
-                            "mt-10",
-                            focused ? "btn-selected" : "btn-primary"
-                        )}
-                        onClick={logout}
-                    >
-                        Logout
-                    </button>
-                </div>
+            <div className="text-white account-icon-container">
+                <FontAwesomeIcon icon={faUser} size="5x" />
             </div>
-
-            <hr className="w-100 text-white" />
-            <form className="h-100 w-100" onSubmit={onSubmit}>
-                <div className="d-flex flex-column h-100 justify-content-start align-items-start">
-                    <div className="section-header text-white">Transcoding</div>
-                    <div
-                        ref={cacheSizeRef}
-                        className="input-group mb-2 mr-sm-2"
-                    >
-                        <input
-                            {...register("transcoding")}
-                            type="text"
-                            className={classNames(
-                                "form-control",
-                                cacheSizeFocused ? "form-focused" : ""
-                            )}
-                            placeholder="Transcoding"
-                        />
-                    </div>
-                    <div className="subtitle text-white">
-                        The transcoding setting name used for streaming music.
-                        (May appear as "format" in your server){" "}
-                        {Capacitor.getPlatform() === "android" &&
-                            "(Used only with mobile data, on WIFI the client won't ask for transcoding.)"}
-                    </div>
-                    <div className="section-header text-white mt-3">
-                        Audio
-                    </div>
-                    <div className="form-check form-switch">
-                        <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={eqEnabled}
-                            onChange={() => setEqEnabled(!eqEnabled)}
-                            id="eqSwitch"
-                        />
-                        <label className="form-check-label text-white" htmlFor="eqSwitch">
-                            Audio equalizer
-                        </label>
-                    </div>
-                    <div className="form-check form-switch mb-2">
-                        <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={replayGainEnabled}
-                            onChange={() =>
-                                setReplayGainEnabled(!replayGainEnabled)
-                            }
-                            id="rgSwitch"
-                        />
-                        <label className="form-check-label text-white" htmlFor="rgSwitch">
-                            ReplayGain
-                        </label>
-                    </div>
-                    <div className="subtitle text-white">
-                        On Android these apply the next time LibVLC starts.
-                    </div>
-                    {Capacitor.getPlatform() === "android" && (
-                        <>
-                            <div className="section-header text-white">
-                                Cache settings
-                            </div>
-                            <div
-                                ref={cacheSizeRef}
-                                className="input-group mb-2 mr-sm-2"
-                            >
-                                <input
-                                    {...register("cacheSize", {
-                                        required: {
-                                            message: "This value is required",
-                                            value: true,
-                                        },
-                                        min: 0,
-                                    })}
-                                    type="number"
-                                    className={classNames(
-                                        "form-control",
-                                        cacheSizeFocused ? "form-focused" : ""
-                                    )}
-                                    placeholder="Cache size"
-                                />
-                                <div className="input-group-append">
-                                    <div className="input-group-text">GB</div>
-                                </div>
-                            </div>
-                            <div className="subtitle text-white">
-                                Maximum storage space dedicated to the songs
-                                cache (0: No limit)
-                            </div>
-                            {errors && errors.cacheSize && (
-                                <div className="subtitle text-danger">
-                                    {errors.cacheSize.message}
-                                </div>
-                            )}
-                            <div className="subtitle text-white mt-2">
-                                {artCacheLabel}
-                            </div>
-                            <button
-                                type="button"
-                                className="btn btn-outline-light btn-sm mb-3"
-                                onClick={clearArtCache}
-                            >
-                                Clear art cache
-                            </button>
-                            <div className="section-header text-white">
-                                Offline Mode
-                            </div>
-                            <div className="form-check form-switch">
-                                <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    checked={offlineMode}
-                                    onChange={handleChange}
-                                    id="flexSwitchCheckDefault"
-                                />
-                            </div>
-                            <div className="subtitle text-white">
-                                Offline Mode (Will use the downloaded songs as
-                                library)
-                            </div>
-                        </>
+            <div className="text-header text-white">{context.username}</div>
+            <div className="text-white">on {context.url}</div>
+            <div className="text-white">running {context.type}</div>
+            {context.usePlaintext && (
+                <div className="text-danger">using plaintext password</div>
+            )}
+            <button
+                type="button"
+                className="btn btn-outline-light mt-3"
+                onClick={() => navigate("/settings")}
+            >
+                Open settings
+            </button>
+            <div className="logout-button-container">
+                <button
+                    ref={ref}
+                    className={classNames(
+                        "btn",
+                        "mt-10",
+                        focused ? "btn-selected" : "btn-primary"
                     )}
-                    <div className="d-flex flex-row align-items-center justify-content-end w-100 mt-3">
-                        <button
-                            ref={saveSettingsRef}
-                            className={classNames(
-                                "btn",
-                                "btn-primary",
-                                saveSettingsFocused
-                                    ? "btn-selected"
-                                    : "btn-primary"
-                            )}
-                        >
-                            Save settings
-                        </button>
-                    </div>
-                </div>
-            </form>
+                    onClick={logout}
+                >
+                    Logout
+                </button>
+            </div>
         </div>
     );
 }

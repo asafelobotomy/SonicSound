@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
@@ -38,6 +40,7 @@ class NowPlayingFragment : Fragment {
     private lateinit var playlistAdapter: SonicSoundPlaylistItemAdapter
     private lateinit var currentTimeText: TextView
     private lateinit var durationText: TextView
+    private var musicVideo: NowPlayingMusicVideo? = null
     private val observer = NowPlayingObserver()
 
     constructor() : super()
@@ -49,15 +52,12 @@ class NowPlayingFragment : Fragment {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (::bind.isInitialized) {
-            Globals.RegisterObserver(observer)
-        }
+        if (::bind.isInitialized) Globals.RegisterObserver(observer)
     }
 
     override fun onDestroy() {
-        if (::bind.isInitialized) {
-            Globals.UnregisterObserver(observer)
-        }
+        musicVideo?.destroy()
+        if (::bind.isInitialized) Globals.UnregisterObserver(observer)
         super.onDestroy()
     }
 
@@ -65,13 +65,25 @@ class NowPlayingFragment : Fragment {
         override fun update(action: String?, value: String?) {
             if (!::btnPlay.isInitialized) return
             when (action) {
-                "MSplaylistUpdated", "MScurrentTrack" -> getCurrentState()
-                "MSplay" -> btnPlay.setImageDrawable(
-                    ResourcesCompat.getDrawable(resources, R.drawable.ic_pause_icon, null)
-                )
-                "MSpaused" -> btnPlay.setImageDrawable(
-                    ResourcesCompat.getDrawable(resources, R.drawable.ic_play, null)
-                )
+                "MSplaylistUpdated", "MScurrentTrack" -> {
+                    getCurrentState()
+                    musicVideo?.onTrackChanged(
+                        bind.getCurrentState()?.currentTrack,
+                        bind.getCurrentState()?.playing == true
+                    )
+                }
+                "MSplay" -> {
+                    btnPlay.setImageDrawable(
+                        ResourcesCompat.getDrawable(resources, R.drawable.ic_pause_icon, null)
+                    )
+                    musicVideo?.onPlay()
+                }
+                "MSpaused" -> {
+                    btnPlay.setImageDrawable(
+                        ResourcesCompat.getDrawable(resources, R.drawable.ic_play, null)
+                    )
+                    musicVideo?.onPause()
+                }
                 "MSprogress" -> {
                     val time = JSObject(value)
                     val progress: Double? = try {
@@ -83,9 +95,10 @@ class NowPlayingFragment : Fragment {
                         sbProgress.progress = floor(progress * 100).toInt()
                         val state = bind.getCurrentState()
                         if (state != null) {
-                            currentTimeText.text = secondsToHHSS(
-                                floor(progress * state.currentTrack.duration).toInt()
-                            )
+                            val dur = state.currentTrack.duration
+                            currentTimeText.text =
+                                secondsToHHSS(floor(progress * dur).toInt())
+                            musicVideo?.onProgress(progress, dur)
                         }
                     }
                 }
@@ -97,17 +110,26 @@ class NowPlayingFragment : Fragment {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View? {
-        return inflater.inflate(R.layout.fragment_now_playing, container, false)
-    }
+    ): View? = inflater.inflate(R.layout.fragment_now_playing, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (!::client.isInitialized || !::bind.isInitialized) {
-            return
-        }
+        if (!::client.isInitialized || !::bind.isInitialized) return
         btnPlay = view.findViewById(R.id.btn_play_pause)
-        btnPlay.setOnClickListener { bind.playPause() }
+        btnPlay.setOnClickListener {
+            val mv = musicVideo
+            if (mv != null && mv.togglePlayPause()) {
+                btnPlay.setImageDrawable(
+                    ResourcesCompat.getDrawable(
+                        resources,
+                        if (mv.isYtPlaying()) R.drawable.ic_pause_icon else R.drawable.ic_play,
+                        null
+                    )
+                )
+            } else {
+                bind.playPause()
+            }
+        }
         view.findViewById<ImageButton>(R.id.btn_prev).setOnClickListener { bind.prev() }
         view.findViewById<ImageButton>(R.id.btn_next).setOnClickListener { bind.next() }
         btnShuffle = view.findViewById(R.id.btn_shuffle)
@@ -133,12 +155,25 @@ class NowPlayingFragment : Fragment {
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 val progress = seekBar?.progress ?: return
-                bind.seek(progress / 100f)
+                val state = bind.getCurrentState()
+                val mv = musicVideo
+                if (mv != null && mv.isVideoActive && state != null) {
+                    mv.onUserSeek(progress / 100f, state.currentTrack.duration)
+                } else {
+                    bind.seek(progress / 100f)
+                }
             }
         })
         currentTimeText = view.findViewById(R.id.tv_current_time)
         durationText = view.findViewById(R.id.tv_track_duration)
         image.clipToOutline = true
+        musicVideo = NowPlayingMusicVideo(
+            this,
+            bind,
+            image,
+            view.findViewById(R.id.fl_music_video),
+            view.findViewById(R.id.btn_music_video),
+        )
 
         playlistRecyclerView = view.findViewById(R.id.rv_now_playing_playlist)
         val manager = LinearLayoutManager(this.context)

@@ -1,11 +1,13 @@
 import {
+    faBroadcastTower,
     faCompactDisc,
-    faHouseChimney,
-    faListOl,
+    faFilm,
+    faGear,
+    faHouse,
+    faListUl,
     faMagnifyingGlass,
     faQrcode,
-    faRadio,
-    faUserAlt,
+    faUser,
     faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -15,6 +17,7 @@ import "./Sidebar.scss";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
+import logo from "../assets/logo.png";
 
 export default function Sidebar({
     setNavbarCollapsed,
@@ -34,6 +37,22 @@ export default function Sidebar({
         navigate(path);
     };
 
+    const item = (path: string, icon: any, last = false) => (
+        <div
+            onClick={() => nav(path)}
+            className={classnames(
+                "sidebar-item",
+                last && "last-item",
+                "d-flex",
+                "align-items-center",
+                "justify-content-center",
+                "text-white"
+            )}
+        >
+            <FontAwesomeIcon icon={icon} />
+        </div>
+    );
+
     return (
         <>
             <motion.div
@@ -49,58 +68,22 @@ export default function Sidebar({
                 )}
                 transition={{ duration: 0.05 }}
             >
-                {/* <div onClick={() => { setNavbarCollapsed(!navbarCollapsed) }} className="sidebar-item-borderless d-flex align-items-center justify-content-center text-white" ><FontAwesomeIcon icon={faBurger} /></div> */}
                 <div
-                    onClick={() => nav("/home")}
-                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
+                    className="sidebar-item-borderless d-flex align-items-center justify-content-center"
+                    aria-hidden
                 >
-                    <FontAwesomeIcon icon={faHouseChimney} />
+                    <img src={logo} alt="" className="sidebar-logo" />
                 </div>
-                <div
-                    onClick={() => nav("/artists")}
-                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
-                >
-                    <FontAwesomeIcon icon={faUsers} />
-                </div>
-                <div
-                    onClick={() => nav("/albums")}
-                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
-                >
-                    <FontAwesomeIcon icon={faCompactDisc} />
-                </div>
-                <div
-                    onClick={() => nav("/search")}
-                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
-                >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                </div>
-                <div
-                    onClick={() => nav("/playlists")}
-                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
-                >
-                    <FontAwesomeIcon icon={faListOl} />
-                </div>
-                <div
-                    onClick={() => nav("/radio")}
-                    className="sidebar-item d-flex align-items-center justify-content-center text-white"
-                >
-                    <FontAwesomeIcon icon={faRadio} />
-                </div>
-                {Capacitor.getPlatform() === "android" && (
-                    <div
-                        onClick={() => nav("/qr")}
-                        className="sidebar-item d-flex align-items-center justify-content-center text-white"
-                    >
-                        <FontAwesomeIcon icon={faQrcode} />
-                    </div>
-                )}
-
-                <div
-                    onClick={() => nav("/account")}
-                    className="sidebar-item last-item d-flex align-items-center justify-content-center text-white"
-                >
-                    <FontAwesomeIcon icon={faUserAlt} />
-                </div>
+                {item("/home", faHouse)}
+                {item("/artists", faUsers)}
+                {item("/albums", faCompactDisc)}
+                {item("/search", faMagnifyingGlass)}
+                {item("/playlists", faListUl)}
+                {item("/radio", faBroadcastTower)}
+                {item("/videos", faFilm)}
+                {Capacitor.getPlatform() === "android" && item("/qr", faQrcode)}
+                {item("/settings", faGear)}
+                {item("/account", faUser, true)}
             </motion.div>
             <div
                 onClick={() => setNavbarCollapsed(true)}

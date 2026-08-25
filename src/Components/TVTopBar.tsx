@@ -27,18 +27,7 @@ export function TVTopBar() {
     }, [navigate]);
 
     return (
-        <div className="d-flex w-100 justify-content-between align-items-center my-2">
-            <div style={{ margin: "auto" }}></div>
-            <img
-                alt="SonicSound"
-                src="/logo192.png"
-                style={{
-                    height: "4vh",
-                    filter: "invert(1)",
-                }}
-            />
-            <span className="section-header px-3 text-white">SonicSound</span>
-            <div style={{ margin: "auto" }}></div>
+        <div className="d-flex w-100 justify-content-end align-items-center my-2 px-2">
             {websocketConnected && (
                 <i
                     className="ri-smartphone-line text-white me-2"

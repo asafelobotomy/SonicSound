@@ -29,6 +29,9 @@ export interface ISettings {
     transcoding: string;
     eqEnabled?: boolean;
     replayGainEnabled?: boolean;
+    youtubeApiKey?: string;
+    youtubeVideosEnabled?: boolean;
+    youtubeAllowAnyChannel?: boolean;
 }
 
 export interface IBackendPlugin extends Plugin {

@@ -97,7 +97,22 @@ class BackendAccounts(
             val eqEnabled = call.getBoolean("eqEnabled") ?: current.eqEnabled
             val replayGainEnabled =
                 call.getBoolean("replayGainEnabled") ?: current.replayGainEnabled
-            setSettings(Settings(cacheSize, transcoding, eqEnabled, replayGainEnabled))
+            val youtubeApiKey = call.getString("youtubeApiKey") ?: current.youtubeApiKey
+            val youtubeVideosEnabled =
+                call.getBoolean("youtubeVideosEnabled") ?: current.youtubeVideosEnabled
+            val youtubeAllowAnyChannel =
+                call.getBoolean("youtubeAllowAnyChannel") ?: current.youtubeAllowAnyChannel
+            setSettings(
+                Settings(
+                    cacheSize,
+                    transcoding,
+                    eqEnabled,
+                    replayGainEnabled,
+                    youtubeApiKey,
+                    youtubeVideosEnabled,
+                    youtubeAllowAnyChannel,
+                )
+            )
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))

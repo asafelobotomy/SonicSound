@@ -8,6 +8,22 @@ import classnames from "classnames";
 import { useCallback, useEffect } from "react";
 import VLC from "../Plugins/VLC";
 import { Toast } from "@capacitor/toast";
+import logo from "../assets/logo.png";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+    faBroadcastTower,
+    faCompactDisc,
+    faFilm,
+    faGear,
+    faHouse,
+    faListUl,
+    faMagnifyingGlass,
+    faMusic,
+    faPlayCircle,
+    faUser,
+    faUsers,
+} from "@fortawesome/free-solid-svg-icons";
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 
 export default function TVSidebar() {
     const { ref, focusKey, focusSelf, hasFocusedChild } = useFocusable({
@@ -33,35 +49,47 @@ export default function TVSidebar() {
                     hasFocusedChild ? "sidebar-tv-focused" : "sidebar-tv"
                 )}
             >
+                <div className="d-flex align-items-center justify-content-center p-2 mb-2">
+                    <img
+                        src={logo}
+                        alt=""
+                        style={{ height: "3rem", filter: "invert(1)" }}
+                    />
+                </div>
+                <TVSidebarButton path="/home" icon={faHouse} text="Home" />
+                <TVSidebarButton path="/artists" icon={faUsers} text="Artists" />
                 <TVSidebarButton
-                    path="/home"
-                    icon={<i className="ri-home-fill icon-large-tv"></i>}
-                    text="Home"
+                    path="/albums"
+                    icon={faCompactDisc}
+                    text="Albums"
                 />
                 <TVSidebarButton
                     path="/search"
-                    icon={<i className="ri-search-2-fill icon-large-tv"></i>}
+                    icon={faMagnifyingGlass}
                     text="Search"
                 />
                 <TVSidebarButton
-                    path="/tvplaylists"
-                    icon={<i className="ri-play-list-line"></i>}
+                    path="/tvPlaylists"
+                    icon={faListUl}
                     text="Playlists"
                 />
                 <TVSidebarButton
-                    path="/account"
-                    icon={<i className="ri-user-fill icon-large-tv"></i>}
-                    text="Account"
+                    path="/radio"
+                    icon={faBroadcastTower}
+                    text="Radio"
                 />
+                <TVSidebarButton path="/videos" icon={faFilm} text="Videos" />
+                <TVSidebarButton path="/account" icon={faUser} text="Account" />
+                <TVSidebarButton path="/settings" icon={faGear} text="Settings" />
                 <TVSidebarButton
                     path="/tvJukebox"
-                    icon={<i className="ri-disc-fill icon-large-tv"></i>}
+                    icon={faMusic}
                     text="Jukebox"
                 />
                 <div className="m-auto"></div>
                 <TVSidebarButton
                     path="/playing"
-                    icon={<i className="ri-play-circle-fill icon-large-tv"></i>}
+                    icon={faPlayCircle}
                     text="Playing"
                 />
             </div>
@@ -69,13 +97,15 @@ export default function TVSidebar() {
     );
 }
 
-interface TVSidebarButtonProps {
+function TVSidebarButton({
+    path,
+    text,
+    icon,
+}: {
     path: string;
     text: string;
-    icon: any;
-}
-
-function TVSidebarButton({ path, text, icon }: TVSidebarButtonProps) {
+    icon: IconDefinition;
+}) {
     const navigate = useNavigate();
     const nav = useCallback(() => {
         navigate(path);
@@ -96,7 +126,7 @@ function TVSidebarButton({ path, text, icon }: TVSidebarButtonProps) {
                 focused ? "sidebar-item-focused" : ""
             )}
         >
-            {icon}
+            <FontAwesomeIcon icon={icon} className="icon-large-tv" />
             <span className="item-text">{text}</span>
         </div>
     );

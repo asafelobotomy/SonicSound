@@ -10,10 +10,16 @@ import Loading from "./Loading";
 import { FixedSizeGrid as Grid, GridChildComponentProps } from "react-window";
 import useAutoFill from "../Hooks/useAutoFill";
 import VLC from "../Plugins/VLC";
+import {
+    ArtistSort,
+    artistSortOptions,
+    sortArtists,
+} from "../library/sort";
 
 export default function Artists() {
     const [artists, setArtists] = useState<IArtist[]>([]);
     const [filteredArtists, setFilteredArtists] = useState<IArtist[]>([]);
+    const [sort, setSort] = useState<ArtistSort>("name-asc");
     const [fetched, setFetched] = useState<boolean>(false);
     const [canSearch, setCanSearch] = useState<boolean>(false);
     const searchRef = useRef<HTMLInputElement>(null);
@@ -38,7 +44,7 @@ export default function Artists() {
             const ar = await VLC.getArtists();
             if (ar.status === "ok") {
                 setArtists(ar.value!);
-                setFilteredArtists(ar.value!);
+                setFilteredArtists(sortArtists(ar.value!, "name-asc"));
                 setFetched(true);
             }
         };
@@ -47,29 +53,26 @@ export default function Artists() {
         }
     }, [fetched]);
 
+    const applyFilter = useCallback(
+        (source: IArtist[], query: string, nextSort: ArtistSort) => {
+            const q = query.trim().toUpperCase();
+            const filtered = q
+                ? source.filter((s) => s.name.toUpperCase().includes(q))
+                : source;
+            setFilteredArtists(sortArtists(filtered, nextSort));
+        },
+        []
+    );
+
     const search = (val: any) => {
-        if (val.target.value.length === 0) {
-            setFilteredArtists(artists);
-        } else {
-            setFilteredArtists(
-                artists.filter(
-                    (s) =>
-                        s.name
-                            .toUpperCase()
-                            .indexOf(val.target.value.toUpperCase()) !== -1
-                )
-            );
-        }
+        applyFilter(artists, val.target.value, sort);
     };
+
     useEffect(() => {
         if (canSearch) {
             searchRef.current!.focus();
         }
     }, [canSearch]);
-
-    const toggleSearch = () => {
-        setCanSearch(!canSearch);
-    };
 
     const { gridProps, autoFillRef, columnCount } =
         useAutoFill(filteredArtists);
@@ -88,9 +91,9 @@ export default function Artists() {
             return (
                 <div
                     style={{ ...style }}
-                    className="d-flex flex-column align-items-center justify-content-center"
-                    id={`${rowIndex},${columnIndex}`}
                     key={`${rowIndex},${columnIndex}`}
+                    id={`${rowIndex},${columnIndex}`}
+                    className="d-flex flex-column align-items-center justify-content-center"
                 >
                     <ArtistCard
                         item={data[index]}
@@ -121,15 +124,35 @@ export default function Artists() {
             <div className=" artist-list-container d-flex flex-column">
                 <div className="d-flex flex-row align-items-center justify-content-between w-100">
                     <div className="section-header text-white">Artists</div>
-                    <button
-                        type="button"
-                        className="btn btn-link text-white"
-                        onClick={toggleSearch}
-                    >
-                        <FontAwesomeIcon
-                            icon={faMagnifyingGlass}
-                        ></FontAwesomeIcon>
-                    </button>
+                    <div className="d-flex flex-row align-items-center gap-2">
+                        <select
+                            className="form-select form-select-sm"
+                            style={{ width: "auto" }}
+                            value={sort}
+                            onChange={(e) => {
+                                const next = e.target.value as ArtistSort;
+                                setSort(next);
+                                applyFilter(
+                                    artists,
+                                    searchRef.current?.value ?? "",
+                                    next
+                                );
+                            }}
+                        >
+                            {artistSortOptions.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            className="btn btn-link text-white"
+                            onClick={() => setCanSearch(!canSearch)}
+                        >
+                            <FontAwesomeIcon icon={faMagnifyingGlass} />
+                        </button>
+                    </div>
                 </div>
                 <input
                     ref={searchRef}

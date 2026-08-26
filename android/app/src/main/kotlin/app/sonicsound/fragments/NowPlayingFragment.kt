@@ -1,8 +1,6 @@
 package app.sonicsound.fragments
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -26,12 +24,10 @@ import app.sonicsound.IBroadcastObserver
 import app.sonicsound.R
 import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundPlaylistItemAdapter
+import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.subsonic.SubsonicClient
-import com.bumptech.glide.Glide
-import com.bumptech.glide.request.target.CustomTarget
-import com.bumptech.glide.request.transition.Transition
 import com.getcapacitor.JSObject
 import kotlin.math.floor
 import kotlinx.coroutines.Dispatchers
@@ -267,17 +263,8 @@ class NowPlayingFragment : Fragment {
             image.loadUrl("")
             return
         }
-        Glide.with(this).asBitmap().load(url).into(object : CustomTarget<Bitmap>() {
-            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                image.setImageBitmap(resource)
-                applyMediaAspect(resource.width, resource.height)
-            }
-
-            override fun onLoadCleared(placeholder: Drawable?) {}
-            override fun onLoadFailed(errorDrawable: Drawable?) {
-                image.loadUrl("")
-            }
-        })
+        image.scaleType = ImageView.ScaleType.FIT_CENTER
+        image.loadAlbumArt(url, upscaleLowRes = true) { w, h -> applyMediaAspect(w, h) }
         backdrop.loadUrl(url)
         backdrop.alpha = 0.35f
     }

@@ -264,7 +264,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Fullscreen art / music video overlay -->
+    <!-- Fullscreen: vertical stack so art never overlaps chrome -->
     <FrameLayout
         android:id="@+id/fl_fullscreen_overlay"
         android:layout_width="match_parent"
@@ -283,72 +283,152 @@
             android:contentDescription="@string/album_art_image_on_playing"
             android:scaleType="centerCrop" />
 
-        <FrameLayout
-            android:id="@+id/fl_fs_media"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <ImageView
-                android:id="@+id/img_fs_art"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:adjustViewBounds="true"
-                android:contentDescription="@string/album_art_image_on_playing"
-                android:maxHeight="560dp"
-                android:maxWidth="900dp"
-                android:scaleType="fitCenter" />
-
-            <View
-                android:id="@+id/v_fs_focus_anchor"
-                android:layout_width="1dp"
-                android:layout_height="1dp"
-                android:layout_gravity="center"
-                android:background="@android:color/transparent"
-                android:focusable="true"
-                android:focusableInTouchMode="true" />
-        </FrameLayout>
-
         <LinearLayout
-            android:id="@+id/ll_fs_bottom"
+            android:id="@+id/ll_fs_stack"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:gravity="center_horizontal"
+            android:layout_height="match_parent"
             android:orientation="vertical"
-            android:paddingHorizontal="40dp"
-            android:paddingBottom="8dp">
+            android:paddingStart="32dp"
+            android:paddingTop="28dp"
+            android:paddingEnd="32dp"
+            android:paddingBottom="12dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
-            <TextView
-                android:id="@+id/tv_fs_title"
+            <FrameLayout
+                android:id="@+id/fl_fs_media"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipChildren="false"
+                android:clipToPadding="false">
+
+                <ImageView
+                    android:id="@+id/img_fs_art"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:adjustViewBounds="false"
+                    android:contentDescription="@string/album_art_image_on_playing"
+                    android:cropToPadding="false"
+                    android:scaleType="fitCenter" />
+
+                <View
+                    android:id="@+id/v_fs_focus_anchor"
+                    android:layout_width="1dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="center"
+                    android:background="@android:color/transparent"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true" />
+            </FrameLayout>
+
+            <RelativeLayout
+                android:id="@+id/ll_fs_meta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="@font/montserrat"
-                android:gravity="center"
-                android:maxLines="2"
-                android:paddingHorizontal="16dp"
-                android:textColor="#fff"
-                android:textSize="24sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="12dp"
+                android:minHeight="56dp"
+                android:paddingHorizontal="8dp">
 
-            <TextView
-                android:id="@+id/tv_fs_subtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:ellipsize="end"
-                android:fontFamily="@font/montserrat"
-                android:gravity="center"
-                android:maxLines="1"
-                android:paddingHorizontal="16dp"
-                android:textColor="#ccffffff"
-                android:textSize="15sp" />
+                <LinearLayout
+                    android:id="@+id/ll_fs_track_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="176dp">
+
+                    <TextView
+                        android:id="@+id/tv_fs_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/montserrat"
+                        android:gravity="center"
+                        android:maxLines="2"
+                        android:textColor="#fff"
+                        android:textSize="24sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_fs_subtitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/montserrat"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:textColor="#ccffffff"
+                        android:textSize="15sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/ll_fs_next"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/round_outline"
+                    android:focusable="false"
+                    android:gravity="center_vertical"
+                    android:maxWidth="180dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="6dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:layout_gravity="top"
+                        android:layout_marginTop="2dp"
+                        android:contentDescription="@string/next_up"
+                        android:focusable="false"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_skip_forward"
+                        android:tint="#ccffffff" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tv_fs_next_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/montserrat"
+                            android:maxWidth="140dp"
+                            android:maxLines="2"
+                            android:textColor="#fff"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_fs_next_artist"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/montserrat"
+                            android:maxWidth="140dp"
+                            android:maxLines="1"
+                            android:textColor="#ccffffff"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+            </RelativeLayout>
 
             <LinearLayout
                 android:id="@+id/ll_fs_controls"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:orientation="vertical">
 
@@ -462,43 +542,6 @@
                         android:thumbTint="@color/sonicsound_item_highlight" />
                 </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/ll_fs_next"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/round_outline"
-            android:focusable="false"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="6dp"
-            android:visibility="gone">
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:contentDescription="@string/next_up"
-                android:focusable="false"
-                android:importantForAccessibility="no"
-                android:src="@drawable/ic_skip_forward"
-                android:tint="#ccffffff" />
-
-            <TextView
-                android:id="@+id/tv_fs_next_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:ellipsize="end"
-                android:fontFamily="@font/montserrat"
-                android:maxWidth="140dp"
-                android:maxLines="1"
-                android:textColor="#ccffffff"
-                android:textSize="11sp" />
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>

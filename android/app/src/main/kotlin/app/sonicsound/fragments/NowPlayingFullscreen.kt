@@ -1,5 +1,7 @@
 package app.sonicsound.fragments
 
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -14,6 +16,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import app.sonicsound.R
 import app.sonicsound.TvActivity
+import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.models.Song
 
@@ -41,6 +44,7 @@ class NowPlayingFullscreen(
     private val fsSubtitle: TextView = root.findViewById(R.id.tv_fs_subtitle)
     private val fsNextRow: LinearLayout = root.findViewById(R.id.ll_fs_next)
     private val fsNextLabel: TextView = root.findViewById(R.id.tv_fs_next_label)
+    private val fsNextArtist: TextView = root.findViewById(R.id.tv_fs_next_artist)
     private val fsControls: LinearLayout = root.findViewById(R.id.ll_fs_controls)
     private val fsPlay: ImageButton = root.findViewById(R.id.btn_fs_play)
     private val fsPrev: ImageButton = root.findViewById(R.id.btn_fs_prev)
@@ -154,7 +158,9 @@ class NowPlayingFullscreen(
         videoMode = video
         fsBackdrop.loadUrl(artUrl)
         fsTitle.text = title
+        styleExtraBold(fsTitle)
         fsSubtitle.text = subtitle
+        styleBold(fsSubtitle)
         bindNext(nextSong)
         when {
             video && !wasVideo -> {
@@ -164,9 +170,13 @@ class NowPlayingFullscreen(
             !video && wasVideo -> {
                 moveVideo(toFullscreen = false)
                 fsArt.isVisible = true
-                fsArt.loadUrl(artUrl)
+                fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
+                fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
             }
-            !video -> fsArt.loadUrl(artUrl)
+            !video -> {
+                fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
+                fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
+            }
         }
     }
 
@@ -174,11 +184,31 @@ class NowPlayingFullscreen(
         if (nextSong != null) {
             fsNextRow.isVisible = true
             fsNextLabel.text = nextSong.title
+            styleExtraBold(fsNextLabel)
+            fsNextArtist.text = nextSong.artist
+            styleBold(fsNextArtist)
             fsNextRow.contentDescription =
-                root.context.getString(R.string.next_up) + ": ${nextSong.title}"
+                root.context.getString(R.string.next_up) +
+                    ": ${nextSong.title} — ${nextSong.artist}"
         } else {
             fsNextRow.isVisible = false
         }
+    }
+
+    private fun styleExtraBold(tv: TextView) {
+        tv.setTypeface(tv.typeface, Typeface.BOLD)
+        tv.paint.isFakeBoldText = true
+        tv.paint.style = Paint.Style.FILL_AND_STROKE
+        tv.paint.strokeWidth = 1.15f * root.resources.displayMetrics.density
+        tv.invalidate()
+    }
+
+    private fun styleBold(tv: TextView) {
+        tv.setTypeface(tv.typeface, Typeface.BOLD)
+        tv.paint.isFakeBoldText = true
+        tv.paint.style = Paint.Style.FILL
+        tv.paint.strokeWidth = 0f
+        tv.invalidate()
     }
 
     fun exit() {
@@ -229,7 +259,8 @@ class NowPlayingFullscreen(
 
     private fun showControls() {
         if (!active) return
-        fsControls.isVisible = true
+        // GONE (not INVISIBLE) so media area expands/shrinks and art never overlaps chrome.
+        fsControls.visibility = View.VISIBLE
         controlsVisible = true
         resetHideTimer()
     }
@@ -245,7 +276,7 @@ class NowPlayingFullscreen(
         if (focused != null && focused !== fsFocusAnchor && isControl(focused)) {
             lastFocusedControl = focused
         }
-        fsControls.isVisible = false
+        fsControls.visibility = View.GONE
         controlsVisible = false
         fsFocusAnchor.requestFocus()
     }

@@ -97,9 +97,9 @@ export default function PlayTest() {
     });
 
     useEffect(() => {
-        setTimeout(async () => {
+        const run = async () => {
             if (context.username !== "" && context.username !== null) {
-                navigate("/home");
+                navigate("/home", { replace: true });
             } else if (context.username === null) {
                 controls.start({ rotate: 0, scale: 1 });
                 const ret = await VLC.getAccounts();
@@ -115,7 +115,8 @@ export default function PlayTest() {
                     focusSelf();
                 }
             }
-        }, 1000);
+        };
+        run();
     }, [context, controls, focusSelf, navigate]);
 
     useEffect(() => {

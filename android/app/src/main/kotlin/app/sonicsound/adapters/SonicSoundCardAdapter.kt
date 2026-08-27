@@ -62,7 +62,8 @@ class SonicSoundCardAdapter(
             is Playlist -> bind.playPlaylist(item.id, 0)
             is InternetRadioStation -> bind.playInternetRadio(item.streamUrl, item.name)
             is Artist -> bind.showArtist(item.id, item.name)
-            is YoutubeVideo -> { /* handled via onItem */ }
+            // Used by VideosFragment when Features.YOUTUBE_MUSIC_VIDEOS is on.
+            is YoutubeVideo -> { /* open handled via onItem */ }
         }
     }
 

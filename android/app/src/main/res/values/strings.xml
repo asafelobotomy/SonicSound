@@ -24,7 +24,11 @@
     <string name="albums_empty">No albums found.</string>
     <string name="artists_empty">No artists found.</string>
     <string name="settings_header">Settings</string>
+    <string name="settings_section_playback">Playback</string>
+    <string name="settings_section_audio">Audio</string>
+    <string name="settings_section_cache">Cache</string>
     <string name="transcoding_label">Transcoding format</string>
+    <string name="transcoding_hint">e.g. mp3, raw (leave blank for server default)</string>
     <string name="youtube_section">YouTube music videos</string>
     <string name="youtube_api_key">YouTube Data API key</string>
     <string name="youtube_videos_enabled">Enable music video search</string>
@@ -62,8 +66,6 @@
     <string name="sort_albums_asc">Fewer albums</string>
     <string name="sort_albums_desc">More albums</string>
     <string name="save_settings">Save settings</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="album_card_image">Album card image</string>
     <string name="most_played_albums">Most Played Albums</string>
     <string name="random_songs">Random Songs</string>
@@ -94,4 +96,10 @@
     <string name="using_plaintext_password">Using plaintext password</string>
     <string name="logout">Logout</string>
     <string name="clear_cache">Clear art cache</string>
+    <string name="cache_size_label">Cache size (GB)</string>
+    <string name="cache_size_hint">0 = unlimited</string>
+    <string name="offline_mode">Offline mode</string>
+    <string name="art_cache_size">Art cache: %1$d KB</string>
+    <string name="art_cache_unavailable">Art cache: unavailable</string>
+    <string name="cache_cleared">Cleared %1$d KB of cached art</string>
 </resources>

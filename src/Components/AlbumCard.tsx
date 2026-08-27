@@ -60,10 +60,14 @@ export default function AlbumCard({
             });
         }
     };
-    const play = useCallback(() => {
+    const play = useCallback(async () => {
         VLC.playAlbum({ album: item.id, track: 0 });
-        navigate("/playing");
-    }, [item.id, navigate]);
+        const isTv =
+            androidTv || (await AndroidTVPlugin.get()).value;
+        if (isTv) {
+            navigate("/playing");
+        }
+    }, [item.id, navigate, androidTv]);
     const { focused, ref } = useFocusable({ onEnterPress: play });
     useEffect(() => {
         if (focused && androidTv) {

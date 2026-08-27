@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import logo from "../assets/logo.png";
+import { Features } from "../features";
 
 export default function Sidebar({
     setNavbarCollapsed,
@@ -34,7 +35,8 @@ export default function Sidebar({
 
     const nav = (path: string) => {
         setNavbarCollapsed(true);
-        navigate(path);
+        // Replace so sidebar switches don't stack unrelated pages on Back.
+        navigate(path, { replace: true });
     };
 
     const item = (path: string, icon: any, last = false) => (
@@ -80,7 +82,7 @@ export default function Sidebar({
                 {item("/search", faMagnifyingGlass)}
                 {item("/playlists", faListUl)}
                 {item("/radio", faBroadcastTower)}
-                {item("/videos", faFilm)}
+                {Features.youtubeMusicVideos && item("/videos", faFilm)}
                 {Capacitor.getPlatform() === "android" && item("/qr", faQrcode)}
                 {item("/settings", faGear)}
                 {item("/account", faUser, true)}

@@ -127,6 +127,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     }
 
     @PluginMethod fun login(call: PluginCall) = accounts.login(call)
+    @PluginMethod fun logout(call: PluginCall) = accounts.logout(call)
     @PluginMethod fun getCameraPermissionStatus(call: PluginCall) =
         accounts.getCameraPermissionStatus(call)
     @PluginMethod fun getCameraPermission(call: PluginCall) = accounts.getCameraPermission(call)

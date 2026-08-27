@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.sonicsound.CurrentState
+import app.sonicsound.Features
 import app.sonicsound.Globals
 import app.sonicsound.IBroadcastObserver
 import app.sonicsound.R
@@ -75,6 +76,16 @@ class NowPlayingFragment : Fragment {
         musicVideo?.destroy()
         if (::bind.isInitialized) Globals.UnregisterObserver(observer)
         super.onDestroy()
+    }
+
+    override fun onDestroyView() {
+        // Restore sidebar if we were replaced while fullscreen immersive.
+        fullscreen?.exit()
+        fullscreen = null
+        scrubber = null
+        musicVideo?.destroy()
+        musicVideo = null
+        super.onDestroyView()
     }
 
     /** @return true if back was consumed (scrub disarm or exit fullscreen). */
@@ -161,14 +172,23 @@ class NowPlayingFragment : Fragment {
         ).also { it.wire(); it.updateUi() }
         val mvContainer = view.findViewById<FrameLayout>(R.id.fl_music_video)
         val mvButton = view.findViewById<View>(R.id.btn_music_video)
-        musicVideo = NowPlayingMusicVideo(this, bind, image, mvContainer, mvButton)
+        if (Features.YOUTUBE_MUSIC_VIDEOS) {
+            mvButton.visibility = View.VISIBLE
+            musicVideo = NowPlayingMusicVideo(this, bind, image, mvContainer, mvButton)
+        } else {
+            mvButton.visibility = View.GONE
+            musicVideo = null
+        }
         fullscreen = NowPlayingFullscreen(
             view, bind, chrome, mediaFrame, mvContainer,
             onPlayPause = { togglePlayPause() },
             onSeek = { seekTo(it) },
             onShuffle = { bind.shuffle() },
             onLike = { toggleLike() },
-            onMusicVideo = { mvButton.performClick() },
+            onMusicVideo = {
+                if (Features.YOUTUBE_MUSIC_VIDEOS) mvButton.performClick()
+            },
+            enableMusicVideo = Features.YOUTUBE_MUSIC_VIDEOS,
             durationProvider = { bind.getCurrentState()?.currentTrack?.duration ?: 0 },
             timeLabels = {
                 currentTimeText.text.toString() to durationText.text.toString()

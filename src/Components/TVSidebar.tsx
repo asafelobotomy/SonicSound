@@ -24,6 +24,7 @@ import {
     faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { Features } from "../features";
 
 export default function TVSidebar() {
     const { ref, focusKey, focusSelf, hasFocusedChild } = useFocusable({
@@ -78,7 +79,9 @@ export default function TVSidebar() {
                     icon={faBroadcastTower}
                     text="Radio"
                 />
-                <TVSidebarButton path="/videos" icon={faFilm} text="Videos" />
+                {Features.youtubeMusicVideos && (
+                    <TVSidebarButton path="/videos" icon={faFilm} text="Videos" />
+                )}
                 <TVSidebarButton path="/account" icon={faUser} text="Account" />
                 <TVSidebarButton path="/settings" icon={faGear} text="Settings" />
                 <TVSidebarButton
@@ -91,6 +94,7 @@ export default function TVSidebar() {
                     path="/playing"
                     icon={faPlayCircle}
                     text="Playing"
+                    replace={false}
                 />
             </div>
         </FocusContext.Provider>
@@ -101,15 +105,18 @@ function TVSidebarButton({
     path,
     text,
     icon,
+    replace = true,
 }: {
     path: string;
     text: string;
     icon: IconDefinition;
+    /** Top-level library routes replace; Now Playing pushes so Back restores. */
+    replace?: boolean;
 }) {
     const navigate = useNavigate();
     const nav = useCallback(() => {
-        navigate(path);
-    }, [path, navigate]);
+        navigate(path, { replace });
+    }, [path, navigate, replace]);
     const { ref, focused } = useFocusable({ onEnterPress: nav });
     return (
         <div

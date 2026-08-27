@@ -32,6 +32,7 @@ class NowPlayingFullscreen(
     private val onShuffle: () -> Unit,
     private val onLike: () -> Unit,
     private val onMusicVideo: () -> Unit,
+    private val enableMusicVideo: Boolean = false,
     private val durationProvider: () -> Int,
     private val timeLabels: () -> Pair<String, String>,
 ) {
@@ -74,7 +75,15 @@ class NowPlayingFullscreen(
 
     init {
         fsScrubber.wire()
-        fsButtons.addAll(listOf(fsShuffle, fsPrev, fsPlay, fsNextBtn, fsMusicVideo, fsLike))
+        if (enableMusicVideo) {
+            fsMusicVideo.visibility = View.VISIBLE
+            fsMusicVideo.isFocusable = true
+            fsButtons.addAll(listOf(fsShuffle, fsPrev, fsPlay, fsNextBtn, fsMusicVideo, fsLike))
+        } else {
+            fsMusicVideo.visibility = View.GONE
+            fsMusicVideo.isFocusable = false
+            fsButtons.addAll(listOf(fsShuffle, fsPrev, fsPlay, fsNextBtn, fsLike))
+        }
         fsButtons.forEach { btn ->
             btn.setOnClickListener {
                 rememberFocus(btn)
@@ -84,7 +93,7 @@ class NowPlayingFullscreen(
                     R.id.btn_fs_play -> onPlayPause()
                     R.id.btn_fs_shuffle -> onShuffle()
                     R.id.btn_fs_like -> onLike()
-                    R.id.btn_fs_music_video -> onMusicVideo()
+                    R.id.btn_fs_music_video -> if (enableMusicVideo) onMusicVideo()
                 }
                 showControls()
             }

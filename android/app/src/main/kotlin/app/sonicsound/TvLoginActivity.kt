@@ -1,6 +1,7 @@
 package app.sonicsound
 
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -11,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.lifecycleScope
 import app.sonicsound.discovery.SubsonicLanDiscovery
@@ -34,16 +36,20 @@ class TvLoginActivity : AppCompatActivity() {
     private lateinit var discoverResults: LinearLayout
     private lateinit var plaintext: SwitchCompat
     private var wsLoginObserver: WsLogin? = null
+    private var loginUiReady = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_tv_login)
         supportActionBar?.hide()
-        bindUi()
-        wsLoginObserver = WsLogin().also { Globals.RegisterObserver(it) }
+        // Accept phone QR / websocket login even while splash auto-login runs.
+        ensureWsLoginObserver()
         val account = KeyValueStorage.getActiveAccount()
         if (account.username != null) {
+            // Keep SonicSound splash visible while restoring the session.
+            setContentView(R.layout.activity_splash)
             tryLogin(account)
+        } else {
+            showLoginUi()
         }
     }
 
@@ -51,6 +57,23 @@ class TvLoginActivity : AppCompatActivity() {
         wsLoginObserver?.let { Globals.UnregisterObserver(it) }
         wsLoginObserver = null
         super.onDestroy()
+    }
+
+    private fun ensureWsLoginObserver() {
+        if (wsLoginObserver == null) {
+            wsLoginObserver = WsLogin().also { Globals.RegisterObserver(it) }
+        }
+    }
+
+    private fun showLoginUi() {
+        setContentView(R.layout.activity_tv_login)
+        // Drop splash launch-theme background so it doesn't show behind the form.
+        window.setBackgroundDrawable(
+            ColorDrawable(ContextCompat.getColor(this, R.color.sonicsound_background))
+        )
+        bindUi()
+        ensureWsLoginObserver()
+        loginUiReady = true
     }
 
     private fun getFormData(): FormData {
@@ -96,6 +119,10 @@ class TvLoginActivity : AppCompatActivity() {
                 startActivity(Intent(this@TvLoginActivity, TvActivity::class.java))
                 finish()
             } catch (e: Exception) {
+                // Leave splash if auto-login or QR-during-splash failed.
+                if (!loginUiReady) {
+                    showLoginUi()
+                }
                 Toast.makeText(
                     this@TvLoginActivity,
                     e.message ?: "There was an unexpected error",
@@ -112,11 +139,14 @@ class TvLoginActivity : AppCompatActivity() {
                     val account = Gson().fromJson(value, Account::class.java)
                     tryLogin(account)
                 } catch (_: Exception) {
-                    Toast.makeText(
-                        this@TvLoginActivity,
-                        "The account received is malformed.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    runOnUiThread {
+                        if (!loginUiReady) showLoginUi()
+                        Toast.makeText(
+                            this@TvLoginActivity,
+                            "The account received is malformed.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         }

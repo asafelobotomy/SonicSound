@@ -31,11 +31,6 @@ class AccountFragment : Fragment {
         view.findViewById<TextView>(R.id.tv_plaintext_warning).visibility =
             if (account.usePlaintext) View.VISIBLE else View.INVISIBLE
 
-        view.findViewById<View>(R.id.switch_eq)?.visibility = View.GONE
-        view.findViewById<View>(R.id.switch_replaygain)?.visibility = View.GONE
-        view.findViewById<Button>(R.id.btn_clear_cache)?.visibility = View.GONE
-        view.findViewById<TextView>(R.id.tv_cache_info)?.visibility = View.GONE
-
         view.findViewById<Button>(R.id.btn_logout).setOnClickListener {
             KeyValueStorage.setActiveAccount(Account(null, "", "", "", false))
             val intent = Intent(activity, TvLoginActivity::class.java)

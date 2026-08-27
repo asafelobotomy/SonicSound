@@ -7,13 +7,13 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
-import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import app.sonicsound.fragments.AlbumDetailFragment
 import app.sonicsound.fragments.AlbumsFragment
 import app.sonicsound.fragments.ArtistsFragment
@@ -42,12 +42,27 @@ class TvActivity : AppCompatActivity() {
     private val radioFragment = RadioFragment(client, activityBind)
     private val albumsFragment = AlbumsFragment(client, activityBind)
     private val artistsFragment = ArtistsFragment(client, activityBind)
-    private val videosFragment = VideosFragment(client, activityBind)
+    private val videosFragment =
+        if (Features.YOUTUBE_MUSIC_VIDEOS) VideosFragment(client, activityBind) else null
     private val accountFragment = AccountFragment(client)
     private val settingsFragment = SettingsFragment(client)
     private lateinit var phoneConnected: ImageView
     private var binder: MusicService.LocalBinder? = null
     private var mBound = false
+    private var selectedNavId: Int = R.id.btn_home
+    private var navBeforePlaying: Int = R.id.btn_home
+    private val topLevelNavIds = listOf(
+        R.id.btn_home,
+        R.id.btn_artists,
+        R.id.btn_albums,
+        R.id.btn_search,
+        R.id.btn_playlists,
+        R.id.btn_radio,
+        R.id.btn_account,
+        R.id.btn_settings,
+        R.id.btn_jukebox,
+        R.id.btn_playing,
+    )
     private val connection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             binder = service as MusicService.LocalBinder
@@ -176,11 +191,11 @@ class TvActivity : AppCompatActivity() {
         }
 
         fun showArtist(id: String, name: String) {
-            show(ArtistsFragment(client, activityBind, id, name))
+            showDetail(ArtistsFragment(client, activityBind, id, name))
         }
 
         fun showAlbum(id: String, name: String) {
-            show(AlbumDetailFragment(client, activityBind, id, name))
+            showDetail(AlbumDetailFragment(client, activityBind, id, name))
         }
 
         fun showPlaying() {
@@ -189,7 +204,8 @@ class TvActivity : AppCompatActivity() {
                 focusContent()
                 return
             }
-            show(playingFragment)
+            // Push Now Playing so Back returns here; keep current sidebar selection.
+            showDetail(playingFragment)
         }
 
         /** Hide sidebar + content padding for true fullscreen Now Playing media. */
@@ -208,13 +224,38 @@ class TvActivity : AppCompatActivity() {
         }
     }
 
-    private fun show(fragment: Fragment) {
+    /** Top-level sidebar destinations: replace content and clear nested history. */
+    private fun showTopLevel(navId: Int, fragment: Fragment) {
+        val current = supportFragmentManager.findFragmentById(R.id.fg_container)
+        if (current === fragment && supportFragmentManager.backStackEntryCount == 0) {
+            highlightNav(navId)
+            focusContent()
+            return
+        }
+        supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fg_container, fragment)
+            .commit()
+        supportFragmentManager.executePendingTransactions()
+        highlightNav(navId)
+        focusContent()
+    }
+
+    /** Nested pages (album/artist detail, Now Playing from play): keep Back working. */
+    private fun showDetail(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fg_container, fragment)
             .addToBackStack(null)
             .commit()
         supportFragmentManager.executePendingTransactions()
         focusContent()
+    }
+
+    private fun highlightNav(navId: Int) {
+        selectedNavId = navId
+        topLevelNavIds.forEach { id ->
+            findViewById<Button>(id)?.isSelected = id == navId
+        }
     }
 
     private fun focusContent() {
@@ -228,7 +269,6 @@ class TvActivity : AppCompatActivity() {
         supportActionBar?.hide()
         supportFragmentManager.beginTransaction()
             .replace(R.id.fg_container, homeFragment)
-            .addToBackStack(null)
             .commit()
         App.context.bindService(
             Intent(App.context, MusicService::class.java),
@@ -241,20 +281,43 @@ class TvActivity : AppCompatActivity() {
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         phoneConnected = findViewById(R.id.iv_phone_connected)
-        mapOf(
+        findViewById<View>(R.id.btn_videos).visibility =
+            if (Features.YOUTUBE_MUSIC_VIDEOS) View.VISIBLE else View.GONE
+        val topLevel = mutableMapOf(
             R.id.btn_home to homeFragment,
             R.id.btn_artists to artistsFragment,
             R.id.btn_albums to albumsFragment,
             R.id.btn_search to searchFragment,
             R.id.btn_playlists to playlistFragment,
             R.id.btn_radio to radioFragment,
-            R.id.btn_videos to videosFragment,
             R.id.btn_account to accountFragment,
             R.id.btn_settings to settingsFragment,
             R.id.btn_jukebox to jukeboxFragment,
-            R.id.btn_playing to playingFragment,
-        ).forEach { (id, fragment) ->
-            findViewById<Button>(id).setOnClickListener { show(fragment) }
+        )
+        videosFragment?.let { topLevel[R.id.btn_videos] = it }
+        topLevel.forEach { (id, fragment) ->
+            findViewById<Button>(id).setOnClickListener { showTopLevel(id, fragment) }
         }
+        // Now Playing is a detail push so Back returns to the prior section.
+        findViewById<Button>(R.id.btn_playing).setOnClickListener { showPlayingFromSidebar() }
+        supportFragmentManager.addOnBackStackChangedListener {
+            val current = supportFragmentManager.findFragmentById(R.id.fg_container)
+            if (current !== playingFragment && selectedNavId == R.id.btn_playing) {
+                highlightNav(navBeforePlaying)
+            }
+        }
+        highlightNav(R.id.btn_home)
+    }
+
+    private fun showPlayingFromSidebar() {
+        val current = supportFragmentManager.findFragmentById(R.id.fg_container)
+        if (current === playingFragment) {
+            highlightNav(R.id.btn_playing)
+            focusContent()
+            return
+        }
+        navBeforePlaying = selectedNavId
+        showDetail(playingFragment)
+        highlightNav(R.id.btn_playing)
     }
 }

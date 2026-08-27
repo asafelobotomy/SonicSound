@@ -1,24 +1,35 @@
-import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
+import { Toast } from "@capacitor/toast";
 import { faUser } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import classNames from "classnames";
 import { useCallback, useContext } from "react";
-import { useNavigate } from "react-router-dom";
 import { AppContext } from "../AppContext";
 import { IAccount } from "../Models/AppContext";
+import VLC from "../Plugins/VLC";
 
 export default function Account() {
     const { context, setContext } = useContext(AppContext);
-    const navigate = useNavigate();
-    const logout = useCallback(() => {
-        const newContext: IAccount = {
+    const logout = useCallback(async () => {
+        const cleared: IAccount = {
             username: null,
             url: "",
             password: "",
             type: "",
             usePlaintext: false,
         };
-        setContext(newContext);
+        try {
+            const ret = await VLC.logout();
+            if (ret.status === "ok") {
+                setContext(ret.value ?? cleared);
+            } else {
+                setContext(cleared);
+                Toast.show({ text: ret.error || "Logout failed" });
+            }
+        } catch {
+            setContext(cleared);
+            Toast.show({ text: "Logout failed" });
+        }
     }, [setContext]);
     const { focused, ref } = useFocusable({ onEnterPress: logout });
 
@@ -33,13 +44,6 @@ export default function Account() {
             {context.usePlaintext && (
                 <div className="text-danger">using plaintext password</div>
             )}
-            <button
-                type="button"
-                className="btn btn-outline-light mt-3"
-                onClick={() => navigate("/settings")}
-            >
-                Open settings
-            </button>
             <div className="logout-button-container">
                 <button
                     ref={ref}

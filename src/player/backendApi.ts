@@ -1,5 +1,5 @@
 import { IPlaylist } from "../Models/API/Responses/IPlaylistsResponse";
-import { IAppContext } from "../Models/AppContext";
+import { IAccount, IAppContext } from "../Models/AppContext";
 import { ISettings } from "../Plugins/VLC";
 import {
     deleteAccountFromContext,
@@ -105,6 +105,23 @@ export const backendApi = {
     },
     getActiveAccount(this: Backend) {
         return Promise.resolve(okResponse(this.context.activeAccount));
+    },
+    async logout(this: Backend) {
+        const cleared: IAccount = {
+            username: null,
+            password: "",
+            url: "",
+            type: "",
+            usePlaintext: false,
+        };
+        this.context = { ...this.context, activeAccount: cleared };
+        persistContext(this.context);
+        try {
+            await this.pause();
+        } catch {
+            /* ignore */
+        }
+        return okResponse(cleared);
     },
     deleteAccount(this: Backend, options: { url: string }) {
         this.context = deleteAccountFromContext(this.context, options.url);

@@ -107,6 +107,7 @@ export interface IBackendPlugin extends Plugin {
         url: string;
         usePlaintext: boolean;
     }): Promise<IBackendResponse<IAccount>>;
+    logout(): Promise<IBackendResponse<IAccount>>;
     getActiveAccount(): Promise<IBackendResponse<IAccount>>;
     getAccounts(): Promise<IBackendResponse<IAccount[]>>;
     deleteAccount(options: { url: string }): Promise<IBackendResponse<string>>;

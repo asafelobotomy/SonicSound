@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Kept for Features.YOUTUBE_MUSIC_VIDEOS (Google account OAuth on TV). -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.USE_CREDENTIALS" />
 
@@ -44,7 +45,8 @@
             android:name=".TvLoginActivity"
             android:exported="true"
             android:label="@string/title_activity_main"
-            android:launchMode="standard">
+            android:launchMode="standard"
+            android:theme="@style/AppTheme.NoActionBarLaunch">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -55,7 +57,8 @@
             android:name=".TvActivity"
             android:exported="false"
             android:label="@string/title_activity_main"
-            android:launchMode="standard" />
+            android:launchMode="standard"
+            android:theme="@style/AppTheme.NoActionBar" />
 
         <meta-data
             android:name="com.google.android.gms.car.application"

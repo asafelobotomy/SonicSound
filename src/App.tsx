@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./App.scss";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router-dom";
 import Home from "./Components/Home";
 import PlayTest from "./Components/PlayTest";
 import {
@@ -50,6 +50,7 @@ import TVPlaylists from "./Components/TVPlaylists";
 import Radio from "./Components/Radio";
 import Settings from "./Components/Settings";
 import Videos from "./Components/Videos";
+import { Features } from "./features";
 
 function App() {
     const [context, setContext] = useState<IAccount>(AppContextDefValue);
@@ -175,7 +176,12 @@ function App() {
                                             <Routes>
                                                 <Route
                                                     path="/"
-                                                    element={<PlayTest />}
+                                                    element={
+                                                        <Navigate
+                                                            to="/home"
+                                                            replace
+                                                        />
+                                                    }
                                                 />
                                                 <Route
                                                     path="/home"
@@ -209,10 +215,12 @@ function App() {
                                                     path="/radio"
                                                     element={<Radio />}
                                                 />
-                                                <Route
-                                                    path="/videos"
-                                                    element={<Videos />}
-                                                />
+                                                {Features.youtubeMusicVideos && (
+                                                    <Route
+                                                        path="/videos"
+                                                        element={<Videos />}
+                                                    />
+                                                )}
                                                 <Route
                                                     path="/settings"
                                                     element={<Settings />}
@@ -261,7 +269,10 @@ function App() {
                                                         <Route
                                                             path="/"
                                                             element={
-                                                                <PlayTest />
+                                                                <Navigate
+                                                                    to="/home"
+                                                                    replace
+                                                                />
                                                             }
                                                         />
                                                         <Route
@@ -306,10 +317,14 @@ function App() {
                                                                 <Settings />
                                                             }
                                                         />
-                                                        <Route
-                                                            path="/videos"
-                                                            element={<Videos />}
-                                                        />
+                                                        {Features.youtubeMusicVideos && (
+                                                            <Route
+                                                                path="/videos"
+                                                                element={
+                                                                    <Videos />
+                                                                }
+                                                            />
+                                                        )}
                                                         <Route
                                                             path="/radio"
                                                             element={<Radio />}

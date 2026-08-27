@@ -11,6 +11,7 @@ import app.sonicsound.KeyValueStorage.Companion.setActiveAccount
 import app.sonicsound.KeyValueStorage.Companion.setOfflineMode
 import app.sonicsound.KeyValueStorage.Companion.setSettings
 import app.sonicsound.MainActivity
+import app.sonicsound.models.Account
 import app.sonicsound.models.ParameterException
 import app.sonicsound.models.Settings
 import app.sonicsound.subsonic.SubsonicClient
@@ -31,6 +32,16 @@ class BackendAccounts(
             val account = clientProvider()!!.login(username, password, url, usePlaintext)
             setActiveAccount(account)
             call.resolve(responses.ok(account))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
+    fun logout(call: PluginCall) {
+        try {
+            val cleared = Account(null, "", "", "", false)
+            setActiveAccount(cleared)
+            call.resolve(responses.ok(cleared))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }

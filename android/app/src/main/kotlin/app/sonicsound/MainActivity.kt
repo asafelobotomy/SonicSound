@@ -18,6 +18,8 @@ class MainActivity : BridgeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Clear splash window background once the WebView activity is up.
+        window.setBackgroundDrawableResource(android.R.color.transparent)
         registerPlugin(BackendPlugin::class.java)
         registerPlugin(AndroidTVPlugin::class.java)
         requestPermissionLauncher =

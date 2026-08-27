@@ -95,6 +95,19 @@
     <string name="plaintext_warning_login">Use plaintext password (insecure on http connections, needed for some servers)</string>
     <string name="using_plaintext_password">Using plaintext password</string>
     <string name="logout">Logout</string>
+    <string name="settings_section_fullscreen">Fullscreen</string>
+    <string name="fullscreen_visualizer_label">Visualizer</string>
+    <string name="fullscreen_viz_art_background">Album art &amp; background</string>
+    <string name="fullscreen_viz_art_black">Album art &amp; no background</string>
+    <string name="fullscreen_viz_art_solid">Album art &amp; solid color</string>
+    <string name="fullscreen_viz_dvd">DVD-style</string>
+    <string name="fullscreen_solid_color_label">Solid color</string>
+    <string name="dvd_speed_label">DVD speed</string>
+    <string name="dvd_speed_slow">Slow</string>
+    <string name="dvd_speed_default">Default</string>
+    <string name="dvd_speed_fast">Fast</string>
+    <string name="fullscreen_show_clock">Show current time</string>
+    <string name="fullscreen_show_date">Show current date</string>
     <string name="clear_cache">Clear art cache</string>
     <string name="cache_size_label">Cache size (GB)</string>
     <string name="cache_size_hint">0 = unlimited</string>

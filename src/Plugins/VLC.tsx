@@ -37,6 +37,13 @@ export interface ISettings {
     youtubeAccessToken?: string;
     youtubeRefreshToken?: string;
     youtubeTokenExpiryMs?: number;
+    /** art_background | art_black | art_solid | dvd */
+    fullscreenVisualizer?: string;
+    fullscreenSolidColor?: string;
+    /** slow | default | fast */
+    dvdSpeed?: string;
+    fullscreenShowClock?: boolean;
+    fullscreenShowDate?: boolean;
 }
 
 export interface IBackendPlugin extends Plugin {

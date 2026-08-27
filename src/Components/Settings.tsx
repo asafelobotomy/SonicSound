@@ -2,45 +2,94 @@ import { Capacitor } from "@capacitor/core";
 import { Toast } from "@capacitor/toast";
 import { faGear } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
-import classNames from "classnames";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import VLC, { ISettings } from "../Plugins/VLC";
+
+const PRIMARY_COLORS = [
+    "#E53935",
+    "#FB8C00",
+    "#FDD835",
+    "#43A047",
+    "#1E88E5",
+    "#8E24AA",
+    "#00ACC1",
+    "#D81B60",
+    "#FFFFFF",
+];
+
+const VIZ_OPTIONS = [
+    { value: "art_background", label: "Album art & background" },
+    { value: "art_black", label: "Album art & no background" },
+    { value: "art_solid", label: "Album art & solid color" },
+    { value: "dvd", label: "DVD-style" },
+] as const;
+
+const DVD_SPEEDS = [
+    { value: "slow", label: "Slow" },
+    { value: "default", label: "Default" },
+    { value: "fast", label: "Fast" },
+] as const;
 
 export default function Settings() {
     const [eqEnabled, setEqEnabled] = useState(false);
     const [replayGainEnabled, setReplayGainEnabled] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [artCacheLabel, setArtCacheLabel] = useState("Art cache: …");
+    const [visualizer, setVisualizer] = useState<string>("art_background");
+    const [solidColor, setSolidColor] = useState("#E53935");
+    const [dvdSpeed, setDvdSpeed] = useState("default");
+    const [showClock, setShowClock] = useState(false);
+    const [showDate, setShowDate] = useState(false);
+    const readyRef = useRef(false);
+    const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isAndroid = Capacitor.getPlatform() === "android";
     const {
         register,
-        handleSubmit,
         setValue,
+        getValues,
         formState: { errors },
     } = useForm<ISettings>();
-    const { focused: saveFocused, ref: saveRef } = useFocusable({
-        onEnterPress: () => handleSubmit(save)(),
-    });
 
-    const save = useCallback(
-        async (data: ISettings) => {
+    const persist = useCallback(
+        async (patch: Partial<ISettings> = {}) => {
+            if (!readyRef.current) return;
             const current = (await VLC.getSettings()).value;
+            const form = getValues();
             const ret = await VLC.setSettings({
                 ...current,
-                ...data,
+                ...form,
                 eqEnabled,
                 replayGainEnabled,
+                fullscreenVisualizer: visualizer,
+                fullscreenSolidColor: solidColor,
+                dvdSpeed,
+                fullscreenShowClock: showClock,
+                fullscreenShowDate: showDate,
+                ...patch,
             });
-            if (ret.status === "ok") {
-                Toast.show({ text: "Settings saved" });
-            } else {
+            if (ret.status !== "ok") {
                 Toast.show({ text: ret.error });
             }
         },
-        [eqEnabled, replayGainEnabled]
+        [
+            eqEnabled,
+            replayGainEnabled,
+            visualizer,
+            solidColor,
+            dvdSpeed,
+            showClock,
+            showDate,
+            getValues,
+        ]
     );
+
+    const scheduleTextPersist = useCallback(() => {
+        if (textSaveTimer.current) clearTimeout(textSaveTimer.current);
+        textSaveTimer.current = setTimeout(() => {
+            persist();
+        }, 400);
+    }, [persist]);
 
     const refreshArtCache = useCallback(async () => {
         try {
@@ -78,12 +127,21 @@ export default function Settings() {
             setValue("transcoding", settings.value?.transcoding ?? "");
             setEqEnabled(settings.value?.eqEnabled ?? false);
             setReplayGainEnabled(settings.value?.replayGainEnabled ?? false);
+            setVisualizer(settings.value?.fullscreenVisualizer ?? "art_background");
+            setSolidColor(settings.value?.fullscreenSolidColor ?? "#E53935");
+            setDvdSpeed(settings.value?.dvdSpeed ?? "default");
+            setShowClock(settings.value?.fullscreenShowClock ?? false);
+            setShowDate(settings.value?.fullscreenShowDate ?? false);
             if (isAndroid) {
                 setOfflineMode((await VLC.getOfflineMode()).value!);
                 refreshArtCache();
             }
+            readyRef.current = true;
         };
         load();
+        return () => {
+            if (textSaveTimer.current) clearTimeout(textSaveTimer.current);
+        };
     }, [setValue, refreshArtCache, isAndroid]);
 
     return (
@@ -92,13 +150,15 @@ export default function Settings() {
                 <FontAwesomeIcon icon={faGear} size="2x" className="text-white me-3" />
                 <div className="section-header text-white mb-0">Settings</div>
             </div>
-            <form className="w-100" style={{ maxWidth: 520 }} onSubmit={handleSubmit(save)}>
+            <form className="w-100" style={{ maxWidth: 520 }} onSubmit={(e) => e.preventDefault()}>
                 <div className="section-header text-white">Playback</div>
                 <label className="subtitle text-white-50 mb-1 d-block">
                     Transcoding format
                 </label>
                 <input
-                    {...register("transcoding")}
+                    {...register("transcoding", {
+                        onChange: () => scheduleTextPersist(),
+                    })}
                     className="form-control mb-3"
                     placeholder="e.g. mp3, raw (leave blank for server default)"
                 />
@@ -109,7 +169,11 @@ export default function Settings() {
                         className="form-check-input"
                         type="checkbox"
                         checked={eqEnabled}
-                        onChange={() => setEqEnabled(!eqEnabled)}
+                        onChange={() => {
+                            const next = !eqEnabled;
+                            setEqEnabled(next);
+                            persist({ eqEnabled: next });
+                        }}
                         id="eqSwitch"
                     />
                     <label className="form-check-label text-white" htmlFor="eqSwitch">
@@ -121,11 +185,118 @@ export default function Settings() {
                         className="form-check-input"
                         type="checkbox"
                         checked={replayGainEnabled}
-                        onChange={() => setReplayGainEnabled(!replayGainEnabled)}
+                        onChange={() => {
+                            const next = !replayGainEnabled;
+                            setReplayGainEnabled(next);
+                            persist({ replayGainEnabled: next });
+                        }}
                         id="rgSwitch"
                     />
                     <label className="form-check-label text-white" htmlFor="rgSwitch">
                         ReplayGain
+                    </label>
+                </div>
+
+                <div className="section-header text-white">Fullscreen</div>
+                <label className="subtitle text-white-50 mb-1 d-block">Visualizer</label>
+                <select
+                    className="form-select mb-2"
+                    value={visualizer}
+                    onChange={(e) => {
+                        const next = e.target.value;
+                        setVisualizer(next);
+                        persist({ fullscreenVisualizer: next });
+                    }}
+                >
+                    {VIZ_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                            {o.label}
+                        </option>
+                    ))}
+                </select>
+                {visualizer === "art_solid" && (
+                    <div className="mb-2">
+                        <label className="subtitle text-white-50 mb-1 d-block">
+                            Solid color
+                        </label>
+                        <div className="d-flex flex-row flex-wrap gap-2">
+                            {PRIMARY_COLORS.map((hex) => (
+                                <button
+                                    key={hex}
+                                    type="button"
+                                    aria-label={hex}
+                                    onClick={() => {
+                                        setSolidColor(hex);
+                                        persist({ fullscreenSolidColor: hex });
+                                    }}
+                                    style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: "50%",
+                                        background: hex,
+                                        border:
+                                            solidColor.toLowerCase() === hex.toLowerCase()
+                                                ? "3px solid #fff"
+                                                : "1px solid rgba(255,255,255,0.4)",
+                                        padding: 0,
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {visualizer === "dvd" && (
+                    <>
+                        <label className="subtitle text-white-50 mb-1 d-block">
+                            DVD speed
+                        </label>
+                        <select
+                            className="form-select mb-2"
+                            value={dvdSpeed}
+                            onChange={(e) => {
+                                const next = e.target.value;
+                                setDvdSpeed(next);
+                                persist({ dvdSpeed: next });
+                            }}
+                        >
+                            {DVD_SPEEDS.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                    </>
+                )}
+                <div className="form-check form-switch mb-2">
+                    <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={showClock}
+                        onChange={() => {
+                            const next = !showClock;
+                            setShowClock(next);
+                            persist({ fullscreenShowClock: next });
+                        }}
+                        id="fsClock"
+                    />
+                    <label className="form-check-label text-white" htmlFor="fsClock">
+                        Show current time
+                    </label>
+                </div>
+                <div className="form-check form-switch mb-3">
+                    <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={showDate}
+                        onChange={() => {
+                            const next = !showDate;
+                            setShowDate(next);
+                            persist({ fullscreenShowDate: next });
+                        }}
+                        id="fsDate"
+                    />
+                    <label className="form-check-label text-white" htmlFor="fsDate">
+                        Show current date
                     </label>
                 </div>
 
@@ -139,6 +310,7 @@ export default function Settings() {
                             {...register("cacheSize", {
                                 valueAsNumber: true,
                                 min: 0,
+                                onChange: () => scheduleTextPersist(),
                             })}
                             type="number"
                             className="form-control mb-1"
@@ -181,18 +353,6 @@ export default function Settings() {
                         </div>
                     </>
                 )}
-
-                <div className="d-flex justify-content-start mt-2">
-                    <button
-                        ref={saveRef}
-                        className={classNames(
-                            "btn",
-                            saveFocused ? "btn-selected" : "btn-primary"
-                        )}
-                    >
-                        Save settings
-                    </button>
-                </div>
             </form>
         </div>
     );

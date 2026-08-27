@@ -47,6 +47,9 @@ class TvLoginActivity : AppCompatActivity() {
         if (account.username != null) {
             // Keep SonicSound splash visible while restoring the session.
             setContentView(R.layout.activity_splash)
+            window.setBackgroundDrawable(
+                ColorDrawable(ContextCompat.getColor(this, R.color.sonicsound_background))
+            )
             tryLogin(account)
         } else {
             showLoginUi()

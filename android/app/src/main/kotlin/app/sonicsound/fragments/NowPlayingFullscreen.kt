@@ -1,9 +1,11 @@
 package app.sonicsound.fragments
 
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -14,11 +16,16 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
+import app.sonicsound.KeyValueStorage
 import app.sonicsound.R
 import app.sonicsound.TvActivity
 import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
+import app.sonicsound.models.FullscreenVisualizer
 import app.sonicsound.models.Song
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 
 /** Fullscreen art / music-video chrome for [NowPlayingFragment]. */
 class NowPlayingFullscreen(
@@ -37,16 +44,21 @@ class NowPlayingFullscreen(
     private val timeLabels: () -> Pair<String, String>,
 ) {
     private val overlay: FrameLayout = root.findViewById(R.id.fl_fullscreen_overlay)
+    private val solidBg: View = root.findViewById(R.id.v_fs_solid_bg)
     private val fsBackdrop: ImageView = root.findViewById(R.id.img_fs_backdrop)
     private val fsArt: ImageView = root.findViewById(R.id.img_fs_art)
     private val fsMedia: FrameLayout = root.findViewById(R.id.fl_fs_media)
     private val fsFocusAnchor: View = root.findViewById(R.id.v_fs_focus_anchor)
+    private val fsMeta: View = root.findViewById(R.id.ll_fs_meta)
     private val fsTitle: TextView = root.findViewById(R.id.tv_fs_title)
     private val fsSubtitle: TextView = root.findViewById(R.id.tv_fs_subtitle)
     private val fsNextRow: LinearLayout = root.findViewById(R.id.ll_fs_next)
     private val fsNextLabel: TextView = root.findViewById(R.id.tv_fs_next_label)
     private val fsNextArtist: TextView = root.findViewById(R.id.tv_fs_next_artist)
     private val fsControls: LinearLayout = root.findViewById(R.id.ll_fs_controls)
+    private val fsClock: LinearLayout = root.findViewById(R.id.ll_fs_clock)
+    private val fsClockTime: TextView = root.findViewById(R.id.tv_fs_clock_time)
+    private val fsClockDate: TextView = root.findViewById(R.id.tv_fs_clock_date)
     private val fsPlay: ImageButton = root.findViewById(R.id.btn_fs_play)
     private val fsPrev: ImageButton = root.findViewById(R.id.btn_fs_prev)
     private val fsNextBtn: ImageButton = root.findViewById(R.id.btn_fs_next)
@@ -66,15 +78,38 @@ class NowPlayingFullscreen(
     )
     private val hideHandler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { hideControls() }
+    private val clockHandler = Handler(Looper.getMainLooper())
+    private val clockRunnable = object : Runnable {
+        override fun run() {
+            refreshClock()
+            clockHandler.postDelayed(this, 15_000)
+        }
+    }
     private val fsButtons = mutableListOf<ImageButton>()
     private var lastFocusedControl: View? = null
     var active = false
         private set
     private var videoMode = false
     private var controlsVisible = true
+    private var visualizerMode = FullscreenVisualizer.ART_BACKGROUND
+    private var dvdRunning = false
+    private var dvdVx = 0f
+    private var dvdVy = 0f
+    private var lastDvdFrameMs = 0L
+    private val dvdArtSizePx: Int
+        get() = (200f * root.resources.displayMetrics.density).toInt()
+    private val dvdFrameCallback = object : android.view.Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!dvdRunning || !active) return
+            stepDvd(frameTimeNanos / 1_000_000L)
+            android.view.Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
 
     init {
         fsScrubber.wire()
+        styleExtraBold(fsClockTime)
+        styleBold(fsClockDate)
         if (enableMusicVideo) {
             fsMusicVideo.visibility = View.VISIBLE
             fsMusicVideo.isFocusable = true
@@ -136,10 +171,12 @@ class NowPlayingFullscreen(
         chrome.isVisible = false
         overlay.isVisible = true
         bind.setImmersive(true)
+        applyVisualizerChrome()
         applyTrack(artUrl, title, subtitle, nextSong, video)
         lastFocusedControl = fsPlay
         showControls()
         fsPlay.requestFocus()
+        startClockUpdates()
     }
 
     fun updateTrack(
@@ -165,28 +202,187 @@ class NowPlayingFullscreen(
     ) {
         val wasVideo = videoMode
         videoMode = video
-        fsBackdrop.loadUrl(artUrl)
         fsTitle.text = title
         styleExtraBold(fsTitle)
         fsSubtitle.text = subtitle
         styleBold(fsSubtitle)
         bindNext(nextSong)
+        if (!video) {
+            applyVisualizerChrome()
+        }
         when {
             video && !wasVideo -> {
+                stopDvd()
+                resetArtLayoutForStandard()
                 fsArt.isVisible = false
+                fsBackdrop.isVisible = true
+                solidBg.isVisible = false
                 moveVideo(toFullscreen = true)
             }
             !video && wasVideo -> {
                 moveVideo(toFullscreen = false)
                 fsArt.isVisible = true
+                applyVisualizerChrome()
+                loadArtForMode(artUrl)
+            }
+            !video -> loadArtForMode(artUrl)
+        }
+        if (!video && visualizerMode == FullscreenVisualizer.DVD) {
+            startDvd()
+        } else {
+            stopDvd()
+        }
+        applyMetaVisibility()
+    }
+
+    private fun loadArtForMode(artUrl: String) {
+        when (visualizerMode) {
+            FullscreenVisualizer.ART_BACKGROUND -> {
+                fsBackdrop.loadUrl(artUrl)
                 fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
                 fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
             }
-            !video -> {
+            FullscreenVisualizer.ART_BLACK, FullscreenVisualizer.ART_SOLID -> {
+                fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
+                fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
+            }
+            FullscreenVisualizer.DVD -> {
+                fsArt.scaleType = ImageView.ScaleType.CENTER_CROP
+                fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
+            }
+            else -> {
+                fsBackdrop.loadUrl(artUrl)
                 fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
                 fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
             }
         }
+    }
+
+    private fun applyVisualizerChrome() {
+        val settings = KeyValueStorage.getSettings()
+        visualizerMode = settings.fullscreenVisualizer
+        if (videoMode) {
+            solidBg.isVisible = false
+            fsBackdrop.isVisible = true
+            fsBackdrop.alpha = 0.35f
+            overlay.setBackgroundColor(Color.parseColor("#E6282c34"))
+            resetArtLayoutForStandard()
+            refreshClock()
+            return
+        }
+        when (visualizerMode) {
+            FullscreenVisualizer.ART_BACKGROUND -> {
+                solidBg.isVisible = false
+                fsBackdrop.isVisible = true
+                fsBackdrop.alpha = 0.35f
+                overlay.setBackgroundColor(Color.parseColor("#E6282c34"))
+                resetArtLayoutForStandard()
+            }
+            FullscreenVisualizer.ART_BLACK -> {
+                solidBg.isVisible = true
+                solidBg.setBackgroundColor(Color.BLACK)
+                fsBackdrop.isVisible = false
+                overlay.setBackgroundColor(Color.BLACK)
+                resetArtLayoutForStandard()
+            }
+            FullscreenVisualizer.ART_SOLID -> {
+                solidBg.isVisible = true
+                solidBg.setBackgroundColor(parseColorSafe(settings.fullscreenSolidColor))
+                fsBackdrop.isVisible = false
+                overlay.setBackgroundColor(parseColorSafe(settings.fullscreenSolidColor))
+                resetArtLayoutForStandard()
+            }
+            FullscreenVisualizer.DVD -> {
+                solidBg.isVisible = true
+                solidBg.setBackgroundColor(Color.BLACK)
+                fsBackdrop.isVisible = false
+                overlay.setBackgroundColor(Color.BLACK)
+                prepareDvdArtLayout()
+            }
+            else -> {
+                solidBg.isVisible = false
+                fsBackdrop.isVisible = true
+                fsBackdrop.alpha = 0.35f
+                overlay.setBackgroundColor(Color.parseColor("#E6282c34"))
+                resetArtLayoutForStandard()
+            }
+        }
+        refreshClock()
+    }
+
+    private fun resetArtLayoutForStandard() {
+        val lp = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        fsArt.layoutParams = lp
+        fsArt.translationX = 0f
+        fsArt.translationY = 0f
+        fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
+    }
+
+    private fun prepareDvdArtLayout() {
+        val size = dvdArtSizePx
+        val lp = FrameLayout.LayoutParams(size, size)
+        fsArt.layoutParams = lp
+        fsArt.scaleType = ImageView.ScaleType.CENTER_CROP
+        fsArt.translationX = 40f * root.resources.displayMetrics.density
+        fsArt.translationY = 40f * root.resources.displayMetrics.density
+    }
+
+    private fun startDvd() {
+        if (dvdRunning || videoMode) return
+        val speed = dvdSpeedPxPerSec()
+        dvdVx = speed
+        dvdVy = speed * 0.72f
+        lastDvdFrameMs = SystemClock.uptimeMillis()
+        dvdRunning = true
+        android.view.Choreographer.getInstance().postFrameCallback(dvdFrameCallback)
+    }
+
+    private fun stopDvd() {
+        if (!dvdRunning) return
+        dvdRunning = false
+        android.view.Choreographer.getInstance().removeFrameCallback(dvdFrameCallback)
+    }
+
+    private fun dvdSpeedPxPerSec(): Float {
+        val density = root.resources.displayMetrics.density
+        return when (KeyValueStorage.getSettings().dvdSpeed) {
+            FullscreenVisualizer.SPEED_SLOW -> 48f * density
+            FullscreenVisualizer.SPEED_FAST -> 160f * density
+            else -> 90f * density
+        }
+    }
+
+    private fun stepDvd(nowMs: Long) {
+        val dt = ((nowMs - lastDvdFrameMs).coerceAtMost(50)).toFloat() / 1000f
+        lastDvdFrameMs = nowMs
+        val parentW = fsMedia.width
+        val parentH = fsMedia.height
+        if (parentW <= 0 || parentH <= 0) return
+        val artW = fsArt.width.takeIf { it > 0 } ?: dvdArtSizePx
+        val artH = fsArt.height.takeIf { it > 0 } ?: dvdArtSizePx
+        var x = fsArt.translationX + dvdVx * dt
+        var y = fsArt.translationY + dvdVy * dt
+        val maxX = (parentW - artW).toFloat().coerceAtLeast(0f)
+        val maxY = (parentH - artH).toFloat().coerceAtLeast(0f)
+        if (x <= 0f) {
+            x = 0f
+            dvdVx = kotlin.math.abs(dvdVx)
+        } else if (x >= maxX) {
+            x = maxX
+            dvdVx = -kotlin.math.abs(dvdVx)
+        }
+        if (y <= 0f) {
+            y = 0f
+            dvdVy = kotlin.math.abs(dvdVy)
+        } else if (y >= maxY) {
+            y = maxY
+            dvdVy = -kotlin.math.abs(dvdVy)
+        }
+        fsArt.translationX = x
+        fsArt.translationY = y
     }
 
     private fun bindNext(nextSong: Song?) {
@@ -224,8 +420,11 @@ class NowPlayingFullscreen(
         if (!active) return
         active = false
         hideHandler.removeCallbacks(hideRunnable)
+        stopDvd()
+        stopClockUpdates()
         if (videoMode) moveVideo(toFullscreen = false)
         videoMode = false
+        resetArtLayoutForStandard()
         overlay.isVisible = false
         chrome.isVisible = true
         bind.setImmersive(false)
@@ -268,10 +467,20 @@ class NowPlayingFullscreen(
 
     private fun showControls() {
         if (!active) return
-        // GONE (not INVISIBLE) so media area expands/shrinks and art never overlaps chrome.
         fsControls.visibility = View.VISIBLE
         controlsVisible = true
+        applyMetaVisibility()
         resetHideTimer()
+    }
+
+    private fun applyMetaVisibility() {
+        if (videoMode) {
+            fsMeta.isVisible = controlsVisible
+            return
+        }
+        // DVD-style: hide title / artist / up-next until chrome is shown.
+        fsMeta.isVisible =
+            visualizerMode != FullscreenVisualizer.DVD || controlsVisible
     }
 
     private fun resetHideTimer() {
@@ -287,7 +496,40 @@ class NowPlayingFullscreen(
         }
         fsControls.visibility = View.GONE
         controlsVisible = false
+        applyMetaVisibility()
         fsFocusAnchor.requestFocus()
+    }
+
+    private fun startClockUpdates() {
+        clockHandler.removeCallbacks(clockRunnable)
+        refreshClock()
+        clockHandler.post(clockRunnable)
+    }
+
+    private fun stopClockUpdates() {
+        clockHandler.removeCallbacks(clockRunnable)
+        fsClock.isVisible = false
+    }
+
+    private fun refreshClock() {
+        if (!active) return
+        val settings = KeyValueStorage.getSettings()
+        val showTime = settings.fullscreenShowClock
+        val showDate = settings.fullscreenShowDate
+        fsClock.isVisible = showTime || showDate
+        fsClockTime.isVisible = showTime
+        fsClockDate.isVisible = showDate
+        if (!showTime && !showDate) return
+        val now = Date()
+        val locale = Locale.getDefault()
+        if (showTime) {
+            fsClockTime.text = DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(now)
+            styleExtraBold(fsClockTime)
+        }
+        if (showDate) {
+            fsClockDate.text = DateFormat.getDateInstance(DateFormat.MEDIUM, locale).format(now)
+            styleBold(fsClockDate)
+        }
     }
 
     private fun restoreFocus() {
@@ -317,6 +559,12 @@ class NowPlayingFullscreen(
 
     private fun formatSec(seconds: Int): String =
         "${(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}"
+
+    private fun parseColorSafe(hex: String): Int = try {
+        Color.parseColor(hex)
+    } catch (_: Exception) {
+        Color.parseColor(FullscreenVisualizer.DEFAULT_SOLID)
+    }
 
     private fun moveVideo(toFullscreen: Boolean) {
         val parent = musicVideoContainer.parent as? ViewGroup

@@ -275,6 +275,13 @@
         android:focusable="false"
         android:visibility="gone">
 
+        <View
+            android:id="@+id/v_fs_solid_bg"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/img_fs_backdrop"
             android:layout_width="match_parent"
@@ -282,6 +289,39 @@
             android:alpha="0.35"
             android:contentDescription="@string/album_art_image_on_playing"
             android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:id="@+id/ll_fs_clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="32dp"
+            android:layout_marginTop="28dp"
+            android:elevation="4dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_fs_clock_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/montserrat"
+                android:textColor="#fff"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tv_fs_clock_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/montserrat"
+                android:textColor="#ccffffff"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/ll_fs_stack"

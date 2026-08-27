@@ -232,11 +232,19 @@ class TvActivity : AppCompatActivity() {
             focusContent()
             return
         }
-        supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fg_container, fragment)
-            .commit()
-        supportFragmentManager.executePendingTransactions()
+        // Pop detail pages (e.g. Now Playing) first. If the restored fragment is already
+        // the target, skip replace — re-adding the same instance crashes.
+        if (supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+            supportFragmentManager.executePendingTransactions()
+        }
+        val afterPop = supportFragmentManager.findFragmentById(R.id.fg_container)
+        if (afterPop !== fragment) {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fg_container, fragment)
+                .commit()
+            supportFragmentManager.executePendingTransactions()
+        }
         highlightNav(navId)
         focusContent()
     }

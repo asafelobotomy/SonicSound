@@ -131,6 +131,15 @@ class BackendAccounts(
                 }
             val youtubeTokenExpiryMs =
                 call.getLong("youtubeTokenExpiryMs") ?: current.youtubeTokenExpiryMs
+            val fullscreenVisualizer =
+                call.getString("fullscreenVisualizer") ?: current.fullscreenVisualizer
+            val fullscreenSolidColor =
+                call.getString("fullscreenSolidColor") ?: current.fullscreenSolidColor
+            val dvdSpeed = call.getString("dvdSpeed") ?: current.dvdSpeed
+            val fullscreenShowClock =
+                call.getBoolean("fullscreenShowClock") ?: current.fullscreenShowClock
+            val fullscreenShowDate =
+                call.getBoolean("fullscreenShowDate") ?: current.fullscreenShowDate
             setSettings(
                 Settings(
                     cacheSize = cacheSize,
@@ -145,6 +154,11 @@ class BackendAccounts(
                     youtubeAccessToken = youtubeAccessToken,
                     youtubeRefreshToken = youtubeRefreshToken,
                     youtubeTokenExpiryMs = youtubeTokenExpiryMs,
+                    fullscreenVisualizer = fullscreenVisualizer,
+                    fullscreenSolidColor = fullscreenSolidColor,
+                    dvdSpeed = dvdSpeed,
+                    fullscreenShowClock = fullscreenShowClock,
+                    fullscreenShowDate = fullscreenShowDate,
                 )
             )
             call.resolve(responses.ok(""))

@@ -118,6 +118,144 @@
                 android:textSize="16sp" />
         </LinearLayout>
 
+        <!-- Fullscreen visualizer -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:fontFamily="@font/montserrat"
+            android:text="@string/settings_section_fullscreen"
+            android:textColor="#fff"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/montserrat"
+            android:text="@string/fullscreen_visualizer_label"
+            android:textColor="#ccffffff"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinner_fullscreen_visualizer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/round_outline"
+            android:focusable="true"
+            android:minHeight="48dp"
+            android:padding="8dp" />
+
+        <LinearLayout
+            android:id="@+id/ll_solid_color_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/montserrat"
+                android:text="@string/fullscreen_solid_color_label"
+                android:textColor="#ccffffff"
+                android:textSize="14sp" />
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/ll_solid_color_swatches"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_dvd_speed_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/montserrat"
+                android:text="@string/dvd_speed_label"
+                android:textColor="#ccffffff"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/spinner_dvd_speed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/round_outline"
+                android:focusable="true"
+                android:minHeight="48dp"
+                android:padding="8dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="4dp">
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_fs_clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="true" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/montserrat"
+                android:paddingStart="12dp"
+                android:text="@string/fullscreen_show_clock"
+                android:textColor="#fff"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="4dp">
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_fs_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="true" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/montserrat"
+                android:paddingStart="12dp"
+                android:text="@string/fullscreen_show_date"
+                android:textColor="#fff"
+                android:textSize="16sp" />
+        </LinearLayout>
+
         <!-- Cache -->
         <TextView
             android:layout_width="match_parent"
@@ -195,16 +333,5 @@
                 android:textColor="#fff"
                 android:textSize="16sp" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/btn_save_settings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:background="@drawable/round_outline_selector"
-            android:focusable="true"
-            android:text="@string/save_settings"
-            android:textAllCaps="false"
-            android:textColor="#fff" />
     </LinearLayout>
 </ScrollView>

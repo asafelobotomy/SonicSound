@@ -19,8 +19,9 @@
     </style>
 
 
+    <!-- Solid launch background only — content splash draws the logo; avoid stacking
+         the old Capacitor splash.png under/behind it. -->
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
-        <item name="android:background">@drawable/splash</item>
-        <item name="android:windowBackground">@drawable/splash</item>
+        <item name="android:windowBackground">@color/sonicsound_background</item>
     </style>
 </resources>

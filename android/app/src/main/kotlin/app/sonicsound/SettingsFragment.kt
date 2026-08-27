@@ -1,18 +1,58 @@
 package app.sonicsound
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.view.isVisible
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
+import app.sonicsound.models.FullscreenVisualizer
 import app.sonicsound.subsonic.SubsonicClient
 
 class SettingsFragment : Fragment {
+    private val primaryColors = listOf(
+        "#E53935", // red
+        "#FB8C00", // orange
+        "#FDD835", // yellow
+        "#43A047", // green
+        "#1E88E5", // blue
+        "#8E24AA", // purple
+        "#00ACC1", // cyan
+        "#D81B60", // magenta
+        "#FFFFFF", // white
+    )
+
+    private var selectedSolidColor: String = FullscreenVisualizer.DEFAULT_SOLID
+    private var suppressAutoSave = true
+    private val saveHandler = Handler(Looper.getMainLooper())
+    private val saveTextRunnable = Runnable { persistSettings() }
+
+    private lateinit var transcoding: EditText
+    private lateinit var cacheSize: EditText
+    private lateinit var eqSwitch: SwitchCompat
+    private lateinit var rgSwitch: SwitchCompat
+    private lateinit var offlineSwitch: SwitchCompat
+    private lateinit var vizSpinner: Spinner
+    private lateinit var speedSpinner: Spinner
+    private lateinit var clockSwitch: SwitchCompat
+    private lateinit var dateSwitch: SwitchCompat
+    private lateinit var vizModes: List<Pair<String, String>>
+    private lateinit var speeds: List<Pair<String, String>>
+
     constructor() : super()
     constructor(@Suppress("UNUSED_PARAMETER") client: SubsonicClient) : super()
 
@@ -22,38 +62,115 @@ class SettingsFragment : Fragment {
         savedInstanceState: Bundle?,
     ): View? = inflater.inflate(R.layout.fragment_settings, container, false)
 
+    override fun onDestroyView() {
+        saveHandler.removeCallbacks(saveTextRunnable)
+        super.onDestroyView()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val transcoding = view.findViewById<EditText>(R.id.et_transcoding)
-        val cacheSize = view.findViewById<EditText>(R.id.et_cache_size)
-        val eqSwitch = view.findViewById<SwitchCompat>(R.id.switch_eq)
-        val rgSwitch = view.findViewById<SwitchCompat>(R.id.switch_replaygain)
-        val offlineSwitch = view.findViewById<SwitchCompat>(R.id.switch_offline)
+        transcoding = view.findViewById(R.id.et_transcoding)
+        cacheSize = view.findViewById(R.id.et_cache_size)
+        eqSwitch = view.findViewById(R.id.switch_eq)
+        rgSwitch = view.findViewById(R.id.switch_replaygain)
+        offlineSwitch = view.findViewById(R.id.switch_offline)
         val cacheInfo = view.findViewById<TextView>(R.id.tv_cache_info)
+        vizSpinner = view.findViewById(R.id.spinner_fullscreen_visualizer)
+        speedSpinner = view.findViewById(R.id.spinner_dvd_speed)
+        val solidRow = view.findViewById<View>(R.id.ll_solid_color_row)
+        val dvdRow = view.findViewById<View>(R.id.ll_dvd_speed_row)
+        val swatches = view.findViewById<LinearLayout>(R.id.ll_solid_color_swatches)
+        clockSwitch = view.findViewById(R.id.switch_fs_clock)
+        dateSwitch = view.findViewById(R.id.switch_fs_date)
         val settings = KeyValueStorage.getSettings()
+
+        suppressAutoSave = true
         transcoding.setText(settings.transcoding)
         cacheSize.setText(settings.cacheSize.toString())
         eqSwitch.isChecked = settings.eqEnabled
         rgSwitch.isChecked = settings.replayGainEnabled
         offlineSwitch.isChecked = KeyValueStorage.getOfflineMode()
+        clockSwitch.isChecked = settings.fullscreenShowClock
+        dateSwitch.isChecked = settings.fullscreenShowDate
+        selectedSolidColor = settings.fullscreenSolidColor.ifBlank {
+            FullscreenVisualizer.DEFAULT_SOLID
+        }
         refreshCache(cacheInfo)
 
-        view.findViewById<Button>(R.id.btn_save_settings).setOnClickListener {
-            val parsedCache =
-                cacheSize.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(0)
-                    ?: 0
-            val current = KeyValueStorage.getSettings()
-            KeyValueStorage.setSettings(
-                current.copy(
-                    transcoding = transcoding.text?.toString().orEmpty(),
-                    cacheSize = parsedCache,
-                    eqEnabled = eqSwitch.isChecked,
-                    replayGainEnabled = rgSwitch.isChecked,
-                )
-            )
-            KeyValueStorage.setOfflineMode(offlineSwitch.isChecked)
-            Toast.makeText(requireContext(), R.string.save_settings, Toast.LENGTH_SHORT).show()
+        vizModes = listOf(
+            FullscreenVisualizer.ART_BACKGROUND to getString(R.string.fullscreen_viz_art_background),
+            FullscreenVisualizer.ART_BLACK to getString(R.string.fullscreen_viz_art_black),
+            FullscreenVisualizer.ART_SOLID to getString(R.string.fullscreen_viz_art_solid),
+            FullscreenVisualizer.DVD to getString(R.string.fullscreen_viz_dvd),
+        )
+        vizSpinner.adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            vizModes.map { it.second }
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
+        vizSpinner.setSelection(
+            vizModes.indexOfFirst { it.first == settings.fullscreenVisualizer }.coerceAtLeast(0)
+        )
+
+        speeds = listOf(
+            FullscreenVisualizer.SPEED_SLOW to getString(R.string.dvd_speed_slow),
+            FullscreenVisualizer.SPEED_DEFAULT to getString(R.string.dvd_speed_default),
+            FullscreenVisualizer.SPEED_FAST to getString(R.string.dvd_speed_fast),
+        )
+        speedSpinner.adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            speeds.map { it.second }
+        )
+        speedSpinner.setSelection(
+            speeds.indexOfFirst { it.first == settings.dvdSpeed }.coerceAtLeast(1)
+        )
+
+        fun refreshConditionalRows() {
+            val mode = vizModes.getOrNull(vizSpinner.selectedItemPosition)?.first
+                ?: FullscreenVisualizer.ART_BACKGROUND
+            solidRow.isVisible = mode == FullscreenVisualizer.ART_SOLID
+            dvdRow.isVisible = mode == FullscreenVisualizer.DVD
+        }
+        vizSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) {
+                refreshConditionalRows()
+                persistSettings()
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        speedSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) = persistSettings()
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        refreshConditionalRows()
+        bindColorSwatches(swatches)
+
+        eqSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
+        rgSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
+        clockSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
+        dateSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
+        offlineSwitch.setOnCheckedChangeListener { _, checked ->
+            if (suppressAutoSave) return@setOnCheckedChangeListener
+            KeyValueStorage.setOfflineMode(checked)
+        }
+        transcoding.doOnTextChanged { _, _, _, _ -> scheduleTextSave() }
+        cacheSize.doOnTextChanged { _, _, _, _ -> scheduleTextSave() }
+
         view.findViewById<Button>(R.id.btn_clear_cache).setOnClickListener {
             val freed = SubsonicClient(KeyValueStorage.getActiveAccount()).clearCoverCache()
             Toast.makeText(
@@ -62,6 +179,90 @@ class SettingsFragment : Fragment {
                 Toast.LENGTH_SHORT
             ).show()
             refreshCache(cacheInfo)
+        }
+
+        // Spinners fire onItemSelected during initial setSelection; ignore until ready.
+        view.post { suppressAutoSave = false }
+    }
+
+    private fun scheduleTextSave() {
+        if (suppressAutoSave) return
+        saveHandler.removeCallbacks(saveTextRunnable)
+        saveHandler.postDelayed(saveTextRunnable, 400)
+    }
+
+    private fun persistSettings() {
+        if (suppressAutoSave || !::transcoding.isInitialized) return
+        val parsedCache =
+            cacheSize.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val mode = vizModes.getOrNull(vizSpinner.selectedItemPosition)?.first
+            ?: FullscreenVisualizer.ART_BACKGROUND
+        val speed = speeds.getOrNull(speedSpinner.selectedItemPosition)?.first
+            ?: FullscreenVisualizer.SPEED_DEFAULT
+        val current = KeyValueStorage.getSettings()
+        KeyValueStorage.setSettings(
+            current.copy(
+                transcoding = transcoding.text?.toString().orEmpty(),
+                cacheSize = parsedCache,
+                eqEnabled = eqSwitch.isChecked,
+                replayGainEnabled = rgSwitch.isChecked,
+                fullscreenVisualizer = mode,
+                fullscreenSolidColor = selectedSolidColor,
+                dvdSpeed = speed,
+                fullscreenShowClock = clockSwitch.isChecked,
+                fullscreenShowDate = dateSwitch.isChecked,
+            )
+        )
+        KeyValueStorage.setOfflineMode(offlineSwitch.isChecked)
+    }
+
+    private fun bindColorSwatches(container: LinearLayout) {
+        container.removeAllViews()
+        val density = resources.displayMetrics.density
+        val size = (44 * density).toInt()
+        val gap = (10 * density).toInt()
+        primaryColors.forEach { hex ->
+            val swatch = View(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(size, size).also {
+                    it.marginEnd = gap
+                }
+                isFocusable = true
+                contentDescription = hex
+                background = swatchDrawable(hex, hex.equals(selectedSolidColor, ignoreCase = true))
+                setOnClickListener {
+                    selectedSolidColor = hex
+                    bindColorSwatches(container)
+                    persistSettings()
+                }
+                setOnFocusChangeListener { _, hasFocus ->
+                    if (hasFocus) {
+                        background = swatchDrawable(hex, selected = true)
+                    } else {
+                        background = swatchDrawable(
+                            hex,
+                            hex.equals(selectedSolidColor, ignoreCase = true)
+                        )
+                    }
+                }
+            }
+            container.addView(swatch)
+        }
+    }
+
+    private fun swatchDrawable(hex: String, selected: Boolean): GradientDrawable {
+        val fill = try {
+            Color.parseColor(hex)
+        } catch (_: Exception) {
+            Color.RED
+        }
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(fill)
+            if (selected) {
+                setStroke((3 * resources.displayMetrics.density).toInt(), Color.WHITE)
+            } else {
+                setStroke((1 * resources.displayMetrics.density).toInt(), Color.parseColor("#66FFFFFF"))
+            }
         }
     }
 

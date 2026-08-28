@@ -184,6 +184,8 @@ class SubsonicClient(var initialAccount: Account) {
     fun removeFromPlaylist(id: String, track: Int) = library.removeFromPlaylist(id, track)
     fun addToPlaylist(id: String, songId: String) = library.addToPlaylist(id, songId)
     fun updatePlaylist(playlist: Playlist): Playlist = library.updatePlaylist(playlist)
+    fun renamePlaylist(id: String, name: String, comment: String?, public: Boolean) =
+        library.renamePlaylist(id, name, comment, public)
     fun createPlaylist(ids: List<String>, name: String): Playlist =
         library.createPlaylist(ids, name)
 
@@ -203,5 +205,10 @@ class SubsonicClient(var initialAccount: Account) {
         library.getLyrics(artist, title)
 
     fun getInternetRadioStations() = library.getInternetRadioStations()
+    fun createInternetRadioStation(name: String, streamUrl: String, homePageUrl: String?) =
+        library.createInternetRadioStation(name, streamUrl, homePageUrl)
+    fun updateInternetRadioStation(id: String, name: String, streamUrl: String, homePageUrl: String?) =
+        library.updateInternetRadioStation(id, name, streamUrl, homePageUrl)
+    fun deleteInternetRadioStation(id: String) = library.deleteInternetRadioStation(id)
 }
 

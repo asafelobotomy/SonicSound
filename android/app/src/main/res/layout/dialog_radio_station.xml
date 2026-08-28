@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/et_radio_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/radio_station_name"
+        android:inputType="text"
+        android:textColor="#fff"
+        android:textColorHint="#99ffffff" />
+
+    <EditText
+        android:id="@+id/et_radio_stream_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/radio_stream_url"
+        android:inputType="textUri"
+        android:textColor="#fff"
+        android:textColorHint="#99ffffff" />
+
+    <EditText
+        android:id="@+id/et_radio_homepage_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/radio_homepage_url"
+        android:inputType="textUri"
+        android:textColor="#fff"
+        android:textColorHint="#99ffffff" />
+</LinearLayout>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/sonicsound_background"
+    android:orientation="vertical"
+    android:padding="8dp"
+    tools:context=".fragments.PlaylistDetailFragment">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tv_playlist_detail_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/montserrat"
+            android:maxLines="1"
+            android:textColor="#fff"
+            android:textSize="22sp" />
+
+        <Button
+            android:id="@+id/btn_playlist_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/round_outline_selector"
+            android:fontFamily="@font/montserrat"
+            android:paddingHorizontal="14dp"
+            android:text="@string/play_playlist"
+            android:textAllCaps="false"
+            android:textColor="#fff"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_playlist_rename"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/round_outline_selector"
+            android:fontFamily="@font/montserrat"
+            android:paddingHorizontal="14dp"
+            android:text="@string/rename"
+            android:textAllCaps="false"
+            android:textColor="#fff"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_playlist_delete"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/round_outline_selector"
+            android:fontFamily="@font/montserrat"
+            android:paddingHorizontal="14dp"
+            android:text="@string/delete"
+            android:textAllCaps="false"
+            android:textColor="#fff"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_playlist_detail_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/montserrat"
+        android:paddingBottom="8dp"
+        android:textColor="#99ffffff"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/tv_playlist_detail_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/montserrat"
+        android:text="@string/playlist_songs_empty"
+        android:textColor="#99ffffff"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_playlist_songs"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false" />
+</LinearLayout>

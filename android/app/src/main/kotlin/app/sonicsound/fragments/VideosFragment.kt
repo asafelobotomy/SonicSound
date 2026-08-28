@@ -86,6 +86,7 @@ class VideosFragment : Fragment {
             }
             val adapter = SonicSoundCardAdapter(results, recycler, bind) { item ->
                 if (item is YoutubeVideo) openYoutube(item.id)
+                item is YoutubeVideo
             }
             recycler.layoutManager = LinearLayoutManager(context)
             recycler.adapter = adapter

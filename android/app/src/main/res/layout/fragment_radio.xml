@@ -7,14 +7,32 @@
     android:orientation="vertical"
     tools:context="fragments.RadioFragment">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/montserrat"
-        android:gravity="start"
-        android:text="@string/radio"
-        android:textColor="#fff"
-        android:textSize="25sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="@font/montserrat"
+            android:gravity="start"
+            android:text="@string/radio"
+            android:textColor="#fff"
+            android:textSize="25sp" />
+
+        <Button
+            android:id="@+id/btn_add_radio_station"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/round_outline_selector"
+            android:focusable="true"
+            android:text="@string/add_radio_station"
+            android:textAllCaps="false"
+            android:textColor="#fff" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/tv_radio_empty"
@@ -22,7 +40,7 @@
         android:layout_height="wrap_content"
         android:fontFamily="@font/montserrat"
         android:paddingTop="24dp"
-        android:text="@string/radio_empty"
+        android:text="@string/radio_empty_tv"
         android:textColor="#99ffffff"
         android:textSize="18sp"
         android:visibility="gone" />

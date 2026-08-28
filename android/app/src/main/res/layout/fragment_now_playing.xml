@@ -184,6 +184,17 @@
                 android:padding="4dp"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_nav_unlike" />
+
+            <ImageButton
+                android:id="@+id/btn_add_to_playlist"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginHorizontal="5dp"
+                android:background="@drawable/round_outline_selector"
+                android:contentDescription="@string/add_to_playlist"
+                android:padding="4dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_nav_playlists" />
         </LinearLayout>
 
         <LinearLayout

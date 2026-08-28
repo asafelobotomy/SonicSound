@@ -202,6 +202,15 @@ class SubsonicLibrary(
         )!!.playlist
     }
 
+    fun renamePlaylist(id: String, name: String, comment: String?, public: Boolean) {
+        val p = params()
+        p["playlistId"] = id
+        p["name"] = name
+        p["comment"] = comment ?: ""
+        p["public"] = if (public) "true" else "false"
+        http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "updatePlaylist"), p, true)
+    }
+
     fun createPlaylist(ids: List<String>, name: String): Playlist {
         val songsParams = params()
         songsParams["name"] = name
@@ -330,5 +339,34 @@ class SubsonicLibrary(
             listOf("rest", "getInternetRadioStations"),
             params()
         )?.internetRadioStations?.internetRadioStation.orEmpty()
+    }
+
+    fun createInternetRadioStation(name: String, streamUrl: String, homePageUrl: String?) {
+        val p = params()
+        p["name"] = name
+        p["streamUrl"] = streamUrl
+        homePageUrl?.takeIf { it.isNotBlank() }?.let { p["homepageUrl"] = it }
+        http.makeSubsonicRequest<SubsonicResponse>(
+            listOf("rest", "createInternetRadioStation"), p, true
+        )
+    }
+
+    fun updateInternetRadioStation(id: String, name: String, streamUrl: String, homePageUrl: String?) {
+        val p = params()
+        p["id"] = id
+        p["name"] = name
+        p["streamUrl"] = streamUrl
+        homePageUrl?.takeIf { it.isNotBlank() }?.let { p["homepageUrl"] = it }
+        http.makeSubsonicRequest<SubsonicResponse>(
+            listOf("rest", "updateInternetRadioStation"), p, true
+        )
+    }
+
+    fun deleteInternetRadioStation(id: String) {
+        val p = params()
+        p["id"] = id
+        http.makeSubsonicRequest<SubsonicResponse>(
+            listOf("rest", "deleteInternetRadioStation"), p, true
+        )
     }
 }

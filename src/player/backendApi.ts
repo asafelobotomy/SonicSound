@@ -10,6 +10,7 @@ import {
 import { errorResponse, okResponse } from "../subsonic/errors";
 import * as lib from "../subsonic/endpoints/library";
 import * as playlists from "../subsonic/endpoints/playlists";
+import * as radio from "../subsonic/endpoints/radio";
 import * as stars from "../subsonic/endpoints/stars";
 import {
     clearSpotifyTokenCache,
@@ -144,6 +145,21 @@ export const backendApi = {
     },
     async getInternetRadioStations(this: Backend) {
         return lib.fetchInternetRadioStations(this.url(), this.params());
+    },
+    async createInternetRadioStation(
+        this: Backend,
+        o: { name: string; streamUrl: string; homePageUrl?: string }
+    ) {
+        return radio.createInternetRadioStation(this.url(), this.params(), o);
+    },
+    async updateInternetRadioStation(
+        this: Backend,
+        o: { id: string; name: string; streamUrl: string; homePageUrl?: string }
+    ) {
+        return radio.updateInternetRadioStation(this.url(), this.params(), o);
+    },
+    async deleteInternetRadioStation(this: Backend, o: { id: string }) {
+        return radio.deleteInternetRadioStation(this.url(), this.params(), o.id);
     },
     async discoverServers(this: Backend) {
         return errorResponse<string[]>(

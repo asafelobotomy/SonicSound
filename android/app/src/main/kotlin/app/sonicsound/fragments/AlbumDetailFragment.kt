@@ -15,6 +15,7 @@ import app.sonicsound.R
 import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundPlaylistItemAdapter
 import app.sonicsound.models.Song
+import app.sonicsound.fragments.TvLibraryDialogs
 import app.sonicsound.subsonic.SubsonicClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -68,9 +69,15 @@ class AlbumDetailFragment : Fragment {
             recycler,
             manager,
             itemH,
-        ) { index ->
-            bind.playAlbum(id, index)
-        }
+            onItemClick = { index ->
+                bind.playAlbum(id, index)
+            },
+            onItemLongClick = { index ->
+                val song = songs.getOrNull(index) ?: return@SonicSoundPlaylistItemAdapter false
+                TvLibraryDialogs.showAddToPlaylist(this, client, song.id)
+                true
+            },
+        )
         recycler.layoutManager = manager
         recycler.adapter = adapter
         viewLifecycleOwner.lifecycleScope.launch {

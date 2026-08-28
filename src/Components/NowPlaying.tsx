@@ -24,6 +24,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { Toast } from "@capacitor/toast";
+import { useAddToPlaylist } from "../Hooks/useAddToPlaylist";
 
 export default function NowPlaying() {
     const [currentTrack, setCurrentTrack] = useState<IAlbumSongResponse>(
@@ -34,6 +35,7 @@ export default function NowPlaying() {
     const [coverArt, setCoverArt] = useState<string>("");
     const [playlist, setPlaylist] = useState<IPlaylist>();
     const [liked, setLiked] = useState(false);
+    const addToPlaylist = useAddToPlaylist();
     const listeners = useRef<PluginListenerHandle[]>([]);
 
     const changePlayTime = useCallback(
@@ -158,6 +160,14 @@ export default function NowPlaying() {
                                 icon={liked ? faHeart : faHeartOutline}
                             />
                         </button>
+                        <TVActionButton
+                            content="+ Playlist"
+                            func={() => {
+                                if (currentTrack.id) {
+                                    addToPlaylist(currentTrack.id);
+                                }
+                            }}
+                        />
                     </div>
                     <div className="current-track-header flex-row align-items-center justify-content-start w-100">
                         <div className="ml-2 flex-shrink-5 h-100 d-flex flex-column align-items-center justify-content-end text-center fade-right w-100">

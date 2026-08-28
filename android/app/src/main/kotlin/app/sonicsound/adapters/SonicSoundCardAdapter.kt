@@ -23,8 +23,10 @@ class SonicSoundCardAdapter(
     private var dataSet: List<ICardViewModel>,
     private val recyclerView: RecyclerView,
     private val bind: TvActivity.TvActivityBind,
-    private val onItem: ((ICardViewModel) -> Unit)? = null,
-) : RecyclerView.Adapter<SonicSoundCardAdapter.ViewHolder>(), View.OnClickListener {
+    private val onItem: ((ICardViewModel) -> Boolean)? = null,
+    private val onItemLongClick: ((ICardViewModel) -> Boolean)? = null,
+) : RecyclerView.Adapter<SonicSoundCardAdapter.ViewHolder>(), View.OnClickListener,
+    View.OnLongClickListener {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val image: ImageView = view.findViewById(R.id.iv_album_card_image)
@@ -38,6 +40,7 @@ class SonicSoundCardAdapter(
             .inflate(R.layout.album_card, viewGroup, false)
         val ret = ViewHolder(view)
         ret.itemView.setOnClickListener(this)
+        ret.itemView.setOnLongClickListener(this)
         return ret
     }
 
@@ -55,16 +58,22 @@ class SonicSoundCardAdapter(
         val pos = recyclerView.getChildAdapterPosition(v)
         if (pos == RecyclerView.NO_POSITION) return
         val item = dataSet[pos]
-        onItem?.invoke(item)
+        if (onItem?.invoke(item) == true) return
         when (item) {
             is Album -> bind.showAlbum(item.id, item.name)
             is Song -> bind.playRadio(item.id)
             is Playlist -> bind.playPlaylist(item.id, 0)
             is InternetRadioStation -> bind.playInternetRadio(item.streamUrl, item.name)
             is Artist -> bind.showArtist(item.id, item.name)
-            // Used by VideosFragment when Features.YOUTUBE_MUSIC_VIDEOS is on.
             is YoutubeVideo -> { /* open handled via onItem */ }
         }
+    }
+
+    override fun onLongClick(v: View?): Boolean {
+        if (v == null) return false
+        val pos = recyclerView.getChildAdapterPosition(v)
+        if (pos == RecyclerView.NO_POSITION) return false
+        return onItemLongClick?.invoke(dataSet[pos]) == true
     }
 
     @SuppressLint("NotifyDataSetChanged")

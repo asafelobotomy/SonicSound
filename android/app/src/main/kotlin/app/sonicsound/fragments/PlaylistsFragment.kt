@@ -4,10 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.core.view.marginLeft
 import androidx.core.view.marginRight
-import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -16,6 +17,7 @@ import app.sonicsound.R
 import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundCardAdapter
 import app.sonicsound.models.ICardViewModel
+import app.sonicsound.models.Playlist
 import app.sonicsound.subsonic.SubsonicClient
 import kotlin.math.ceil
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +29,10 @@ class PlaylistsFragment : Fragment {
     private lateinit var bind: TvActivity.TvActivityBind
     private lateinit var playlistsRecycler: RecyclerView
     private lateinit var emptyView: TextView
+    private lateinit var newButton: Button
     private var density: Float = 0f
     private var width: Int = 0
+    private var adapter: SonicSoundCardAdapter? = null
 
     constructor() : super()
 
@@ -41,30 +45,69 @@ class PlaylistsFragment : Fragment {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View? {
-        return inflater.inflate(R.layout.fragment_playlists, container, false)
-    }
+    ): View? = inflater.inflate(R.layout.fragment_playlists, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (!::client.isInitialized || !::bind.isInitialized) {
-            return
-        }
+        if (!::client.isInitialized || !::bind.isInitialized) return
         playlistsRecycler = view.findViewById(R.id.rv_playlists)
         emptyView = view.findViewById(R.id.tv_playlists_empty)
+        newButton = view.findViewById(R.id.btn_new_playlist)
+        newButton.setOnClickListener {
+            TvLibraryDialogs.showCreatePlaylist(this, client) { refreshPlaylists() }
+        }
         view.post {
             density = resources.displayMetrics.density
             width = view.width
-            viewLifecycleOwner.lifecycleScope.launch {
-                val playlists: List<ICardViewModel> = withContext(Dispatchers.IO) {
-                    client.getPlaylists().onEach { playlist ->
-                        playlist.image = client.getAlbumArt(playlist.coverArt ?: "")
-                    }
+            refreshPlaylists()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::client.isInitialized && view != null) {
+            refreshPlaylists()
+        }
+    }
+
+    private fun refreshPlaylists() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val playlists: List<ICardViewModel> = withContext(Dispatchers.IO) {
+                client.getPlaylists().onEach { playlist ->
+                    playlist.image = client.getAlbumArt(playlist.coverArt ?: "")
                 }
-                emptyView.isVisible = playlists.isEmpty()
-                playlistsRecycler.isVisible = playlists.isNotEmpty()
-                val adapter = SonicSoundCardAdapter(playlists, playlistsRecycler, bind)
-                setUpRecyclerView(playlistsRecycler, adapter)
+            }
+            emptyView.isVisible = playlists.isEmpty()
+            newButton.isVisible = true
+            playlistsRecycler.isVisible = playlists.isNotEmpty()
+            if (adapter == null) {
+                adapter = SonicSoundCardAdapter(
+                    playlists,
+                    playlistsRecycler,
+                    bind,
+                    onItem = { item ->
+                        if (item is Playlist) {
+                            bind.showPlaylist(item.id, item.name)
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    onItemLongClick = { item ->
+                        if (item is Playlist) {
+                            TvLibraryDialogs.showDeletePlaylist(
+                                this@PlaylistsFragment,
+                                client,
+                                item.id,
+                                item.name,
+                            ) { refreshPlaylists() }
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                )
+                setUpRecyclerView(playlistsRecycler, adapter!!)
                 playlistsRecycler.layoutManager?.getChildAt(0)?.post {
                     val child = playlistsRecycler.layoutManager?.getChildAt(0) ?: return@post
                     val w = child.width + child.marginLeft + child.marginRight
@@ -73,6 +116,8 @@ class PlaylistsFragment : Fragment {
                         (playlistsRecycler.layoutManager as GridLayoutManager).spanCount = columns
                     }
                 }
+            } else {
+                adapter!!.setNewDataSet(playlists)
             }
         }
     }

@@ -189,6 +189,12 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun getLyrics(call: PluginCall) = library.getLyrics(call)
     @PluginMethod fun getInternetRadioStations(call: PluginCall) =
         library.getInternetRadioStations(call)
+    @PluginMethod fun createInternetRadioStation(call: PluginCall) =
+        library.createInternetRadioStation(call)
+    @PluginMethod fun updateInternetRadioStation(call: PluginCall) =
+        library.updateInternetRadioStation(call)
+    @PluginMethod fun deleteInternetRadioStation(call: PluginCall) =
+        library.deleteInternetRadioStation(call)
 
     override fun update(action: String?, value: String?) {
         try {

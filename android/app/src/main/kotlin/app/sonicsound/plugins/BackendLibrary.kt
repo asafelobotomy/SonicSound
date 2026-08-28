@@ -197,7 +197,7 @@ class BackendLibrary(
         try {
             val id: String = call.getString("id") ?: ""
             val songId: String = call.getString("songId") ?: throw ParameterException("songId")
-            if (id === "") {
+            if (id.isEmpty()) {
                 client.createPlaylist(listOf(songId), "New playlist")
             } else {
                 client.addToPlaylist(id, songId)
@@ -269,6 +269,41 @@ class BackendLibrary(
     fun getInternetRadioStations(call: PluginCall) {
         try {
             call.resolve(responses.okArray(client.getInternetRadioStations()))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
+    fun createInternetRadioStation(call: PluginCall) {
+        try {
+            val name = call.getString("name") ?: throw ParameterException("name")
+            val streamUrl = call.getString("streamUrl") ?: throw ParameterException("streamUrl")
+            val homePageUrl = call.getString("homePageUrl")
+            client.createInternetRadioStation(name, streamUrl, homePageUrl)
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
+    fun updateInternetRadioStation(call: PluginCall) {
+        try {
+            val id = call.getString("id") ?: throw ParameterException("id")
+            val name = call.getString("name") ?: throw ParameterException("name")
+            val streamUrl = call.getString("streamUrl") ?: throw ParameterException("streamUrl")
+            val homePageUrl = call.getString("homePageUrl")
+            client.updateInternetRadioStation(id, name, streamUrl, homePageUrl)
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
+    fun deleteInternetRadioStation(call: PluginCall) {
+        try {
+            val id = call.getString("id") ?: throw ParameterException("id")
+            client.deleteInternetRadioStation(id)
+            call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }

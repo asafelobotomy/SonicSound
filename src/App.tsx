@@ -262,6 +262,9 @@ function App() {
                                     {context.username === null && <PlayTest />}
                                     {context.username !== "" &&
                                         context.username !== null && (
+                                            <MenuContext.Provider
+                                                value={menuContextValue}
+                                            >
                                             <>
                                                 <TVSidebar />
                                                 <div className="container-tv d-flex flex-column justify-content-between">
@@ -341,9 +344,19 @@ function App() {
                                                             path="/tvPlaylists"
                                                             element={<TVPlaylists />}
                                                         />
+                                                        <Route
+                                                            path="/playlist"
+                                                            element={<Playlist />}
+                                                        />
+                                                        <Route
+                                                            path="/editPlaylist"
+                                                            element={<EditPlaylist />}
+                                                        />
                                                     </Routes>
+                                                    <CardContextMenu {...menuContext} />
                                                 </div>
                                             </>
+                                            </MenuContext.Provider>
                                         )}
                                 </div>
                             </div>

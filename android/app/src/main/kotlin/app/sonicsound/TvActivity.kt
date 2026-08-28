@@ -20,6 +20,7 @@ import app.sonicsound.fragments.ArtistsFragment
 import app.sonicsound.fragments.HomeFragment
 import app.sonicsound.fragments.JukeboxFragment
 import app.sonicsound.fragments.NowPlayingFragment
+import app.sonicsound.fragments.PlaylistDetailFragment
 import app.sonicsound.fragments.PlaylistsFragment
 import app.sonicsound.fragments.RadioFragment
 import app.sonicsound.fragments.SearchFragment
@@ -196,6 +197,10 @@ class TvActivity : AppCompatActivity() {
 
         fun showAlbum(id: String, name: String) {
             showDetail(AlbumDetailFragment(client, activityBind, id, name))
+        }
+
+        fun showPlaylist(id: String, name: String) {
+            showDetail(PlaylistDetailFragment(client, activityBind, id, name))
         }
 
         fun showPlaying() {

@@ -107,6 +107,20 @@ export interface IBackendPlugin extends Plugin {
     getInternetRadioStations(): Promise<
         IBackendResponse<IInternetRadioStation[]>
     >;
+    createInternetRadioStation(options: {
+        name: string;
+        streamUrl: string;
+        homePageUrl?: string;
+    }): Promise<IBackendResponse<string>>;
+    updateInternetRadioStation(options: {
+        id: string;
+        name: string;
+        streamUrl: string;
+        homePageUrl?: string;
+    }): Promise<IBackendResponse<string>>;
+    deleteInternetRadioStation(options: {
+        id: string;
+    }): Promise<IBackendResponse<string>>;
     discoverServers(): Promise<IBackendResponse<string[]>>;
     login(options: {
         username: string;

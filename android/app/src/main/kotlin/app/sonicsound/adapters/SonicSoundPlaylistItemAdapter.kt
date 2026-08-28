@@ -22,6 +22,7 @@ class SonicSoundPlaylistItemAdapter(
     private val layoutManager: LinearLayoutManager,
     private val itemHeight: Int,
     private val onItemClick: ((Int) -> Unit)? = null,
+    private val onItemLongClick: ((Int) -> Boolean)? = null,
 ) : RecyclerView.Adapter<SonicSoundPlaylistItemAdapter.ViewHolder>() {
     private var selectedIndex: Int = -1
     private var pendingFocusIndex: Int = -1
@@ -50,6 +51,11 @@ class SonicSoundPlaylistItemAdapter(
         viewHolder.container.setOnClickListener {
             val idx = viewHolder.bindingAdapterPosition
             if (idx != RecyclerView.NO_POSITION) onItemClick?.invoke(idx)
+        }
+        viewHolder.container.setOnLongClickListener {
+            val idx = viewHolder.bindingAdapterPosition
+            if (idx != RecyclerView.NO_POSITION) onItemLongClick?.invoke(idx) == true
+            else false
         }
         viewHolder.container.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {

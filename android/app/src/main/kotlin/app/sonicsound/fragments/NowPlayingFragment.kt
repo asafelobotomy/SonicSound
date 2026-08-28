@@ -144,6 +144,11 @@ class NowPlayingFragment : Fragment {
         btnShuffle.setOnClickListener { bind.shuffle() }
         btnLike = view.findViewById(R.id.btn_like)
         btnLike.setOnClickListener { toggleLike() }
+        view.findViewById<ImageButton>(R.id.btn_add_to_playlist).setOnClickListener {
+            val track = bind.getCurrentState()?.currentTrack ?: return@setOnClickListener
+            if (track.id.isBlank()) return@setOnClickListener
+            TvLibraryDialogs.showAddToPlaylist(this, client, track.id)
+        }
         firstLine = view.findViewById(R.id.tv_now_playing_first_line)
         secondLine = view.findViewById(R.id.tv_now_playing_second_line)
         image = view.findViewById(R.id.img_now_playing_album_art)
@@ -198,11 +203,16 @@ class NowPlayingFragment : Fragment {
         val manager = LinearLayoutManager(this.context)
         val itemH = (48 * resources.displayMetrics.density + 0.5f).toInt()
         playlistAdapter = SonicSoundPlaylistItemAdapter(
-            listOf(), requireContext(), playlistRecyclerView, manager, itemH,
-        ) { index ->
-            keepQueueFocus = true
-            bind.skipTo(index)
-        }
+            listOf(),
+            requireContext(),
+            playlistRecyclerView,
+            manager,
+            itemH,
+            onItemClick = { index ->
+                keepQueueFocus = true
+                bind.skipTo(index)
+            },
+        )
         playlistRecyclerView.setHasFixedSize(true)
         playlistRecyclerView.layoutManager = manager
         playlistRecyclerView.adapter = playlistAdapter

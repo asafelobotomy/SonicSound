@@ -133,5 +133,23 @@ class KeyValueStorage {
         fun setTranscoding(value: String) {
             prefs().edit().putString("transcoding", value).apply()
         }
+
+        fun getRemoteDeviceName(): String = prefs().getString("remoteDeviceName", "") ?: ""
+
+        fun setRemoteDeviceName(value: String) {
+            prefs().edit().putString("remoteDeviceName", value).apply()
+        }
+
+        fun getLastRemoteIp(): String = prefs().getString("lastRemoteIp", "") ?: ""
+
+        fun setLastRemoteIp(value: String) {
+            prefs().edit().putString("lastRemoteIp", value).apply()
+        }
+
+        fun getLastRemoteDeviceName(): String = prefs().getString("lastRemoteDeviceName", "") ?: ""
+
+        fun setLastRemoteDeviceName(value: String) {
+            prefs().edit().putString("lastRemoteDeviceName", value).apply()
+        }
     }
 }

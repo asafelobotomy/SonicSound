@@ -210,6 +210,25 @@
                     android:textStyle="bold" />
 
                 <Button
+                    android:id="@+id/btn_remote"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_sonicsound_height"
+                    android:layout_marginVertical="@dimen/tv_nav_margin"
+                    android:background="@drawable/round_outline_selector"
+                    android:contentDescription="@string/remote_button_content"
+                    android:drawableStart="@drawable/ic_nav_jukebox"
+                    android:drawablePadding="8dp"
+                    android:fontFamily="@font/montserrat"
+                    android:gravity="center_vertical"
+                    android:nextFocusRight="@id/fg_container"
+                    android:padding="5dp"
+                    android:text="@string/remote_button_content"
+                    android:textAllCaps="false"
+                    android:textColor="#ffffff"
+                    android:textSize="@dimen/button_sonicsound_text_size"
+                    android:textStyle="bold" />
+
+                <Button
                     android:id="@+id/btn_jukebox"
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/button_sonicsound_height"

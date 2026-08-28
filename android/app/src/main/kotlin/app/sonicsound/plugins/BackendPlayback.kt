@@ -251,4 +251,26 @@ class BackendPlayback(
             call.resolve(responses.error(e.message))
         }
     }
+
+    fun playJukeboxCollection(call: PluginCall) {
+        try {
+            val collection = call.getString("collection") ?: throw ParameterException("collection")
+            if (webSocketConnected) {
+                sendWs("playJukeboxCollection", collection)
+                call.resolve(responses.ok(""))
+                return
+            }
+            if (mBound) {
+                binder!!.playJukeboxCollection(collection)
+            } else {
+                val intent = Intent(App.context, MusicService::class.java)
+                intent.action = Constants.SERVICE_PLAY_JUKEBOX
+                intent.putExtra("collection", collection)
+                App.context.startService(intent)
+            }
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
 }

@@ -39,7 +39,8 @@ import {
     useFocusable,
 } from "@noriginmedia/norigin-spatial-navigation";
 import HomeTV from "./Components/HomeTV";
-import QRScan from "./Components/QRScan";
+import Remote from "./Components/Remote";
+import Jukebox from "./Components/Jukebox";
 import { App as CapacitorApp } from "@capacitor/app";
 import TVJukebox from "./Components/TVJukebox";
 import { TVTopBar } from "./Components/TVTopBar";
@@ -238,8 +239,16 @@ function App() {
                                                     element={<Search />}
                                                 />
                                                 <Route
+                                                    path="/remote"
+                                                    element={<Remote />}
+                                                />
+                                                <Route
+                                                    path="/jukebox"
+                                                    element={<Jukebox />}
+                                                />
+                                                <Route
                                                     path="/qr"
-                                                    element={<QRScan />}
+                                                    element={<Navigate to="/remote" replace />}
                                                 />
                                             </Routes>
                                             <AudioControl />

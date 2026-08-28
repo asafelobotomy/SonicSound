@@ -9,7 +9,7 @@ Fork of [SonicLair](https://github.com/thelinkin3000/SonicLair) — rebranded, m
 ## Platforms
 
 - **Android phone** (Capacitor)
-- **Android TV** (Leanback + Capacitor TV UI, QR/UDP pairing, jukebox)
+- **Android TV** (Leanback, Remote phone control, Jukebox Collections, UDP/mDNS discovery)
 - **PWA / web** (Vite)
 - Desktop shell (`src-tauri/`) deferred — not in the active npm toolchain
 

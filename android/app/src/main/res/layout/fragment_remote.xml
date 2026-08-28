@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/sonicsound_background"
+    android:orientation="vertical"
+    android:padding="24dp"
+    tools:context=".fragments.RemoteFragment">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/montserrat"
+        android:gravity="center_horizontal"
+        android:text="@string/remote_auto_connect_hint"
+        android:textColor="#fff"
+        android:textSize="22sp" />
+
+    <TextView
+        android:id="@+id/tv_remote_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/montserrat"
+        android:gravity="center_horizontal"
+        android:text="@string/remote_waiting_phone"
+        android:textColor="#aaa"
+        android:textSize="18sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:fontFamily="@font/montserrat"
+        android:gravity="center_horizontal"
+        android:text="@string/remote_fallback_hint"
+        android:textColor="#888"
+        android:textSize="16sp" />
+
+    <ImageView
+        android:id="@+id/iv_remote_qr"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="16dp"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/tv_remote_ip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:fontFamily="@font/montserrat"
+        android:gravity="center_horizontal"
+        android:textColor="#fff"
+        android:textSize="20sp" />
+</LinearLayout>

@@ -210,6 +210,7 @@ class VlcEngine(
             if (!KeyValueStorage.getOfflineMode()) {
                 CoroutineScope(IO).launch {
                     try {
+                        subsonicClient.reportPlayback(currentTrack.id, 0, "starting")
                         subsonicClient.scrobble(currentTrack.id)
                     } catch (ex: Exception) {
                         Globals.NotifyObservers("EX", "Couldn't scrobble. Check your connection.")

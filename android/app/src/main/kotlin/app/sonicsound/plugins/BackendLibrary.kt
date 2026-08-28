@@ -100,6 +100,22 @@ class BackendLibrary(
         }
     }
 
+    fun getGenres(call: PluginCall) {
+        try {
+            call.resolve(responses.okArray(client.getGenres()))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
+    fun getServerCapabilities(call: PluginCall) {
+        try {
+            call.resolve(responses.ok(client.getOpenSubsonicExtensions()))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
     fun getAlbumArt(call: PluginCall) {
         try {
             val id = call.getString("id") ?: ""

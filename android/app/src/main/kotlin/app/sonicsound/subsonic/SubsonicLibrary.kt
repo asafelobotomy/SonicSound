@@ -20,6 +20,12 @@ import app.sonicsound.models.Playlist
 import app.sonicsound.models.PlaylistResponse
 import app.sonicsound.models.PlaylistsResponse
 import app.sonicsound.models.RandomSongsResponse
+import app.sonicsound.models.GenreItem
+import app.sonicsound.models.GenresResponse
+import app.sonicsound.models.OpenSubsonicExtensionsResponse
+import app.sonicsound.models.ServerCapabilities
+import app.sonicsound.models.SongsByGenreResponse
+import app.sonicsound.models.Starred2Response
 import app.sonicsound.models.SearchResponse
 import app.sonicsound.models.SearchResult
 import app.sonicsound.models.SimilarSongsResponse
@@ -133,12 +139,96 @@ class SubsonicLibrary(
         http.makeSubsonicRequest<SubsonicResponse>(listOf("rest", "scrobble"), p, true)
     }
 
-    fun getRandomSongs(): List<Song> {
+    fun getRandomSongs(): List<Song> = getRandomSongsFiltered(10)
+
+    fun getRandomSongsFiltered(
+        size: Int = 50,
+        genre: String? = null,
+        fromYear: Int? = null,
+        toYear: Int? = null,
+        musicFolderId: String? = null,
+    ): List<Song> {
         val p = params()
-        p["size"] = "10"
+        p["size"] = size.coerceIn(1, 500).toString()
+        if (!genre.isNullOrBlank()) p["genre"] = genre
+        if (fromYear != null && fromYear > 0) p["fromYear"] = fromYear.toString()
+        if (toYear != null && toYear > 0) p["toYear"] = toYear.toString()
+        if (!musicFolderId.isNullOrBlank()) p["musicFolderId"] = musicFolderId
         return http.makeSubsonicRequest<RandomSongsResponse>(
             listOf("rest", "getRandomSongs"), p
         )?.randomSongs?.song.orEmpty()
+    }
+
+    fun getGenres(): List<GenreItem> {
+        return http.makeSubsonicRequest<GenresResponse>(
+            listOf("rest", "getGenres"), params()
+        )?.genres?.genre.orEmpty()
+    }
+
+    fun getSongsByGenre(genre: String, count: Int = 50, offset: Int = 0): List<Song> {
+        val p = params()
+        p["genre"] = genre
+        p["count"] = count.coerceIn(1, 500).toString()
+        p["offset"] = offset.coerceAtLeast(0).toString()
+        return http.makeSubsonicRequest<SongsByGenreResponse>(
+            listOf("rest", "getSongsByGenre"), p
+        )?.songsByGenre?.song.orEmpty()
+    }
+
+    fun getStarred2Songs(): List<Song> {
+        val starred = http.makeSubsonicRequest<Starred2Response>(
+            listOf("rest", "getStarred2"), params()
+        )?.starred2
+        val songs = starred?.song.orEmpty().toMutableList()
+        if (songs.isEmpty()) {
+            starred?.album.orEmpty().forEach { album ->
+                try {
+                    songs.addAll(getAlbum(album.id).song.orEmpty())
+                } catch (_: Exception) {
+                    // skip album
+                }
+            }
+        }
+        return songs
+    }
+
+    fun getOpenSubsonicExtensions(): ServerCapabilities {
+        val response = http.makeSubsonicRequest<OpenSubsonicExtensionsResponse>(
+            listOf("rest", "getOpenSubsonicExtensions"), params()
+        )
+        val names = response?.openSubsonicExtensions?.extension.orEmpty()
+            .mapNotNull { it.name?.lowercase() }
+            .toSet()
+        return ServerCapabilities(
+            playbackReport = "playbackreport" in names,
+            sonicSimilarity = "sonicsimilarity" in names,
+            playQueue = true,
+        )
+    }
+
+    fun reportPlayback(
+        mediaId: String,
+        positionMs: Long,
+        state: String,
+        playbackRate: Float = 1f,
+    ) {
+        val p = params()
+        p["mediaId"] = mediaId
+        p["mediaType"] = "song"
+        p["positionMs"] = positionMs.toString()
+        p["state"] = state
+        p["playbackRate"] = playbackRate.toString()
+        http.makeSubsonicRequest<SubsonicResponse>(listOf("rest", "reportPlayback"), p, true)
+    }
+
+    fun savePlayQueue(songIds: List<String>, currentId: String?, positionMs: Long = 0) {
+        val p = params()
+        songIds.forEach { p["id"] = it }
+        if (!currentId.isNullOrBlank()) {
+            p["current"] = currentId
+            p["position"] = positionMs.toString()
+        }
+        http.makeSubsonicRequest<SubsonicResponse>(listOf("rest", "savePlayQueue"), p, true)
     }
 
     fun getSimilarSongs(id: String): List<Song> {

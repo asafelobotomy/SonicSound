@@ -51,7 +51,7 @@ export default function QRScan() {
 
     const connect = useCallback(
         async (ip: string) => {
-            const ret = await VLC.qrLogin({ ip });
+            const ret = await VLC.qrLogin({ ip, mode: "remote" });
             if (ret.status === "error") {
                 Toast.show({ text: ret.error });
             } else {

@@ -19,6 +19,7 @@ import app.sonicsound.fragments.AlbumsFragment
 import app.sonicsound.fragments.ArtistsFragment
 import app.sonicsound.fragments.HomeFragment
 import app.sonicsound.fragments.JukeboxFragment
+import app.sonicsound.fragments.RemoteFragment
 import app.sonicsound.fragments.NowPlayingFragment
 import app.sonicsound.fragments.PlaylistDetailFragment
 import app.sonicsound.fragments.PlaylistsFragment
@@ -37,7 +38,8 @@ class TvActivity : AppCompatActivity() {
     private val activityBind = TvActivityBind()
     private val homeFragment = HomeFragment(activityBind, client)
     private val playingFragment = NowPlayingFragment(activityBind, client)
-    private val jukeboxFragment = JukeboxFragment()
+    private val remoteFragment = RemoteFragment()
+    private val jukeboxFragment = JukeboxFragment(client, activityBind)
     private val searchFragment = SearchFragment(client, activityBind)
     private val playlistFragment = PlaylistsFragment(client, activityBind)
     private val radioFragment = RadioFragment(client, activityBind)
@@ -61,6 +63,7 @@ class TvActivity : AppCompatActivity() {
         R.id.btn_radio,
         R.id.btn_account,
         R.id.btn_settings,
+        R.id.btn_remote,
         R.id.btn_jukebox,
         R.id.btn_playing,
     )
@@ -131,6 +134,18 @@ class TvActivity : AppCompatActivity() {
                 val intent = Intent(App.context, MusicService::class.java)
                 intent.action = Constants.SERVICE_PLAY_RADIO
                 intent.putExtra("id", id)
+                App.context.startService(intent)
+            }
+            showPlaying()
+        }
+
+        fun playJukeboxCollection(json: String) {
+            if (mBound) {
+                binder!!.playJukeboxCollection(json)
+            } else {
+                val intent = Intent(App.context, MusicService::class.java)
+                intent.action = Constants.SERVICE_PLAY_JUKEBOX
+                intent.putExtra("collection", json)
                 App.context.startService(intent)
             }
             showPlaying()
@@ -305,6 +320,7 @@ class TvActivity : AppCompatActivity() {
             R.id.btn_radio to radioFragment,
             R.id.btn_account to accountFragment,
             R.id.btn_settings to settingsFragment,
+            R.id.btn_remote to remoteFragment,
             R.id.btn_jukebox to jukeboxFragment,
         )
         videosFragment?.let { topLevel[R.id.btn_videos] = it }

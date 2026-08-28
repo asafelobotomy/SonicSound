@@ -138,7 +138,7 @@ export class Backend extends WebPlugin implements IBackendPlugin {
     async disconnectWebsocket() {
         return okResponse("");
     }
-    async qrLogin(options: { ip: string }) {
+    async qrLogin(options: { ip: string; mode?: "remote" | "login" }) {
         if (!isValidIp(options.ip)) {
             return errorResponse(
                 "The QR code is not an IP address. Please try again."
@@ -369,5 +369,39 @@ export class Backend extends WebPlugin implements IBackendPlugin {
     }
     removeAllListeners() {
         return super.removeAllListeners();
+    }
+
+    async connectRemote() {
+        return errorResponse("Remote is only available on Android");
+    }
+    async startRemoteDiscovery() {
+        return errorResponse("Remote is only available on Android");
+    }
+    async stopRemoteDiscovery() {
+        return okResponse("");
+    }
+    async getDiscoveredRemotes() {
+        return okResponse([]);
+    }
+    async playJukeboxCollection(_o: { collection: string; remote?: boolean }) {
+        return errorResponse("Jukebox collections require the Android app");
+    }
+    async getGenres(): Promise<
+        IBackendResponse<{ value: string; songCount?: number }[]>
+    > {
+        return errorResponse("Not implemented on web");
+    }
+    async getServerCapabilities(): Promise<
+        IBackendResponse<{
+            playbackReport: boolean;
+            sonicSimilarity: boolean;
+            playQueue: boolean;
+        }>
+    > {
+        return okResponse({
+            playbackReport: false,
+            sonicSimilarity: false,
+            playQueue: false,
+        });
     }
 }

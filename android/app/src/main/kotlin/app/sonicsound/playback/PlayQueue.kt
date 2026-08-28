@@ -1,5 +1,6 @@
 package app.sonicsound.playback
 
+import app.sonicsound.models.JukeboxCollection
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.Song
 import app.sonicsound.services.MusicService
@@ -10,6 +11,7 @@ class PlayQueue {
     var originalPlaylist: List<Song> = listOf()
     var currentTrack: Song? = null
     var shuffling: Boolean = false
+    var collection: JukeboxCollection? = null
 
     private fun entries(): List<Song> = playlist.entry.orEmpty()
 
@@ -65,6 +67,21 @@ class PlayQueue {
 
     fun songsDuration(songs: List<Song>): Int = songs.sumOf { s -> s.duration }
 
+    fun remainingCount(): Int {
+        val list = entries()
+        val idx = list.indexOf(currentTrack)
+        if (idx < 0) return list.size
+        return (list.size - idx - 1).coerceAtLeast(0)
+    }
+
+    fun appendEntries(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        val current = playlist.entry.orEmpty().toMutableList()
+        current.addAll(songs)
+        playlist.entry = current
+        originalPlaylist = current.toList()
+    }
+
     fun setEntries(newPlaylist: Playlist, track: Song) {
         playlist = newPlaylist
         originalPlaylist = newPlaylist.entry.orEmpty().toList()
@@ -73,5 +90,6 @@ class PlayQueue {
 
     fun reset() {
         playlist = MusicService.getDefaultPlaylist()
+        collection = null
     }
 }

@@ -17,13 +17,16 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.MediaPlayer
 import app.sonicsound.App
+import app.sonicsound.Constants
 import app.sonicsound.CurrentState
 import app.sonicsound.Globals
 import app.sonicsound.IBroadcastObserver
 import app.sonicsound.KeyValueStorage.Companion.getActiveAccount
+import app.sonicsound.models.JukeboxCollection
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.SearchType
 import app.sonicsound.models.Song
+import app.sonicsound.playback.JukeboxEngine
 import app.sonicsound.playback.MediaSessionController
 import app.sonicsound.playback.PlayQueue
 import app.sonicsound.playback.PlaybackCommander
@@ -39,6 +42,8 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         App.context.getSystemService(ConnectivityManager::class.java)
 
     private val queue = PlayQueue()
+    private val jukeboxEngine = JukeboxEngine(subsonicClient)
+    private var refillInProgress = false
     private val session = MediaSessionController()
     private lateinit var notification: PlaybackNotification
     private lateinit var engine: VlcEngine
@@ -110,8 +115,11 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         }
     }
 
-    @Suppress("BlockingMethodInNonBlockingContext")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == Constants.SERVICE_PLAY_JUKEBOX) {
+            intent.getStringExtra("collection")?.let { playJukeboxCollection(it) }
+            return START_STICKY
+        }
         if (intent?.action != null) {
             CoroutineScope(IO).launch { commander.handleStartAction(intent) }
         }
@@ -158,9 +166,70 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
 
     private fun next() {
         if (queue.next() != null) {
+            advancePlayback()
+            maybeRefillCollection()
+            return
+        }
+        val collection = queue.collection ?: return
+        CoroutineScope(IO).launch {
+            if (refillQueue(collection) && queue.next() != null) {
+                advancePlayback()
+            }
+        }
+    }
+
+    private suspend fun refillQueue(collection: JukeboxCollection): Boolean {
+        if (refillInProgress) return false
+        refillInProgress = true
+        try {
+            val more = jukeboxEngine.fetchBatch(collection)
+            if (more.isEmpty()) return false
+            queue.appendEntries(more)
+            notifyListeners("playlistUpdated", null)
+            return true
+        } catch (e: Exception) {
+            Globals.NotifyObservers("EX", e.message)
+            return false
+        } finally {
+            refillInProgress = false
+        }
+    }
+
+    private fun advancePlayback() {
+        try {
+            engine.loadMedia(queue.currentTrack!!)
+            play()
+            queue.collection?.let { col ->
+                queue.currentTrack?.id?.let { jukeboxEngine.onTrackPlayed(it, col) }
+            }
+        } catch (e: Exception) {
+            Globals.NotifyObservers("EX", e.message)
+        }
+    }
+
+    private fun maybeRefillCollection() {
+        val collection = queue.collection ?: return
+        if (queue.remainingCount() > 10 || refillInProgress) return
+        CoroutineScope(IO).launch { refillQueue(collection) }
+    }
+
+    fun playJukeboxCollection(json: String) {
+        CoroutineScope(IO).launch {
             try {
+                val collection = JukeboxCollection.fromJson(json)
+                jukeboxEngine.resetOffsets()
+                queue.reset()
+                queue.collection = collection
+                val songs = jukeboxEngine.fetchBatch(collection)
+                if (songs.isEmpty()) {
+                    Globals.NotifyObservers("EX", "No songs found for this Collection")
+                    return@launch
+                }
+                val playlist = jukeboxEngine.buildPlaylist(collection, songs)
+                queue.setEntries(playlist, songs.first())
                 engine.loadMedia(queue.currentTrack!!)
                 play()
+                notifyListeners("playlistUpdated", null)
             } catch (e: Exception) {
                 Globals.NotifyObservers("EX", e.message)
             }
@@ -275,5 +344,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         fun playSearch(query: String, type: SearchType) = CoroutineScope(IO).launch {
             this@MusicService.playSearch(query, type)
         }
+        fun playJukeboxCollection(json: String) = this@MusicService.playJukeboxCollection(json)
+        fun getJukeboxCollection(): JukeboxCollection? = queue.collection
     }
 }

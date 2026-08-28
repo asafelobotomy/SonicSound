@@ -1,6 +1,11 @@
 package app.sonicsound
 
+import android.os.Build
 import android.util.Log
+import app.sonicsound.remote.RemoteAuth
+import app.sonicsound.remote.RemoteBeacon
+import app.sonicsound.remote.RemoteDevice
+import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -11,17 +16,16 @@ import java.net.InetAddress
 class UDPServer(
     val ipAddress: InetAddress,
     private val broadcastAddress: InetAddress,
-    val server: Boolean
+    val server: Boolean,
 ) : IBroadcastObserver {
     private var broadcastSocket: DatagramSocket? = null
-    private var receving: Boolean = false
+    private var receiving: Boolean = false
+    private val gson = Gson()
 
     init {
         try {
-
             broadcastSocket = DatagramSocket(30002, InetAddress.getByName("0.0.0.0"))
             broadcastSocket!!.broadcast = true
-
             Globals.RegisterObserver(this)
         } catch (e: Exception) {
             broadcastSocket = null
@@ -30,76 +34,125 @@ class UDPServer(
     }
 
     fun close() {
-        if (broadcastSocket != null) {
-            broadcastSocket!!.close()
-        }
+        broadcastSocket?.close()
         Globals.UnregisterObserver(this)
     }
 
-    private fun sendUDP() {
-        if (broadcastSocket == null) {
-            return
+    private fun packetText(packet: DatagramPacket): String {
+        var realLength = packet.length - 1
+        while (realLength >= 0 && packet.data[realLength].toInt() == 0) {
+            realLength--
         }
-        // Send it and forget it
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val packet = DatagramPacket("sonicsoundClient".toByteArray(Charsets.UTF_8), "sonicsoundClient".toByteArray(Charsets.UTF_8).size, broadcastAddress, 30002)
-                @Suppress("BlockingMethodInNonBlockingContext")
-                broadcastSocket!!.send(packet)
-            } catch (e: Exception) {
-                Globals.NotifyObservers("EX", e.message)
-            }
-        }
+        if (realLength < 0) return ""
+        return String(packet.data, 0, realLength + 1, Charsets.UTF_8).trim()
+    }
+
+    private fun sendRaw(payload: String, address: InetAddress, port: Int) {
+        if (broadcastSocket == null) return
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        val packet = DatagramPacket(bytes, bytes.size, address, port)
+        broadcastSocket!!.send(packet)
+    }
+
+    private fun tvBeaconJson(): String {
+        val account = KeyValueStorage.getActiveAccount()
+        val deviceName = KeyValueStorage.getRemoteDeviceName()
+            .ifBlank { Build.MODEL ?: "Android TV" }
+        return RemoteBeacon.toJson(
+            RemoteBeacon.tvBeacon(
+                serverUrl = account.url,
+                accountFingerprint = RemoteAuth.accountFingerprint(account.url, account.username),
+                deviceName = deviceName,
+            )
+        )
+    }
+
+    private fun sendProbe() {
+        sendRaw(RemoteBeacon.toJson(RemoteBeacon.probe()), broadcastAddress, 30002)
+    }
+
+    private fun sendTvBeacon() {
+        sendRaw(tvBeaconJson(), broadcastAddress, 30002)
+    }
+
+    private fun respondTvBeaconTo(replyTo: InetAddress) {
+        val json = tvBeaconJson()
+        sendRaw(json, broadcastAddress, 30002)
+        sendRaw(json, replyTo, 30002)
+    }
+
+    private fun notifyPhoneDevice(ip: String, beacon: RemoteBeacon) {
+        val device = RemoteDevice(
+            ip = ip,
+            deviceName = beacon.deviceName.ifBlank { ip },
+            serverUrl = beacon.serverUrl,
+            accountFingerprint = beacon.accountFingerprint,
+            wsPort = beacon.wsPort,
+        )
+        Globals.NotifyObservers("REMOTE_DEVICE", gson.toJson(device))
     }
 
     fun receiveUDP() {
-        if (broadcastSocket == null || receving) {
-            return
-        }
+        if (broadcastSocket == null || receiving) return
         try {
-            Log.i("SonicSound UDP", "Starting receiver")
             val buffer = ByteArray(1500)
             val packet = DatagramPacket(buffer, buffer.size)
-            receving = true
+            receiving = true
             broadcastSocket!!.receive(packet)
-            receving = false
-            if(packet.address == ipAddress){
-                receiveUDP()
+            receiving = false
+            if (packet.address == ipAddress) {
+                scheduleReceive()
                 return
             }
-            Log.i("SonicSound UDP", "Packet received")
-            var realLength = packet.length
-            while(packet.data[realLength].toInt() == 0){
-                realLength--
-            }
+            val text = packetText(packet)
+            Log.i("SonicSound UDP", "Packet: $text from ${packet.address.hostAddress}")
 
-            if (String(packet.data, 0, realLength + 1, Charsets.UTF_8).replace("\n","") == "sonicsoundClient" && server) {
-                val responsePacket = DatagramPacket("sonicsoundServer".toByteArray(Charsets.UTF_8), "sonicsoundServer".toByteArray(Charsets.UTF_8).size,broadcastAddress, 30002)
-                broadcastSocket!!.send(responsePacket)
-            } else if (String(packet.data,0, realLength + 1, Charsets.UTF_8).replace("\n","") == "sonicsoundServer" && !server){
-                if (packet.address.hostAddress != null && packet.address.hostAddress!!.isNotBlank()) {
-                    Globals.NotifyObservers("MStvPacket","{\"ip\":\"${packet.address.hostAddress}\"}")
+            val beacon = RemoteBeacon.fromJson(text)
+            when {
+                server && (beacon?.role == RemoteBeacon.ROLE_PROBE || RemoteBeacon.isLegacyClientPacket(text)) -> {
+                    respondTvBeaconTo(packet.address)
+                }
+                !server && beacon?.role == RemoteBeacon.ROLE_TV -> {
+                    val ip = packet.address.hostAddress ?: return scheduleReceive()
+                    notifyPhoneDevice(ip, beacon)
+                }
+                !server && RemoteBeacon.isLegacyServerPacket(text) -> {
+                    val ip = packet.address.hostAddress
+                    if (!ip.isNullOrBlank()) {
+                        Globals.NotifyObservers("MStvPacket", "{\"ip\":\"$ip\"}")
+                    }
                 }
             }
-            if (server) {
-                // If we want to actively listen to incoming packets
-                CoroutineScope(Dispatchers.IO).launch {
-                    // Let's keep listening for another packet
-                    receiveUDP()
-                }
-            }
+            scheduleReceive()
         } catch (e: Exception) {
-            // We let the front-end know
-            Globals.NotifyObservers("EX", e.message)
+            receiving = false
+            Log.w("SonicSound UDP", e.message ?: "receive failed")
+        }
+    }
+
+    private fun scheduleReceive() {
+        if (!server && broadcastSocket != null) {
+            CoroutineScope(Dispatchers.IO).launch { receiveUDP() }
+        } else if (server) {
+            CoroutineScope(Dispatchers.IO).launch { receiveUDP() }
         }
     }
 
     override fun update(action: String?, value: String?) {
-        if (action == "SENDUDP") {
-            CoroutineScope(Dispatchers.IO).launch {
-                receiveUDP()
+        when (action) {
+            "SENDUDP" -> {
+                CoroutineScope(Dispatchers.IO).launch {
+                    scheduleReceive()
+                    if (server) {
+                        respondTvBeaconTo(broadcastAddress)
+                    } else {
+                        sendProbe()
+                    }
+                }
             }
-            sendUDP()
+            "REMOTE_BEACON" -> if (server) {
+                CoroutineScope(Dispatchers.IO).launch { sendTvBeacon() }
+            }
         }
     }
 }

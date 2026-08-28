@@ -74,12 +74,22 @@ export default function Navbar({
                         <FontAwesomeIcon icon={faCircleLeft} />
                     </button>
                 )}
-                {websocketConnected && (
+                {Capacitor.getPlatform() === "android" && (
                     <button
                         className="btn btn-link text-white"
-                        onClick={disconnectWebSocket}
+                        onClick={() => navigate("/remote")}
+                        title="Remote output"
                     >
                         <FontAwesomeIcon icon={faTv} />
+                    </button>
+                )}
+                {websocketConnected && (
+                    <button
+                        className="btn btn-link text-white opacity-75"
+                        onClick={disconnectWebSocket}
+                        title="Disconnect TV"
+                    >
+                        ×
                     </button>
                 )}
             </div>

@@ -9,6 +9,8 @@ import app.sonicsound.services.MediaBrowserService
 import app.sonicsound.subsonic.SubsonicClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -51,6 +53,18 @@ class App : Application() {
                     isTv
                 )
                 if (isTv) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        udpServer!!.receiveUDP()
+                    }
+                    CoroutineScope(Dispatchers.IO).launch {
+                        while (isActive) {
+                            if (KeyValueStorage.getActiveAccount().username != null) {
+                                Globals.NotifyObservers("REMOTE_BEACON", "")
+                            }
+                            delay(5000)
+                        }
+                    }
+                } else {
                     CoroutineScope(Dispatchers.IO).launch {
                         udpServer!!.receiveUDP()
                     }

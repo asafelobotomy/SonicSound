@@ -12,6 +12,8 @@ import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import app.sonicsound.App.Companion.context
 import app.sonicsound.models.Account
+import app.sonicsound.models.RemoteConnectRequest
+import app.sonicsound.remote.RemoteAuth
 import app.sonicsound.models.SetPlaylistAndPlayRequest
 import app.sonicsound.models.WebSocketCommand
 import app.sonicsound.models.WebSocketMessage
@@ -19,6 +21,8 @@ import app.sonicsound.services.MusicService
 import app.sonicsound.services.MusicService.LocalBinder
 import java.lang.Integer.parseInt
 import java.net.InetSocketAddress
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.nio.ByteBuffer
 
 class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroadcastObserver {
@@ -52,8 +56,64 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
     }
 
     private val clients: MutableList<WebSocket> = mutableListOf()
+    private val pendingAuth: ConcurrentHashMap<WebSocket, String> = ConcurrentHashMap()
 
     private val gson: Gson = Gson()
+
+    private fun sendTyped(conn: WebSocket, type: String, data: String, status: String = "ok") {
+        conn.send(gson.toJson(WebSocketMessage(data, type, status)))
+    }
+
+    private fun handleRemoteConnect(conn: WebSocket, data: String) {
+        val active = KeyValueStorage.getActiveAccount()
+        val request = try {
+            gson.fromJson(data, RemoteConnectRequest::class.java)
+        } catch (_: Exception) {
+            // Legacy: full Account payload from older clients
+            try {
+                val account = gson.fromJson(data, Account::class.java)
+                RemoteConnectRequest(account.url, account.username)
+            } catch (e: Exception) {
+                conn.send(constructMessage(e.message ?: "Malformed payload", "error"))
+                return
+            }
+        }
+        if (!RemoteAuth.accountsMatch(
+                request.url,
+                request.username,
+                active.url,
+                active.username,
+            )
+        ) {
+            conn.send(
+                constructMessage(
+                    "Sign in to the same Navidrome account on both phone and TV to use Remote.",
+                    "error",
+                )
+            )
+            return
+        }
+        val nonce = UUID.randomUUID().toString()
+        pendingAuth[conn] = nonce
+        sendTyped(conn, "authChallenge", nonce)
+    }
+
+    private fun handleRemoteAuth(conn: WebSocket, proof: String) {
+        val nonce = pendingAuth[conn]
+        if (nonce == null) {
+            conn.send(constructMessage("No pending auth challenge", "error"))
+            return
+        }
+        val password = KeyValueStorage.getActiveAccount().password
+        if (!RemoteAuth.verifyAuthProof(nonce, password, proof)) {
+            conn.send(constructMessage("Remote authentication failed", "error"))
+            pendingAuth.remove(conn)
+            return
+        }
+        pendingAuth.remove(conn)
+        sendTyped(conn, "acceptedConnection", "")
+        Globals.NotifyObservers("WS", "true")
+    }
 
     private fun constructMessage(text: String, status: String = "ok"): String {
         val message = WebSocketMessage(text, "message", status)
@@ -77,6 +137,7 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
 
     override fun onClose(conn: WebSocket, code: Int, reason: String?, remote: Boolean) {
         clients.remove(conn)
+        pendingAuth.remove(conn)
         if (clients.size == 0) {
             Globals.NotifyObservers("WS", "false")
         }
@@ -90,27 +151,12 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
                     Globals.NotifyObservers("WSLOGIN", m.data)
                     return
                 }
-                "jukebox" -> {
-                    val account: Account
-                    try {
-                        account = gson.fromJson(m.data, Account::class.java)
-                    } catch (e: Exception) {
-                        conn.send(
-                            constructMessage(
-                                e.message!!,
-                                "The payload was malformed"
-                            )
-                        )
-                        return
-                    }
-                    if (account.url != KeyValueStorage.getActiveAccount().url) {
-                        conn.send(
-                            constructMessage(
-                                "You need to be logged in to the same server on both the phone and the TV for jukebox mode to work.",
-                                "error"
-                            )
-                        )
-                    }
+                "remote", "jukebox" -> {
+                    handleRemoteConnect(conn, m.data)
+                    return
+                }
+                "remoteAuth" -> {
+                    handleRemoteAuth(conn, m.data)
                     return
                 }
                 "command" -> {
@@ -213,6 +259,15 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
                                     request.seek,
                                     request.playing
                                 )
+                            }
+                        }
+                        "playJukeboxCollection" -> {
+                            if (command.data.isBlank()) {
+                                conn.send(constructMessage("Collection payload is empty", "error"))
+                                return
+                            }
+                            if (mBound) {
+                                binder!!.playJukeboxCollection(command.data)
                             }
                         }
                         "shufflePlaylist"->{

@@ -149,7 +149,14 @@ export interface IBackendPlugin extends Plugin {
         value: boolean;
     }): Promise<IBackendResponse<boolean>>;
     downloadAlbum(options: { id: string }): Promise<IBackendResponse<string>>;
-    qrLogin(options: { ip: string }): Promise<IBackendResponse<string>>;
+    qrLogin(options: { ip: string; mode?: "remote" | "login" }): Promise<IBackendResponse<string>>;
+    connectRemote(options: { ip: string; deviceName?: string }): Promise<IBackendResponse<string>>;
+    startRemoteDiscovery(): Promise<IBackendResponse<string>>;
+    stopRemoteDiscovery(): Promise<IBackendResponse<string>>;
+    getDiscoveredRemotes(): Promise<IBackendResponse<{ ip: string; deviceName: string; serverUrl?: string; wsPort?: number }[]>>;
+    playJukeboxCollection(options: { collection: string; remote?: boolean }): Promise<IBackendResponse<string>>;
+    getGenres(): Promise<IBackendResponse<{ value: string; songCount?: number }[]>>;
+    getServerCapabilities(): Promise<IBackendResponse<{ playbackReport: boolean; sonicSimilarity: boolean; playQueue: boolean }>>;
     disconnectWebsocket(): Promise<IBackendResponse<string>>;
     getWebsocketStatus(): Promise<IBackendResponse<boolean>>;
     sendUdpBroadcast(): Promise<IBackendResponse<String>>;

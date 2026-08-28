@@ -81,9 +81,10 @@ export default function Sidebar({
                 {item("/albums", faCompactDisc)}
                 {item("/search", faMagnifyingGlass)}
                 {item("/playlists", faListUl)}
-                {item("/radio", faBroadcastTower)}
-                {Features.youtubeMusicVideos && item("/videos", faFilm)}
-                {Capacitor.getPlatform() === "android" && item("/qr", faQrcode)}
+        {item("/radio", faBroadcastTower)}
+        {item("/jukebox", faListUl)}
+        {Features.youtubeMusicVideos && item("/videos", faFilm)}
+        {Capacitor.getPlatform() === "android" && item("/remote", faQrcode)}
                 {item("/settings", faGear)}
                 {item("/account", faUser, true)}
             </motion.div>

@@ -13,6 +13,7 @@ import app.sonicsound.models.Account
 import app.sonicsound.models.Album
 import app.sonicsound.models.AlbumWithSongs
 import app.sonicsound.models.Artist
+import app.sonicsound.models.GenreItem
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.SearchResult
 import app.sonicsound.models.Song
@@ -169,6 +170,20 @@ class SubsonicClient(var initialAccount: Account) {
     fun getLocalAlbumArt(id: String): String = coverCache.getLocalAlbumArt(id)
     fun getLocalArtistArt(id: String): String = coverCache.getLocalArtistArt(id)
     fun getRandomSongs(): List<Song> = library.getRandomSongs()
+    fun getRandomSongsFiltered(
+        size: Int = 50,
+        genre: String? = null,
+        fromYear: Int? = null,
+        toYear: Int? = null,
+    ): List<Song> = library.getRandomSongsFiltered(size, genre, fromYear, toYear)
+
+    fun getGenres(): List<GenreItem> = library.getGenres()
+    fun getSongsByGenre(genre: String, count: Int = 50, offset: Int = 0): List<Song> =
+        library.getSongsByGenre(genre, count, offset)
+    fun getStarred2Songs(): List<Song> = library.getStarred2Songs()
+    fun getOpenSubsonicExtensions() = library.getOpenSubsonicExtensions()
+    fun reportPlayback(mediaId: String, positionMs: Long, state: String) =
+        library.reportPlayback(mediaId, positionMs, state)
 
     fun getSongUri(song: Song?): String? {
         val metered = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)

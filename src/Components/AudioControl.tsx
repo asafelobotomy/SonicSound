@@ -2,6 +2,7 @@ import {
     faForwardStep,
     faPause,
     faPlay,
+    faRepeat,
     faShuffle,
     faVolumeHigh,
     faVolumeLow,
@@ -26,7 +27,10 @@ export default function AudioControl() {
     );
     const [playing, setPlaying] = useState<boolean>(false);
     const [playtime, setPlaytime] = useState<number>(0);
+    const [displayPlaytime, setDisplayPlaytime] = useState<number>(0);
     const [shuffle, setShuffle] = useState<boolean>(false);
+    const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
+    const progressAnchor = useRef({ fraction: 0, at: 0 });
     const [coverArt, setCoverArt] = useState<string>("");
     const [androidTV, setAndroidTV] = useState<boolean>(false);
     const location = useLocation();
@@ -46,6 +50,9 @@ export default function AudioControl() {
     const changePlayTime = useCallback(
         (e: ChangeEvent<HTMLInputElement>): void => {
             const time = parseFloat(e.target.value);
+            progressAnchor.current = { fraction: time, at: performance.now() };
+            setDisplayPlaytime(time);
+            setPlaytime(time);
             VLC.seek({ time: time });
         },
         []
@@ -80,6 +87,8 @@ export default function AudioControl() {
                 setCurrentTrack(current.value?.currentTrack!);
                 setPlaying(current.value?.playing!);
                 setPlaytime(current.value?.playtime!);
+                setDisplayPlaytime(current.value?.playtime ?? 0);
+                setRepeatMode(current.value?.repeatMode ?? "off");
             }
             VLC.addListener("EX", (info) => {
                 Toast.show({ text: info.error });
@@ -98,6 +107,10 @@ export default function AudioControl() {
 
     const shufflePlaylist = useCallback(() => {
         VLC.shufflePlaylist();
+    }, []);
+
+    const cycleRepeat = useCallback(() => {
+        VLC.cycleRepeat();
     }, []);
 
     const togglePlaying = () => {
@@ -137,12 +150,18 @@ export default function AudioControl() {
                     setCurrentTrack(info.currentTrack);
                 }),
                 await VLC.addListener("progress", (info: any) => {
+                    progressAnchor.current = {
+                        fraction: info.time,
+                        at: performance.now(),
+                    };
                     setPlaytime(info.time);
+                    setDisplayPlaytime(info.time);
                 }),
                 await VLC.addListener("playlistUpdated", async (info: any) => {
                     const state = await VLC.getCurrentState();
                     if (state.status === "ok") {
                         setShuffle(state.value!.shuffling);
+                        setRepeatMode(state.value!.repeatMode ?? "off");
                     }
                 }),
             ];
@@ -153,6 +172,27 @@ export default function AudioControl() {
             //setCurrentTrack(CurrentTrackContextDefValue);
         };
     }, [setPlaying, setCurrentTrack, setPlaytime]);
+
+    useEffect(() => {
+        if (!playing) {
+            setDisplayPlaytime(playtime);
+            return;
+        }
+        let frame = 0;
+        const tick = () => {
+            const dur = currentTrack.duration || 1;
+            const elapsed = (performance.now() - progressAnchor.current.at) / 1000;
+            const estimated = Math.min(
+                1,
+                progressAnchor.current.fraction + elapsed / dur
+            );
+            setDisplayPlaytime(estimated);
+            frame = requestAnimationFrame(tick);
+        };
+        frame = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frame);
+    }, [playing, playtime, currentTrack.duration]);
+
     return (
         <div
             className={classnames(
@@ -207,6 +247,29 @@ export default function AudioControl() {
                             onClick={shufflePlaylist}
                         >
                             <FontAwesomeIcon icon={faShuffle}></FontAwesomeIcon>
+                        </button>
+                        <button
+                            type="button"
+                            className={classnames(
+                                "btn",
+                                "btn-link",
+                                "text-white",
+                                "repeat-btn",
+                                repeatMode !== "off" ? "btn-selected" : ""
+                            )}
+                            onClick={cycleRepeat}
+                            title={
+                                repeatMode === "all"
+                                    ? "Repeat queue"
+                                    : repeatMode === "one"
+                                      ? "Repeat current track"
+                                      : "Repeat off"
+                            }
+                        >
+                            <FontAwesomeIcon icon={faRepeat} />
+                            {repeatMode === "one" && (
+                                <span className="repeat-one-badge">1</span>
+                            )}
                         </button>
                         <button
                             type="button"
@@ -275,7 +338,7 @@ export default function AudioControl() {
             <div className="w-100 d-flex flex-row justify-content-between text-white">
                 <span>
                     {SecondsToHHSS(
-                        (playtime ?? 0) * (currentTrack?.duration ?? 0)
+                        displayPlaytime * (currentTrack?.duration ?? 0)
                     )}
                 </span>
                 <span>{SecondsToHHSS(currentTrack.duration)}</span>
@@ -287,8 +350,8 @@ export default function AudioControl() {
                     className="w-100"
                     min={0}
                     max={1}
-                    step={0.01}
-                    value={playtime}
+                    step={0.001}
+                    value={displayPlaytime}
                     onChange={(e) => changePlayTime(e)}
                 ></input>
             </div>

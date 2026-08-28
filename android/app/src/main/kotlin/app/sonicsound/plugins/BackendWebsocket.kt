@@ -267,7 +267,7 @@ class BackendWebsocket(
         val request = SetPlaylistAndPlayRequest(
             playlist,
             playlist.entry.orEmpty().indexOf(binder!!.getCurrentState().currentTrack),
-            binder!!.getCurrentState().position,
+            binder!!.getCurrentState().playtime,
             binder!!.getCurrentState().playing,
         )
         val setPlaylistCommand = WebSocketCommand("setPlaylistAndPlay", gson.toJson(request))

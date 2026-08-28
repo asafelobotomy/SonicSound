@@ -14,3 +14,16 @@
 .fade-right {
     // mask-image: linear-gradient(270deg, rgb(0,0,0,0) 0%,rgb(0,0,0,0) 25%,rgb(40, 44, 52) 90%,rgb(40, 44, 52) 100%);
 }
+
+.repeat-btn {
+    position: relative;
+}
+
+.repeat-one-badge {
+    position: absolute;
+    right: -2px;
+    bottom: 0;
+    font-size: 0.55rem;
+    font-weight: 700;
+    line-height: 1;
+}

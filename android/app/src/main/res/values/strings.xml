@@ -90,6 +90,9 @@
     <string name="recently_added">Recently Added</string>
     <string name="album_art_image_on_playing">Album Art Image on Playing</string>
     <string name="button_content_description">Button</string>
+    <string name="repeat_queue">Repeat queue</string>
+    <string name="repeat_one">Repeat current track</string>
+    <string name="repeat_off">Repeat off</string>
     <string name="connect_you_phone_s_sonicsound">Connect you phone\'s SonicSound</string>
     <string name="log_in">Log in</string>
     <string name="show_qr">Show QR</string>

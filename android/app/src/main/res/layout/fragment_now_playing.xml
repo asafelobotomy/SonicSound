@@ -131,6 +131,17 @@
                 android:src="@drawable/ic_shuffle_fill" />
 
             <ImageButton
+                android:id="@+id/btn_repeat"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginHorizontal="5dp"
+                android:background="@drawable/round_outline_selector"
+                android:contentDescription="@string/repeat_off"
+                android:padding="4dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_repeat" />
+
+            <ImageButton
                 android:id="@+id/btn_prev"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
@@ -234,7 +245,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="40dp"
                 android:focusable="true"
-                android:max="100"
+                android:max="1000"
                 android:maxHeight="4dp"
                 android:minHeight="4dp"
                 android:progressTint="@color/sonicsound_item_highlight"
@@ -501,6 +512,16 @@
                         android:src="@drawable/ic_shuffle_fill" />
 
                     <ImageButton
+                        android:id="@+id/btn_fs_repeat"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/repeat_off"
+                        android:focusable="true"
+                        android:src="@drawable/ic_repeat" />
+
+                    <ImageButton
                         android:id="@+id/btn_fs_prev"
                         android:layout_width="44dp"
                         android:layout_height="44dp"
@@ -588,7 +609,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginHorizontal="16dp"
                         android:focusable="true"
-                        android:max="100"
+                        android:max="1000"
                         android:progressTint="@color/sonicsound_item_highlight"
                         android:thumbTint="@color/sonicsound_item_highlight" />
                 </LinearLayout>

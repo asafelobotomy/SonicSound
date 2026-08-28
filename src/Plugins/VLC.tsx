@@ -22,6 +22,7 @@ export interface ICurrentState {
     playtime: number;
     currentTrack: IAlbumSongResponse;
     shuffling: boolean;
+    repeatMode?: "off" | "all" | "one";
 }
 
 export interface ISettings {
@@ -161,6 +162,7 @@ export interface IBackendPlugin extends Plugin {
     getWebsocketStatus(): Promise<IBackendResponse<boolean>>;
     sendUdpBroadcast(): Promise<IBackendResponse<String>>;
     shufflePlaylist(): Promise<IBackendResponse<string>>;
+    cycleRepeat(): Promise<IBackendResponse<string>>;
     getLyrics(options: {
         artist: string;
         title: string;

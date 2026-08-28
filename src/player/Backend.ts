@@ -41,6 +41,7 @@ export class Backend extends WebPlugin implements IBackendPlugin {
     context: IAppContext = loadStoredContext();
     currentTrack: IAlbumSongResponse = emptyTrack();
     isShuffle = false;
+    repeatMode: "off" | "all" | "one" = "off";
 
     constructor() {
         super();
@@ -129,6 +130,17 @@ export class Backend extends WebPlugin implements IBackendPlugin {
         return Promise.resolve(okResponse(""));
     }
 
+    cycleRepeat(): Promise<IBackendResponse<string>> {
+        this.repeatMode =
+            this.repeatMode === "off"
+                ? "all"
+                : this.repeatMode === "all"
+                  ? "one"
+                  : "off";
+        this.notifyListeners("playlistUpdated", null);
+        return Promise.resolve(okResponse(this.repeatMode));
+    }
+
     sendUdpBroadcast() {
         return Promise.reject(new Error("Method not implemented."));
     }
@@ -176,6 +188,7 @@ export class Backend extends WebPlugin implements IBackendPlugin {
                 currentTrack: this.currentTrack,
                 playtime: this.audio.currentTime / (this.audio.duration || 1),
                 shuffling: this.isShuffle,
+                repeatMode: this.repeatMode,
             })
         );
     }
@@ -349,9 +362,20 @@ export class Backend extends WebPlugin implements IBackendPlugin {
         return okResponse("");
     }
     _next() {
-        const i = this.currentPlaylist.entry.indexOf(this.currentTrack);
-        if (i >= 0 && i < this.currentPlaylist.entry.length - 1) {
-            this.currentTrack = this.currentPlaylist.entry[i + 1];
+        const entries = this.currentPlaylist.entry;
+        const i = entries.indexOf(this.currentTrack);
+        if (i >= 0 && i < entries.length - 1) {
+            this.currentTrack = entries[i + 1];
+            this._playCurrent();
+            return;
+        }
+        if (this.repeatMode === "one") {
+            this.audio.currentTime = 0;
+            void this._playCurrent();
+            return;
+        }
+        if (this.repeatMode === "all" && entries.length > 0) {
+            this.currentTrack = entries[0];
             this._playCurrent();
         }
     }

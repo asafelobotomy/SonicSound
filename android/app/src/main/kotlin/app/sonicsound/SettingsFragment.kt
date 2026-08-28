@@ -5,6 +5,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -159,6 +160,11 @@ class SettingsFragment : Fragment {
         }
         refreshConditionalRows()
         bindColorSwatches(swatches)
+        wireFocusRow(view.findViewById(R.id.row_eq), eqSwitch)
+        wireFocusRow(view.findViewById(R.id.row_replaygain), rgSwitch)
+        wireFocusRow(view.findViewById(R.id.row_fs_clock), clockSwitch)
+        wireFocusRow(view.findViewById(R.id.row_fs_date), dateSwitch)
+        wireFocusRow(view.findViewById(R.id.row_offline), offlineSwitch)
 
         eqSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
         rgSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
@@ -214,6 +220,20 @@ class SettingsFragment : Fragment {
             )
         )
         KeyValueStorage.setOfflineMode(offlineSwitch.isChecked)
+    }
+
+    private fun wireFocusRow(row: View, switch: SwitchCompat) {
+        row.setOnClickListener { switch.toggle() }
+        row.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN &&
+                (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
+            ) {
+                switch.toggle()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private fun bindColorSwatches(container: LinearLayout) {

@@ -7,7 +7,7 @@ import android.widget.SeekBar
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import app.sonicsound.R
-import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /** TV scrubber: focus shows frame; OK arms L/R seek; Back disarms. */
 class NowPlayingScrubber(
@@ -21,24 +21,25 @@ class NowPlayingScrubber(
         private set
 
     fun wire() {
+        seekBar.max = PROGRESS_STEPS
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 val dur = durationProvider()
-                onTimePreview(floor((progress / 100.0) * dur).toInt())
+                onTimePreview(((progress.toDouble() / PROGRESS_STEPS) * dur).toInt())
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 val progress = seekBar?.progress ?: return
-                if (armed) onSeek(progress / 100f)
+                if (armed) onSeek(progress / PROGRESS_STEPS.toFloat())
             }
         })
         seekBar.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus && armed) {
                 armed = false
-                onSeek(seekBar.progress / 100f)
+                onSeek(seekBar.progress / PROGRESS_STEPS.toFloat())
             }
             updateUi()
         }
@@ -47,7 +48,7 @@ class NowPlayingScrubber(
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     armed = !armed
-                    if (!armed) onSeek(seekBar.progress / 100f)
+                    if (!armed) onSeek(seekBar.progress / PROGRESS_STEPS.toFloat())
                     updateUi()
                     true
                 }
@@ -77,5 +78,9 @@ class NowPlayingScrubber(
         val armedColor = ContextCompat.getColor(row.context, R.color.scrubber_thumb_armed)
         seekBar.thumbTintList = ColorStateList.valueOf(if (armed) armedColor else highlight)
         seekBar.progressTintList = ColorStateList.valueOf(if (armed) armedColor else highlight)
+    }
+
+    companion object {
+        const val PROGRESS_STEPS = 1000
     }
 }

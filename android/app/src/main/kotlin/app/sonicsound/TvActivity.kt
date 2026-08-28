@@ -127,6 +127,10 @@ class TvActivity : AppCompatActivity() {
             if (mBound) binder!!.shuffle()
         }
 
+        fun cycleRepeat() {
+            if (mBound) binder!!.cycleRepeat()
+        }
+
         fun playRadio(id: String) {
             if (mBound) {
                 CoroutineScope(Dispatchers.IO).launch { binder!!.playRadio(id) }

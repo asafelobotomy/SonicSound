@@ -2,6 +2,9 @@ package app.sonicsound.fragments
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -29,8 +32,9 @@ import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.subsonic.SubsonicClient
+import app.sonicsound.playback.RepeatMode
 import com.getcapacitor.JSObject
-import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,6 +50,7 @@ class NowPlayingFragment : Fragment {
     private lateinit var chrome: View
     private lateinit var btnPlay: ImageButton
     private lateinit var btnShuffle: ImageButton
+    private lateinit var btnRepeat: ImageButton
     private lateinit var btnLike: ImageButton
     private lateinit var sbProgress: SeekBar
     private lateinit var playlistRecyclerView: RecyclerView
@@ -58,6 +63,23 @@ class NowPlayingFragment : Fragment {
     private var liked = false
     private var keepQueueFocus = false
     private var lastQueueIds = ""
+    private var lastProgressFraction = 0.0
+    private var lastProgressAtMs = 0L
+    private var progressTickPlaying = false
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressTickRunnable = object : Runnable {
+        override fun run() {
+            if (!progressTickPlaying || scrubber?.armed == true) return
+            val state = bind.getCurrentState() ?: return
+            if (!state.playing) return
+            val dur = state.currentTrack.duration
+            if (dur <= 0) return
+            val elapsedSec = (SystemClock.elapsedRealtime() - lastProgressAtMs) / 1000.0
+            val estimated = (lastProgressFraction + elapsedSec / dur).coerceIn(0.0, 1.0)
+            updateProgressUi(estimated)
+            progressHandler.postDelayed(this, 250L)
+        }
+    }
     private val observer = NowPlayingObserver()
 
     constructor() : super()
@@ -79,6 +101,7 @@ class NowPlayingFragment : Fragment {
     }
 
     override fun onDestroyView() {
+        progressHandler.removeCallbacks(progressTickRunnable)
         // Restore sidebar if we were replaced while fullscreen immersive.
         fullscreen?.exit()
         fullscreen = null
@@ -113,10 +136,12 @@ class NowPlayingFragment : Fragment {
                 "MSplay" -> {
                     setPlayingUi(true)
                     musicVideo?.onPlay()
+                    startProgressTicker(true)
                 }
                 "MSpaused" -> {
                     setPlayingUi(false)
                     musicVideo?.onPause()
+                    startProgressTicker(false)
                 }
                 "MSprogress" -> {
                     val progress = JSObject(value).optDouble("time", Double.NaN)
@@ -142,6 +167,8 @@ class NowPlayingFragment : Fragment {
         view.findViewById<ImageButton>(R.id.btn_next).setOnClickListener { bind.next() }
         btnShuffle = view.findViewById(R.id.btn_shuffle)
         btnShuffle.setOnClickListener { bind.shuffle() }
+        btnRepeat = view.findViewById(R.id.btn_repeat)
+        btnRepeat.setOnClickListener { bind.cycleRepeat() }
         btnLike = view.findViewById(R.id.btn_like)
         btnLike.setOnClickListener { toggleLike() }
         view.findViewById<ImageButton>(R.id.btn_add_to_playlist).setOnClickListener {
@@ -189,6 +216,7 @@ class NowPlayingFragment : Fragment {
             onPlayPause = { togglePlayPause() },
             onSeek = { seekTo(it) },
             onShuffle = { bind.shuffle() },
+            onRepeat = { bind.cycleRepeat() },
             onLike = { toggleLike() },
             onMusicVideo = {
                 if (Features.YOUTUBE_MUSIC_VIDEOS) mvButton.performClick()
@@ -259,6 +287,7 @@ class NowPlayingFragment : Fragment {
         )
         fullscreen?.setPlaying(state.playing || (musicVideo?.isYtPlaying() == true))
         fullscreen?.setShuffle(state.shuffling)
+        fullscreen?.setRepeat(RepeatMode.fromWire(state.repeatMode))
         fullscreen?.setLiked(state.currentTrack.isStarred)
         fullscreen?.setProgress(
             sbProgress.progress,
@@ -274,14 +303,30 @@ class NowPlayingFragment : Fragment {
     }
 
     private fun applyProgress(progress: Double) {
-        val pct = floor(progress * 100).toInt()
+        lastProgressFraction = progress
+        lastProgressAtMs = SystemClock.elapsedRealtime()
+        updateProgressUi(progress)
+    }
+
+    private fun updateProgressUi(progress: Double) {
+        val pct = (progress * NowPlayingScrubber.PROGRESS_STEPS).roundToInt()
+            .coerceIn(0, NowPlayingScrubber.PROGRESS_STEPS)
         if (scrubber?.armed != true) sbProgress.progress = pct
         val state = bind.getCurrentState() ?: return
         val dur = state.currentTrack.duration
-        val current = secondsToHHSS(floor(progress * dur).toInt())
+        val current = secondsToHHSS((progress * dur).roundToInt().coerceAtMost(dur))
         currentTimeText.text = current
         fullscreen?.setProgress(pct, current, durationText.text.toString())
         musicVideo?.onProgress(progress, dur)
+    }
+
+    private fun startProgressTicker(playing: Boolean) {
+        progressTickPlaying = playing
+        progressHandler.removeCallbacks(progressTickRunnable)
+        if (playing) {
+            lastProgressAtMs = SystemClock.elapsedRealtime()
+            progressHandler.postDelayed(progressTickRunnable, 250L)
+        }
     }
 
     private fun secondsToHHSS(seconds: Int): String =
@@ -323,14 +368,9 @@ class NowPlayingFragment : Fragment {
         loadAlbumArt(artUrl)
         durationText.text = secondsToHHSS(currentState.currentTrack.duration)
         setPlayingUi(currentState.playing)
-        btnShuffle.setImageDrawable(
-            ResourcesCompat.getDrawable(
-                resources,
-                if (currentState.shuffling) R.drawable.ic_shuffle_fill_primary
-                else R.drawable.ic_shuffle_fill,
-                null
-            )
-        )
+        startProgressTicker(currentState.playing)
+        updateShuffleUi(currentState.shuffling)
+        updateRepeatUi(RepeatMode.fromWire(currentState.repeatMode))
         liked = currentState.currentTrack.isStarred
         updateLikeUi()
         val entries = bind.getCurrentPlaylist()?.entry.orEmpty()
@@ -357,8 +397,31 @@ class NowPlayingFragment : Fragment {
             )
             fullscreen?.setPlaying(currentState.playing)
             fullscreen?.setShuffle(currentState.shuffling)
+            fullscreen?.setRepeat(RepeatMode.fromWire(currentState.repeatMode))
             fullscreen?.setLiked(liked)
         }
+    }
+
+    private fun updateShuffleUi(shuffling: Boolean) {
+        if (!::btnShuffle.isInitialized) return
+        btnShuffle.setImageDrawable(
+            ResourcesCompat.getDrawable(
+                resources,
+                if (shuffling) R.drawable.ic_shuffle_fill_primary else R.drawable.ic_shuffle_fill,
+                null
+            )
+        )
+    }
+
+    private fun updateRepeatUi(mode: RepeatMode) {
+        if (!::btnRepeat.isInitialized) return
+        val (icon, label) = when (mode) {
+            RepeatMode.ALL -> R.drawable.ic_repeat_primary to R.string.repeat_queue
+            RepeatMode.ONE -> R.drawable.ic_repeat_one_primary to R.string.repeat_one
+            RepeatMode.OFF -> R.drawable.ic_repeat to R.string.repeat_off
+        }
+        btnRepeat.setImageDrawable(ResourcesCompat.getDrawable(resources, icon, null))
+        btnRepeat.contentDescription = getString(label)
     }
 
     private fun updateLikeUi() {

@@ -23,6 +23,7 @@ import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.models.FullscreenVisualizer
 import app.sonicsound.models.Song
+import app.sonicsound.playback.RepeatMode
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,6 +38,7 @@ class NowPlayingFullscreen(
     private val onPlayPause: () -> Unit,
     private val onSeek: (Float) -> Unit,
     private val onShuffle: () -> Unit,
+    private val onRepeat: () -> Unit,
     private val onLike: () -> Unit,
     private val onMusicVideo: () -> Unit,
     private val enableMusicVideo: Boolean = false,
@@ -63,6 +65,7 @@ class NowPlayingFullscreen(
     private val fsPrev: ImageButton = root.findViewById(R.id.btn_fs_prev)
     private val fsNextBtn: ImageButton = root.findViewById(R.id.btn_fs_next)
     private val fsShuffle: ImageButton = root.findViewById(R.id.btn_fs_shuffle)
+    private val fsRepeat: ImageButton = root.findViewById(R.id.btn_fs_repeat)
     private val fsLike: ImageButton = root.findViewById(R.id.btn_fs_like)
     private val fsMusicVideo: ImageButton = root.findViewById(R.id.btn_fs_music_video)
     private val fsSeekBar = root.findViewById<android.widget.SeekBar>(R.id.sb_fs_progress)
@@ -113,11 +116,11 @@ class NowPlayingFullscreen(
         if (enableMusicVideo) {
             fsMusicVideo.visibility = View.VISIBLE
             fsMusicVideo.isFocusable = true
-            fsButtons.addAll(listOf(fsShuffle, fsPrev, fsPlay, fsNextBtn, fsMusicVideo, fsLike))
+            fsButtons.addAll(listOf(fsShuffle, fsRepeat, fsPrev, fsPlay, fsNextBtn, fsMusicVideo, fsLike))
         } else {
             fsMusicVideo.visibility = View.GONE
             fsMusicVideo.isFocusable = false
-            fsButtons.addAll(listOf(fsShuffle, fsPrev, fsPlay, fsNextBtn, fsLike))
+            fsButtons.addAll(listOf(fsShuffle, fsRepeat, fsPrev, fsPlay, fsNextBtn, fsLike))
         }
         fsButtons.forEach { btn ->
             btn.setOnClickListener {
@@ -127,6 +130,7 @@ class NowPlayingFullscreen(
                     R.id.btn_fs_next -> bind.next()
                     R.id.btn_fs_play -> onPlayPause()
                     R.id.btn_fs_shuffle -> onShuffle()
+                    R.id.btn_fs_repeat -> onRepeat()
                     R.id.btn_fs_like -> onLike()
                     R.id.btn_fs_music_video -> if (enableMusicVideo) onMusicVideo()
                 }
@@ -448,6 +452,18 @@ class NowPlayingFullscreen(
                 null
             )
         )
+    }
+
+    fun setRepeat(mode: RepeatMode) {
+        val (icon, label) = when (mode) {
+            RepeatMode.ALL -> R.drawable.ic_repeat_primary to R.string.repeat_queue
+            RepeatMode.ONE -> R.drawable.ic_repeat_one_primary to R.string.repeat_one
+            RepeatMode.OFF -> R.drawable.ic_repeat to R.string.repeat_off
+        }
+        fsRepeat.setImageDrawable(
+            ResourcesCompat.getDrawable(root.resources, icon, null)
+        )
+        fsRepeat.contentDescription = root.context.getString(label)
     }
 
     fun setLiked(liked: Boolean) {

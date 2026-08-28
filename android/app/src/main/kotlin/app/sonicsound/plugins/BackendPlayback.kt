@@ -54,6 +54,20 @@ class BackendPlayback(
         }
     }
 
+    fun cycleRepeat(call: PluginCall) {
+        try {
+            if (webSocketConnected) {
+                sendWs("cycleRepeat")
+                call.resolve(responses.ok(""))
+                return
+            }
+            if (mBound) binder!!.cycleRepeat()
+            call.resolve(responses.ok(""))
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
+        }
+    }
+
     fun play(call: PluginCall) {
         if (webSocketConnected) {
             sendWs("play")

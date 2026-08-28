@@ -303,7 +303,8 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
             engine.isPlaying,
             engine.position,
             queue.currentTrack ?: Song("", "", "", 0, 0, "", "", "", ""),
-            queue.shuffling
+            queue.shuffling,
+            queue.repeatMode.toWire(),
         )
 
         fun next() = this@MusicService.next()
@@ -312,6 +313,11 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         fun pause() = this@MusicService.pause()
         fun shuffle() {
             queue.shufflePlaylist()
+            notifyListeners("playlistUpdated", null)
+        }
+
+        fun cycleRepeat() {
+            queue.cycleRepeat()
             notifyListeners("playlistUpdated", null)
         }
 

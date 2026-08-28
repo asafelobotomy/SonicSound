@@ -101,7 +101,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
         }
         if (mBound) {
             val state = binder!!.getCurrentState()
-            notifyListeners("progress", JSObject("{\"time\": ${state.position}}"))
+            notifyListeners("progress", JSObject("{\"time\": ${state.playtime}}"))
             notifyListeners(if (state.playing) "play" else "pause", null)
             notifyListeners(
                 "currentTrack",
@@ -140,6 +140,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun getGenres(call: PluginCall) = library.getGenres(call)
     @PluginMethod fun getServerCapabilities(call: PluginCall) = library.getServerCapabilities(call)
     @PluginMethod fun shufflePlaylist(call: PluginCall) = playback.shufflePlaylist(call)
+    @PluginMethod fun cycleRepeat(call: PluginCall) = playback.cycleRepeat(call)
     @PluginMethod fun getOfflineMode(call: PluginCall) = accounts.getOfflineMode(call)
     @PluginMethod fun setOfflineMode(call: PluginCall) = accounts.setOfflineMode(call)
     @PluginMethod fun getActiveAccount(call: PluginCall) = accounts.getActiveAccount(call)

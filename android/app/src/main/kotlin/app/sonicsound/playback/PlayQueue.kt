@@ -11,7 +11,12 @@ class PlayQueue {
     var originalPlaylist: List<Song> = listOf()
     var currentTrack: Song? = null
     var shuffling: Boolean = false
+    var repeatMode: RepeatMode = RepeatMode.OFF
     var collection: JukeboxCollection? = null
+
+    fun cycleRepeat() {
+        repeatMode = repeatMode.cycle()
+    }
 
     private fun entries(): List<Song> = playlist.entry.orEmpty()
 
@@ -47,12 +52,17 @@ class PlayQueue {
 
     fun next(): Song? {
         val list = entries()
+        if (list.isEmpty()) return null
         val idx = list.indexOf(currentTrack)
         if (idx >= 0 && idx < list.size - 1) {
             currentTrack = list[idx + 1]
             return currentTrack
         }
-        return null
+        return when (repeatMode) {
+            RepeatMode.ONE -> currentTrack
+            RepeatMode.ALL -> list.first().also { currentTrack = it }
+            RepeatMode.OFF -> null
+        }
     }
 
     fun prev(): Song? {

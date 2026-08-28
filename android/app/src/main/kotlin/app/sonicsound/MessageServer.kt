@@ -275,6 +275,11 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
                                 binder!!.shuffle()
                             }
                         }
+                        "cycleRepeat" -> {
+                            if (mBound) {
+                                binder!!.cycleRepeat()
+                            }
+                        }
                         "seek" -> {
                             if (command.data.isBlank()) {
                                 conn.send(constructMessage("The parameter time is empty", "error"))

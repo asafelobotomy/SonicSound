@@ -1,6 +1,7 @@
 package app.sonicsound.subsonic
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
@@ -41,13 +42,15 @@ class SubsonicCoverCache(
         )
     }
 
-    fun getLocalCoverArtUri(id: String): String =
-        Helpers.constructPath(listOf(getCoverArtsDirectory(), "$id.png"))
+    fun getLocalCoverArtUri(id: String, size: Int? = null): String {
+        val name = if (size != null && size > 0) "${id}_s$size.png" else "$id.png"
+        return Helpers.constructPath(listOf(getCoverArtsDirectory(), name))
+    }
 
     fun getLocalArtistArtUri(id: String): String =
         Helpers.constructPath(listOf(getArtistArtsDirectory(), "$id.png"))
 
-    fun getAlbumArtUrl(id: String): String {
+    fun getAlbumArtUrl(id: String, size: Int? = null): String {
         val uriBuilder = Uri.parse(account.url).buildUpon()
             .appendPath("rest")
             .appendPath("getCoverArt")
@@ -55,36 +58,21 @@ class SubsonicCoverCache(
             uriBuilder.appendQueryParameter(key, value)
         }
         uriBuilder.appendQueryParameter("id", id)
+        if (size != null && size > 0) {
+            uriBuilder.appendQueryParameter("size", size.toString())
+        }
         return uriBuilder.build().toString()
     }
 
     /** Returns remote cover URL and caches the image to disk asynchronously. */
-    fun getAlbumArt(id: String): String {
-        val url = getAlbumArtUrl(id)
+    fun getAlbumArt(id: String, size: Int? = null): String {
+        val url = getAlbumArtUrl(id, size)
+        val localPath = getLocalCoverArtUri(id, size)
         CoroutineScope(IO).launch {
             try {
-                if (!File(getLocalCoverArtUri(id)).exists()) {
-                    Log.i("Image saver", "Fetching image $id")
-                    saveImage(
-                        try {
-                            Glide.with(App.context)
-                                .asBitmap()
-                                .load(url)
-                                .submit()
-                                .get()
-                        } catch (e: Exception) {
-                            Glide.with(App.context)
-                                .asBitmap()
-                                .load(R.drawable.ic_album_art_placeholder)
-                                .submit()
-                                .get()
-                        },
-                        getCoverArtsDirectory(),
-                        getLocalCoverArtUri(id)
-                    )
-                }
+                cacheDownload(url, getCoverArtsDirectory(), localPath)
             } catch (e: Exception) {
-                Log.e("Image saver", e.message!!)
+                Log.e("Image saver", e.message ?: "cache failed")
                 Globals.NotifyObservers("EX", e.message)
             }
         }
@@ -93,22 +81,33 @@ class SubsonicCoverCache(
 
     fun cacheRemoteImage(url: String, directory: String, localPath: String) {
         CoroutineScope(IO).launch {
-            if (!File(localPath).exists()) {
-                try {
-                    saveImage(
-                        Glide.with(App.context)
-                            .asBitmap()
-                            .load(url)
-                            .submit()
-                            .get(),
-                        directory,
-                        localPath
-                    )
-                } catch (e: Exception) {
-                    Log.e("Image saver", e.message ?: "cache failed")
-                    Globals.NotifyObservers("EX", e.message)
-                }
+            try {
+                cacheDownload(url, directory, localPath)
+            } catch (e: Exception) {
+                Log.e("Image saver", e.message ?: "cache failed")
+                Globals.NotifyObservers("EX", e.message)
             }
+        }
+    }
+
+    private fun cacheDownload(url: String, directory: String, localPath: String) {
+        synchronized(cacheLock) {
+            if (File(localPath).exists()) return
+            Log.i("Image saver", "Fetching image $localPath")
+            val bitmap = try {
+                Glide.with(App.context)
+                    .asBitmap()
+                    .load(url)
+                    .submit()
+                    .get()
+            } catch (e: Exception) {
+                Glide.with(App.context)
+                    .asBitmap()
+                    .load(R.drawable.ic_album_art_placeholder)
+                    .submit()
+                    .get()
+            }
+            saveImage(bitmap, directory, localPath)
         }
     }
 
@@ -134,20 +133,20 @@ class SubsonicCoverCache(
     }
 
     fun loadCoverBitmapOrPlaceholder(id: String, remoteUrl: String): Bitmap {
-        return if (File(getLocalCoverArtUri(id)).exists()) {
+        val local = File(getLocalCoverArtUri(id))
+        if (local.exists()) {
             Log.i("BitmapMediaItem", "Loading from disk")
-            android.graphics.BitmapFactory.decodeFile(getLocalCoverArtUri(id))
-        } else {
-            Log.i("BitmapMediaItem", "Loading from server")
-            try {
-                Glide.with(App.context).asBitmap().load(Uri.parse(remoteUrl)).submit().get()
-            } catch (e: Exception) {
-                Glide.with(App.context)
-                    .asBitmap()
-                    .load(R.drawable.ic_album_art_placeholder)
-                    .submit()
-                    .get()
-            }
+            BitmapFactory.decodeFile(local.absolutePath)?.let { return it }
+        }
+        Log.i("BitmapMediaItem", "Loading from server")
+        return try {
+            Glide.with(App.context).asBitmap().load(Uri.parse(remoteUrl)).submit().get()
+        } catch (e: Exception) {
+            Glide.with(App.context)
+                .asBitmap()
+                .load(R.drawable.ic_album_art_placeholder)
+                .submit()
+                .get()
         }
     }
 
@@ -165,6 +164,8 @@ class SubsonicCoverCache(
     }
 
     companion object {
+        private val cacheLock = Any()
+
         fun saveImage(image: Bitmap, directory: String, path: String) {
             val storageDir = File(directory)
             var success = true
@@ -180,7 +181,7 @@ class SubsonicCoverCache(
                     fOut.close()
                     Log.i("Image save", "image successfully saved")
                 } catch (e: Exception) {
-                    Log.e("Image saver", e.message!!)
+                    Log.e("Image saver", e.message ?: "save failed")
                     Globals.NotifyObservers("EX", e.message)
                 }
             }

@@ -24,7 +24,7 @@ class PlaybackCommander(
     private val subsonicClient: SubsonicClient,
     private val connectivityManager: ConnectivityManager,
     private val queue: PlayQueue,
-    private val engine: VlcEngine,
+    private val engineProvider: () -> VlcEngine,
     private val onPlay: () -> Unit,
     private val onPause: () -> Unit,
     private val onNext: () -> Unit,
@@ -32,6 +32,8 @@ class PlaybackCommander(
     private val onCancel: () -> Unit,
     private val playSearch: (String, SearchType) -> Unit
 ) {
+    private val engine: VlcEngine get() = engineProvider()
+
     fun handleStartAction(intent: Intent) {
         when (intent.action) {
             Constants.SERVICE_PLAY_PAUSE ->

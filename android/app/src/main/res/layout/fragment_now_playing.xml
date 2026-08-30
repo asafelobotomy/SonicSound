@@ -304,6 +304,12 @@
             android:background="#000000"
             android:visibility="gone" />
 
+        <app.sonicsound.visualizer.WmpVisualizerView
+            android:id="@+id/wmp_visualizer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/img_fs_backdrop"
             android:layout_width="match_parent"

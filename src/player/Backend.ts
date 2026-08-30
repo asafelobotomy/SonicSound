@@ -102,7 +102,6 @@ export class Backend extends WebPlugin implements IBackendPlugin {
             if ("mediaSession" in navigator) {
                 navigator.mediaSession.playbackState = "none";
             }
-            this.notifyListeners("stopped", null);
             this._next();
         };
     }
@@ -347,7 +346,30 @@ export class Backend extends WebPlugin implements IBackendPlugin {
         this.audio.src = `${this.url()}/rest/stream?${this.songParams(
             this.currentTrack
         )}`;
-        await this.audio.play();
+        this.audio.load();
+        await this.playWhenReady();
+    }
+
+    private playWhenReady(): Promise<void> {
+        if (this.audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+            return this.audio.play().then(() => undefined);
+        }
+        return new Promise((resolve, reject) => {
+            const onReady = () => {
+                cleanup();
+                this.audio.play().then(() => resolve()).catch(reject);
+            };
+            const onError = () => {
+                cleanup();
+                reject(new Error("Failed to load audio"));
+            };
+            const cleanup = () => {
+                this.audio.removeEventListener("canplay", onReady);
+                this.audio.removeEventListener("error", onError);
+            };
+            this.audio.addEventListener("canplay", onReady, { once: true });
+            this.audio.addEventListener("error", onError, { once: true });
+        });
     }
 
     _prev() {

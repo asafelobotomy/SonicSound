@@ -23,6 +23,22 @@ const VIZ_OPTIONS = [
     { value: "art_black", label: "Album art & no background" },
     { value: "art_solid", label: "Album art & solid color" },
     { value: "dvd", label: "DVD-style" },
+    { value: "wmp_bars", label: "WMP: Bars" },
+    { value: "wmp_scope", label: "WMP: Scope" },
+    { value: "wmp_ocean_mist", label: "WMP: Ocean Mist" },
+    { value: "wmp_fire_storm", label: "WMP: Fire Storm" },
+    { value: "wmp_battery", label: "WMP: Battery" },
+    { value: "wmp_alchemy", label: "WMP: Alchemy" },
+    { value: "wmp_ambience", label: "WMP: Ambience" },
+    { value: "wmp_particle", label: "WMP: Particle" },
+    { value: "wmp_plenoptic", label: "WMP: Plenoptic" },
+    { value: "wmp_spikes", label: "WMP: Spikes" },
+    { value: "wmp_musical_colors", label: "WMP: Musical Colors" },
+    { value: "wmp_blazing_colors", label: "WMP: Blazing Colors" },
+    { value: "wmp_color_cubes", label: "WMP: Color Cubes" },
+    { value: "wmp_pulsing_colors", label: "WMP: Pulsing Colors" },
+    { value: "wmp_startime", label: "WMP: StarTime" },
+    { value: "wmp_snowtime", label: "WMP: SnowTime" },
 ] as const;
 
 const DVD_SPEEDS = [
@@ -31,8 +47,22 @@ const DVD_SPEEDS = [
     { value: "fast", label: "Fast" },
 ] as const;
 
+const AUDIO_PROFILES = [
+    { value: "off", label: "Off" },
+    { value: "flat", label: "Flat" },
+    { value: "bass", label: "Bass boost" },
+    { value: "treble", label: "Treble boost" },
+    { value: "vocal", label: "Vocal / speech" },
+    { value: "rock", label: "Rock" },
+    { value: "electronic", label: "Electronic" },
+    { value: "classical", label: "Classical" },
+    { value: "pop", label: "Pop" },
+    { value: "tv", label: "TV / living room" },
+    { value: "headphones", label: "Headphones" },
+] as const;
+
 export default function Settings() {
-    const [eqEnabled, setEqEnabled] = useState(false);
+    const [audioProfile, setAudioProfile] = useState("off");
     const [replayGainEnabled, setReplayGainEnabled] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [artCacheLabel, setArtCacheLabel] = useState("Art cache: …");
@@ -59,7 +89,8 @@ export default function Settings() {
             const ret = await VLC.setSettings({
                 ...current,
                 ...form,
-                eqEnabled,
+                audioProfile,
+                eqEnabled: audioProfile !== "off",
                 replayGainEnabled,
                 fullscreenVisualizer: visualizer,
                 fullscreenSolidColor: solidColor,
@@ -73,7 +104,7 @@ export default function Settings() {
             }
         },
         [
-            eqEnabled,
+            audioProfile,
             replayGainEnabled,
             visualizer,
             solidColor,
@@ -125,7 +156,10 @@ export default function Settings() {
             const settings = await VLC.getSettings();
             setValue("cacheSize", settings.value?.cacheSize ?? 0);
             setValue("transcoding", settings.value?.transcoding ?? "");
-            setEqEnabled(settings.value?.eqEnabled ?? false);
+            const profile =
+                settings.value?.audioProfile?.trim() ||
+                (settings.value?.eqEnabled ? "flat" : "off");
+            setAudioProfile(profile);
             setReplayGainEnabled(settings.value?.replayGainEnabled ?? false);
             setVisualizer(settings.value?.fullscreenVisualizer ?? "art_background");
             setSolidColor(settings.value?.fullscreenSolidColor ?? "#E53935");
@@ -164,27 +198,31 @@ export default function Settings() {
                 />
 
                 <div className="section-header text-white">Audio</div>
-                <div className="form-check form-switch mb-2">
-                    <input
-                        className="form-check-input"
-                        type="checkbox"
-                        checked={eqEnabled}
-                        onChange={() => {
-                            const next = !eqEnabled;
-                            setEqEnabled(next);
-                            persist({ eqEnabled: next });
-                        }}
-                        id="eqSwitch"
-                    />
-                    <label className="form-check-label text-white" htmlFor="eqSwitch">
-                        Audio equalizer
-                    </label>
-                </div>
+                <label className="subtitle text-white-50 mb-1 d-block">
+                    Audio profile {isAndroid ? "" : "(Android playback only)"}
+                </label>
+                <select
+                    className="form-select mb-2"
+                    value={audioProfile}
+                    disabled={!isAndroid}
+                    onChange={(e) => {
+                        const next = e.target.value;
+                        setAudioProfile(next);
+                        persist({ audioProfile: next, eqEnabled: next !== "off" });
+                    }}
+                >
+                    {AUDIO_PROFILES.map((p) => (
+                        <option key={p.value} value={p.value}>
+                            {p.label}
+                        </option>
+                    ))}
+                </select>
                 <div className="form-check form-switch mb-3">
                     <input
                         className="form-check-input"
                         type="checkbox"
                         checked={replayGainEnabled}
+                        disabled={!isAndroid}
                         onChange={() => {
                             const next = !replayGainEnabled;
                             setReplayGainEnabled(next);

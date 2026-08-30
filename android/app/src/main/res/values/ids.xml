@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="tag_album_art_url" type="id" />
+    <item name="tag_album_art_target" type="id" />
+</resources>

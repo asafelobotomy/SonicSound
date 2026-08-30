@@ -22,6 +22,7 @@ import androidx.core.view.isVisible
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import app.sonicsound.models.FullscreenVisualizer
+import app.sonicsound.playback.AudioProfile
 import app.sonicsound.subsonic.SubsonicClient
 
 class SettingsFragment : Fragment {
@@ -39,12 +40,14 @@ class SettingsFragment : Fragment {
 
     private var selectedSolidColor: String = FullscreenVisualizer.DEFAULT_SOLID
     private var suppressAutoSave = true
+    private var bindGeneration = 0
     private val saveHandler = Handler(Looper.getMainLooper())
     private val saveTextRunnable = Runnable { persistSettings() }
+    private var enableSaveRunnable: Runnable? = null
 
     private lateinit var transcoding: EditText
     private lateinit var cacheSize: EditText
-    private lateinit var eqSwitch: SwitchCompat
+    private lateinit var audioProfileSpinner: Spinner
     private lateinit var rgSwitch: SwitchCompat
     private lateinit var offlineSwitch: SwitchCompat
     private lateinit var vizSpinner: Spinner
@@ -52,6 +55,7 @@ class SettingsFragment : Fragment {
     private lateinit var clockSwitch: SwitchCompat
     private lateinit var dateSwitch: SwitchCompat
     private lateinit var vizModes: List<Pair<String, String>>
+    private lateinit var audioProfiles: List<Pair<String, String>>
     private lateinit var speeds: List<Pair<String, String>>
 
     constructor() : super()
@@ -65,6 +69,9 @@ class SettingsFragment : Fragment {
 
     override fun onDestroyView() {
         saveHandler.removeCallbacks(saveTextRunnable)
+        enableSaveRunnable?.let { saveHandler.removeCallbacks(it) }
+        enableSaveRunnable = null
+        suppressAutoSave = true
         super.onDestroyView()
     }
 
@@ -72,7 +79,7 @@ class SettingsFragment : Fragment {
         super.onViewCreated(view, savedInstanceState)
         transcoding = view.findViewById(R.id.et_transcoding)
         cacheSize = view.findViewById(R.id.et_cache_size)
-        eqSwitch = view.findViewById(R.id.switch_eq)
+        audioProfileSpinner = view.findViewById(R.id.spinner_audio_profile)
         rgSwitch = view.findViewById(R.id.switch_replaygain)
         offlineSwitch = view.findViewById(R.id.switch_offline)
         val cacheInfo = view.findViewById<TextView>(R.id.tv_cache_info)
@@ -88,7 +95,6 @@ class SettingsFragment : Fragment {
         suppressAutoSave = true
         transcoding.setText(settings.transcoding)
         cacheSize.setText(settings.cacheSize.toString())
-        eqSwitch.isChecked = settings.eqEnabled
         rgSwitch.isChecked = settings.replayGainEnabled
         offlineSwitch.isChecked = KeyValueStorage.getOfflineMode()
         clockSwitch.isChecked = settings.fullscreenShowClock
@@ -98,12 +104,24 @@ class SettingsFragment : Fragment {
         }
         refreshCache(cacheInfo)
 
-        vizModes = listOf(
-            FullscreenVisualizer.ART_BACKGROUND to getString(R.string.fullscreen_viz_art_background),
-            FullscreenVisualizer.ART_BLACK to getString(R.string.fullscreen_viz_art_black),
-            FullscreenVisualizer.ART_SOLID to getString(R.string.fullscreen_viz_art_solid),
-            FullscreenVisualizer.DVD to getString(R.string.fullscreen_viz_dvd),
+        audioProfiles = AudioProfile.ALL.map { id ->
+            id to getString(audioProfileLabel(id))
+        }
+        audioProfileSpinner.adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            audioProfiles.map { it.second }
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        val resolvedProfile = AudioProfile.resolve(settings)
+        audioProfileSpinner.setSelection(
+            audioProfiles.indexOfFirst { it.first == resolvedProfile }.coerceAtLeast(0)
         )
+
+        vizModes = FullscreenVisualizer.ALL_MODES.map { mode ->
+            mode to getString(visualizerLabel(mode))
+        }
         vizSpinner.adapter = ArrayAdapter(
             requireContext(),
             android.R.layout.simple_spinner_dropdown_item,
@@ -160,13 +178,21 @@ class SettingsFragment : Fragment {
         }
         refreshConditionalRows()
         bindColorSwatches(swatches)
-        wireFocusRow(view.findViewById(R.id.row_eq), eqSwitch)
+        audioProfileSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) = persistSettings()
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
         wireFocusRow(view.findViewById(R.id.row_replaygain), rgSwitch)
         wireFocusRow(view.findViewById(R.id.row_fs_clock), clockSwitch)
         wireFocusRow(view.findViewById(R.id.row_fs_date), dateSwitch)
         wireFocusRow(view.findViewById(R.id.row_offline), offlineSwitch)
 
-        eqSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
         rgSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
         clockSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
         dateSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
@@ -188,7 +214,14 @@ class SettingsFragment : Fragment {
         }
 
         // Spinners fire onItemSelected during initial setSelection; ignore until ready.
-        view.post { suppressAutoSave = false }
+        val generation = ++bindGeneration
+        enableSaveRunnable?.let { saveHandler.removeCallbacks(it) }
+        enableSaveRunnable = Runnable {
+            if (generation == bindGeneration && isAdded && view != null) {
+                suppressAutoSave = false
+            }
+        }
+        saveHandler.post(enableSaveRunnable!!)
     }
 
     private fun scheduleTextSave() {
@@ -198,19 +231,25 @@ class SettingsFragment : Fragment {
     }
 
     private fun persistSettings() {
-        if (suppressAutoSave || !::transcoding.isInitialized) return
+        if (suppressAutoSave || !isAdded || view == null) return
+        if (!::transcoding.isInitialized || !::audioProfiles.isInitialized || !::vizModes.isInitialized) {
+            return
+        }
         val parsedCache =
             cacheSize.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val mode = vizModes.getOrNull(vizSpinner.selectedItemPosition)?.first
             ?: FullscreenVisualizer.ART_BACKGROUND
         val speed = speeds.getOrNull(speedSpinner.selectedItemPosition)?.first
             ?: FullscreenVisualizer.SPEED_DEFAULT
+        val profile = audioProfiles.getOrNull(audioProfileSpinner.selectedItemPosition)?.first
+            ?: AudioProfile.OFF
         val current = KeyValueStorage.getSettings()
         KeyValueStorage.setSettings(
             current.copy(
                 transcoding = transcoding.text?.toString().orEmpty(),
                 cacheSize = parsedCache,
-                eqEnabled = eqSwitch.isChecked,
+                audioProfile = profile,
+                eqEnabled = profile != AudioProfile.OFF,
                 replayGainEnabled = rgSwitch.isChecked,
                 fullscreenVisualizer = mode,
                 fullscreenSolidColor = selectedSolidColor,
@@ -293,5 +332,44 @@ class SettingsFragment : Fragment {
         } catch (_: Exception) {
             cacheInfo.text = getString(R.string.art_cache_unavailable)
         }
+    }
+
+    private fun audioProfileLabel(id: String): Int = when (id) {
+        AudioProfile.OFF -> R.string.audio_profile_off
+        AudioProfile.FLAT -> R.string.audio_profile_flat
+        AudioProfile.BASS -> R.string.audio_profile_bass
+        AudioProfile.TREBLE -> R.string.audio_profile_treble
+        AudioProfile.VOCAL -> R.string.audio_profile_vocal
+        AudioProfile.ROCK -> R.string.audio_profile_rock
+        AudioProfile.ELECTRONIC -> R.string.audio_profile_electronic
+        AudioProfile.CLASSICAL -> R.string.audio_profile_classical
+        AudioProfile.POP -> R.string.audio_profile_pop
+        AudioProfile.TV -> R.string.audio_profile_tv
+        AudioProfile.HEADPHONES -> R.string.audio_profile_headphones
+        else -> R.string.audio_profile_off
+    }
+
+    private fun visualizerLabel(mode: String): Int = when (mode) {
+        FullscreenVisualizer.ART_BACKGROUND -> R.string.fullscreen_viz_art_background
+        FullscreenVisualizer.ART_BLACK -> R.string.fullscreen_viz_art_black
+        FullscreenVisualizer.ART_SOLID -> R.string.fullscreen_viz_art_solid
+        FullscreenVisualizer.DVD -> R.string.fullscreen_viz_dvd
+        FullscreenVisualizer.WMP_BARS -> R.string.fullscreen_viz_wmp_bars
+        FullscreenVisualizer.WMP_SCOPE -> R.string.fullscreen_viz_wmp_scope
+        FullscreenVisualizer.WMP_OCEAN_MIST -> R.string.fullscreen_viz_wmp_ocean_mist
+        FullscreenVisualizer.WMP_FIRE_STORM -> R.string.fullscreen_viz_wmp_fire_storm
+        FullscreenVisualizer.WMP_BATTERY -> R.string.fullscreen_viz_wmp_battery
+        FullscreenVisualizer.WMP_ALCHEMY -> R.string.fullscreen_viz_wmp_alchemy
+        FullscreenVisualizer.WMP_AMBIENCE -> R.string.fullscreen_viz_wmp_ambience
+        FullscreenVisualizer.WMP_PARTICLE -> R.string.fullscreen_viz_wmp_particle
+        FullscreenVisualizer.WMP_PLENOPTIC -> R.string.fullscreen_viz_wmp_plenoptic
+        FullscreenVisualizer.WMP_SPIKES -> R.string.fullscreen_viz_wmp_spikes
+        FullscreenVisualizer.WMP_MUSICAL_COLORS -> R.string.fullscreen_viz_wmp_musical_colors
+        FullscreenVisualizer.WMP_BLAZING_COLORS -> R.string.fullscreen_viz_wmp_blazing_colors
+        FullscreenVisualizer.WMP_COLOR_CUBES -> R.string.fullscreen_viz_wmp_color_cubes
+        FullscreenVisualizer.WMP_PULSING_COLORS -> R.string.fullscreen_viz_wmp_pulsing_colors
+        FullscreenVisualizer.WMP_STARTIME -> R.string.fullscreen_viz_wmp_startime
+        FullscreenVisualizer.WMP_SNOWTIME -> R.string.fullscreen_viz_wmp_snowtime
+        else -> R.string.fullscreen_viz_art_background
     }
 }

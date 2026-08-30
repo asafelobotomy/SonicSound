@@ -16,14 +16,18 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
+import app.sonicsound.Globals
 import app.sonicsound.KeyValueStorage
 import app.sonicsound.R
 import app.sonicsound.TvActivity
+import app.sonicsound.extensions.clearAlbumArtTarget
 import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.models.FullscreenVisualizer
 import app.sonicsound.models.Song
 import app.sonicsound.playback.RepeatMode
+import app.sonicsound.visualizer.DvdScreensaver
+import app.sonicsound.visualizer.WmpVisualizerView
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,6 +53,7 @@ class NowPlayingFullscreen(
     private val solidBg: View = root.findViewById(R.id.v_fs_solid_bg)
     private val fsBackdrop: ImageView = root.findViewById(R.id.img_fs_backdrop)
     private val fsArt: ImageView = root.findViewById(R.id.img_fs_art)
+    private val wmpVisualizer: WmpVisualizerView = root.findViewById(R.id.wmp_visualizer)
     private val fsMedia: FrameLayout = root.findViewById(R.id.fl_fs_media)
     private val fsFocusAnchor: View = root.findViewById(R.id.v_fs_focus_anchor)
     private val fsMeta: View = root.findViewById(R.id.ll_fs_meta)
@@ -96,11 +101,10 @@ class NowPlayingFullscreen(
     private var controlsVisible = true
     private var visualizerMode = FullscreenVisualizer.ART_BACKGROUND
     private var dvdRunning = false
-    private var dvdVx = 0f
-    private var dvdVy = 0f
-    private var lastDvdFrameMs = 0L
-    private val dvdArtSizePx: Int
-        get() = (200f * root.resources.displayMetrics.density).toInt()
+    private var dvdLayoutPrepared = false
+    private var lastArtUrl: String? = null
+    private var ensuredVisualizerAout = false
+    private val dvdScreensaver = DvdScreensaver(speedPxPerSec = { dvdSpeedPxPerSec() })
     private val dvdFrameCallback = object : android.view.Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!dvdRunning || !active) return
@@ -217,6 +221,7 @@ class NowPlayingFullscreen(
         when {
             video && !wasVideo -> {
                 stopDvd()
+                stopWmpVisualizer()
                 resetArtLayoutForStandard()
                 fsArt.isVisible = false
                 fsBackdrop.isVisible = true
@@ -236,23 +241,33 @@ class NowPlayingFullscreen(
         } else {
             stopDvd()
         }
+        if (!video && FullscreenVisualizer.isWmpMode(visualizerMode)) {
+            startWmpVisualizer()
+        } else {
+            stopWmpVisualizer()
+        }
         applyMetaVisibility()
     }
 
     private fun loadArtForMode(artUrl: String) {
-        when (visualizerMode) {
-            FullscreenVisualizer.ART_BACKGROUND -> {
+        if (artUrl.isNotBlank() && artUrl == lastArtUrl) return
+        lastArtUrl = artUrl.takeIf { it.isNotBlank() }
+        when {
+            FullscreenVisualizer.isWmpMode(visualizerMode) -> Unit
+            visualizerMode == FullscreenVisualizer.ART_BACKGROUND -> {
                 fsBackdrop.loadUrl(artUrl)
                 fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
                 fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
             }
-            FullscreenVisualizer.ART_BLACK, FullscreenVisualizer.ART_SOLID -> {
+            visualizerMode == FullscreenVisualizer.ART_BLACK ||
+                visualizerMode == FullscreenVisualizer.ART_SOLID -> {
                 fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
                 fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
             }
-            FullscreenVisualizer.DVD -> {
+            visualizerMode == FullscreenVisualizer.DVD -> {
+                // Small bouncing tile — skip heavy faux-upscale.
                 fsArt.scaleType = ImageView.ScaleType.CENTER_CROP
-                fsArt.loadAlbumArt(artUrl, upscaleLowRes = true)
+                fsArt.loadAlbumArt(artUrl, upscaleLowRes = false)
             }
             else -> {
                 fsBackdrop.loadUrl(artUrl)
@@ -276,6 +291,9 @@ class NowPlayingFullscreen(
         }
         when (visualizerMode) {
             FullscreenVisualizer.ART_BACKGROUND -> {
+                stopWmpVisualizer()
+                wmpVisualizer.isVisible = false
+                fsArt.isVisible = true
                 solidBg.isVisible = false
                 fsBackdrop.isVisible = true
                 fsBackdrop.alpha = 0.35f
@@ -283,6 +301,9 @@ class NowPlayingFullscreen(
                 resetArtLayoutForStandard()
             }
             FullscreenVisualizer.ART_BLACK -> {
+                stopWmpVisualizer()
+                wmpVisualizer.isVisible = false
+                fsArt.isVisible = true
                 solidBg.isVisible = true
                 solidBg.setBackgroundColor(Color.BLACK)
                 fsBackdrop.isVisible = false
@@ -290,6 +311,9 @@ class NowPlayingFullscreen(
                 resetArtLayoutForStandard()
             }
             FullscreenVisualizer.ART_SOLID -> {
+                stopWmpVisualizer()
+                wmpVisualizer.isVisible = false
+                fsArt.isVisible = true
                 solidBg.isVisible = true
                 solidBg.setBackgroundColor(parseColorSafe(settings.fullscreenSolidColor))
                 fsBackdrop.isVisible = false
@@ -297,13 +321,31 @@ class NowPlayingFullscreen(
                 resetArtLayoutForStandard()
             }
             FullscreenVisualizer.DVD -> {
+                stopWmpVisualizer()
+                wmpVisualizer.isVisible = false
+                fsArt.isVisible = true
                 solidBg.isVisible = true
                 solidBg.setBackgroundColor(Color.BLACK)
                 fsBackdrop.isVisible = false
                 overlay.setBackgroundColor(Color.BLACK)
-                prepareDvdArtLayout()
+                if (!dvdLayoutPrepared) {
+                    prepareDvdArtLayout()
+                    dvdLayoutPrepared = true
+                }
             }
-            else -> {
+            else -> if (FullscreenVisualizer.isWmpMode(visualizerMode)) {
+                stopDvd()
+                fsArt.isVisible = false
+                fsBackdrop.isVisible = false
+                solidBg.isVisible = true
+                solidBg.setBackgroundColor(Color.BLACK)
+                overlay.setBackgroundColor(Color.BLACK)
+                wmpVisualizer.isVisible = true
+                wmpVisualizer.setMode(visualizerMode)
+            } else {
+                stopWmpVisualizer()
+                wmpVisualizer.isVisible = false
+                fsArt.isVisible = true
                 solidBg.isVisible = false
                 fsBackdrop.isVisible = true
                 fsBackdrop.alpha = 0.35f
@@ -315,6 +357,7 @@ class NowPlayingFullscreen(
     }
 
     private fun resetArtLayoutForStandard() {
+        dvdLayoutPrepared = false
         val lp = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
@@ -325,29 +368,62 @@ class NowPlayingFullscreen(
         fsArt.scaleType = ImageView.ScaleType.FIT_CENTER
     }
 
+    private val dvdArtSizePx: Int
+        get() = (200f * root.resources.displayMetrics.density).toInt()
+
     private fun prepareDvdArtLayout() {
         val size = dvdArtSizePx
         val lp = FrameLayout.LayoutParams(size, size)
         fsArt.layoutParams = lp
         fsArt.scaleType = ImageView.ScaleType.CENTER_CROP
-        fsArt.translationX = 40f * root.resources.displayMetrics.density
-        fsArt.translationY = 40f * root.resources.displayMetrics.density
+        val density = root.resources.displayMetrics.density
+        dvdScreensaver.reset(40f * density, 40f * density)
+        fsArt.translationX = dvdScreensaver.x
+        fsArt.translationY = dvdScreensaver.y
     }
 
     private fun startDvd() {
         if (dvdRunning || videoMode) return
-        val speed = dvdSpeedPxPerSec()
-        dvdVx = speed
-        dvdVy = speed * 0.72f
-        lastDvdFrameMs = SystemClock.uptimeMillis()
+        val density = root.resources.displayMetrics.density
+        if (dvdScreensaver.vx == 0f && dvdScreensaver.vy == 0f) {
+            dvdScreensaver.reset(
+                fsArt.translationX.takeIf { it > 0f } ?: (40f * density),
+                fsArt.translationY.takeIf { it > 0f } ?: (40f * density),
+            )
+        }
         dvdRunning = true
+        lastDvdFrameMs = SystemClock.uptimeMillis()
         android.view.Choreographer.getInstance().postFrameCallback(dvdFrameCallback)
     }
+
+    private var lastDvdFrameMs = 0L
 
     private fun stopDvd() {
         if (!dvdRunning) return
         dvdRunning = false
         android.view.Choreographer.getInstance().removeFrameCallback(dvdFrameCallback)
+    }
+
+    private fun startWmpVisualizer() {
+        // Once per immersive session: recreate LibVLC if aout isn't Visualizer-friendly yet.
+        if (!ensuredVisualizerAout) {
+            ensuredVisualizerAout = true
+            Globals.NotifyObservers("AUDIO_SETTINGS", "")
+        }
+        wmpVisualizer.isVisible = true
+        wmpVisualizer.setMode(visualizerMode)
+        wmpVisualizer.setPlaying(bind.getCurrentState()?.playing == true)
+        wmpVisualizer.start()
+    }
+
+    private fun stopWmpVisualizer() {
+        wmpVisualizer.stop()
+        wmpVisualizer.isVisible = false
+    }
+
+    /** Forward RECORD_AUDIO grant so the spectrum source can attach mid-session. */
+    fun onRecordAudioPermissionResult(granted: Boolean) {
+        wmpVisualizer.onRecordAudioPermissionResult(granted)
     }
 
     private fun dvdSpeedPxPerSec(): Float {
@@ -367,26 +443,9 @@ class NowPlayingFullscreen(
         if (parentW <= 0 || parentH <= 0) return
         val artW = fsArt.width.takeIf { it > 0 } ?: dvdArtSizePx
         val artH = fsArt.height.takeIf { it > 0 } ?: dvdArtSizePx
-        var x = fsArt.translationX + dvdVx * dt
-        var y = fsArt.translationY + dvdVy * dt
-        val maxX = (parentW - artW).toFloat().coerceAtLeast(0f)
-        val maxY = (parentH - artH).toFloat().coerceAtLeast(0f)
-        if (x <= 0f) {
-            x = 0f
-            dvdVx = kotlin.math.abs(dvdVx)
-        } else if (x >= maxX) {
-            x = maxX
-            dvdVx = -kotlin.math.abs(dvdVx)
-        }
-        if (y <= 0f) {
-            y = 0f
-            dvdVy = kotlin.math.abs(dvdVy)
-        } else if (y >= maxY) {
-            y = maxY
-            dvdVy = -kotlin.math.abs(dvdVy)
-        }
-        fsArt.translationX = x
-        fsArt.translationY = y
+        dvdScreensaver.step(dt, parentW, parentH, artW, artH)
+        fsArt.translationX = dvdScreensaver.x
+        fsArt.translationY = dvdScreensaver.y
     }
 
     private fun bindNext(nextSong: Song?) {
@@ -423,18 +482,43 @@ class NowPlayingFullscreen(
     fun exit() {
         if (!active) return
         active = false
+        ensuredVisualizerAout = false
         hideHandler.removeCallbacks(hideRunnable)
         stopDvd()
+        stopWmpVisualizer()
         stopClockUpdates()
         if (videoMode) moveVideo(toFullscreen = false)
         videoMode = false
         resetArtLayoutForStandard()
+        clearArtLoads()
         overlay.isVisible = false
         chrome.isVisible = true
         bind.setImmersive(false)
     }
 
+    /** Always safe to call from fragment teardown (active or not). */
+    fun releaseResources() {
+        if (active) {
+            exit()
+        } else {
+            ensuredVisualizerAout = false
+            hideHandler.removeCallbacks(hideRunnable)
+            stopDvd()
+            stopWmpVisualizer()
+            stopClockUpdates()
+            clearArtLoads()
+            bind.setImmersive(false)
+        }
+    }
+
+    private fun clearArtLoads() {
+        fsArt.clearAlbumArtTarget()
+        fsBackdrop.clearAlbumArtTarget()
+        lastArtUrl = null
+    }
+
     fun setPlaying(playing: Boolean) {
+        wmpVisualizer.setPlaying(playing)
         fsPlay.setImageDrawable(
             ResourcesCompat.getDrawable(
                 root.resources,
@@ -494,9 +578,13 @@ class NowPlayingFullscreen(
             fsMeta.isVisible = controlsVisible
             return
         }
-        // DVD-style: hide title / artist / up-next until chrome is shown.
-        fsMeta.isVisible =
-            visualizerMode != FullscreenVisualizer.DVD || controlsVisible
+        // DVD-style and WMP visualizers: hide title / artist / up-next until chrome is shown.
+        fsMeta.isVisible = when {
+            videoMode -> controlsVisible
+            visualizerMode == FullscreenVisualizer.DVD -> controlsVisible
+            FullscreenVisualizer.isWmpMode(visualizerMode) -> controlsVisible
+            else -> true
+        }
     }
 
     private fun resetHideTimer() {

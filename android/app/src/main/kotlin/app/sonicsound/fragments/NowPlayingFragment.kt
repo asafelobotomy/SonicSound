@@ -28,6 +28,7 @@ import app.sonicsound.IBroadcastObserver
 import app.sonicsound.R
 import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundPlaylistItemAdapter
+import app.sonicsound.extensions.clearAlbumArtTarget
 import app.sonicsound.extensions.loadAlbumArt
 import app.sonicsound.extensions.loadUrl
 import app.sonicsound.extensions.requestPrimaryFocus
@@ -66,6 +67,7 @@ class NowPlayingFragment : Fragment {
     private var lastProgressFraction = 0.0
     private var lastProgressAtMs = 0L
     private var progressTickPlaying = false
+    private var lastArtUrl: String? = null
     private val progressHandler = Handler(Looper.getMainLooper())
     private val progressTickRunnable = object : Runnable {
         override fun run() {
@@ -103,12 +105,19 @@ class NowPlayingFragment : Fragment {
     override fun onDestroyView() {
         progressHandler.removeCallbacks(progressTickRunnable)
         // Restore sidebar if we were replaced while fullscreen immersive.
-        fullscreen?.exit()
+        fullscreen?.releaseResources()
         fullscreen = null
         scrubber = null
         musicVideo?.destroy()
         musicVideo = null
+        if (::image.isInitialized) image.clearAlbumArtTarget()
+        if (::backdrop.isInitialized) backdrop.clearAlbumArtTarget()
+        lastArtUrl = null
         super.onDestroyView()
+    }
+
+    fun onRecordAudioPermissionResult(granted: Boolean) {
+        fullscreen?.onRecordAudioPermissionResult(granted)
     }
 
     /** @return true if back was consumed (scrub disarm or exit fullscreen). */
@@ -274,7 +283,7 @@ class NowPlayingFragment : Fragment {
     private fun enterFullscreen() {
         val state = bind.getCurrentState() ?: return
         if (state.currentTrack.id.isBlank()) return
-        val artUrl = client.getAlbumArt(state.currentTrack.albumId)
+        val artUrl = client.getAlbumArtForDisplay(state.currentTrack.albumId)
         val entries = bind.getCurrentPlaylist()?.entry.orEmpty()
         val idx = entries.indexOfFirst { it.id == state.currentTrack.id }
         val next = entries.getOrNull(idx + 1)
@@ -335,9 +344,12 @@ class NowPlayingFragment : Fragment {
     private fun loadAlbumArt(url: String) {
         if (!::image.isInitialized) return
         if (url.isBlank()) {
+            lastArtUrl = null
             image.loadUrl("")
             return
         }
+        if (url == lastArtUrl) return
+        lastArtUrl = url
         image.scaleType = ImageView.ScaleType.FIT_CENTER
         image.loadAlbumArt(url, upscaleLowRes = true) { w, h -> applyMediaAspect(w, h) }
         backdrop.loadUrl(url)
@@ -364,7 +376,7 @@ class NowPlayingFragment : Fragment {
         if (currentState == null || currentState.currentTrack.id == "") return
         firstLine.text = currentState.currentTrack.title
         secondLine.text = currentState.currentTrack.artist
-        val artUrl = client.getAlbumArt(currentState.currentTrack.albumId)
+        val artUrl = client.getAlbumArtForDisplay(currentState.currentTrack.albumId)
         loadAlbumArt(artUrl)
         durationText.text = secondsToHHSS(currentState.currentTrack.duration)
         setPlayingUi(currentState.playing)

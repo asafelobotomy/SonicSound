@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -29,6 +30,7 @@ import app.sonicsound.fragments.VideosFragment
 import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.models.Playlist
 import app.sonicsound.services.MusicService
+import app.sonicsound.visualizer.WmpVisualizerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -352,5 +354,17 @@ class TvActivity : AppCompatActivity() {
         navBeforePlaying = selectedNavId
         showDetail(playingFragment)
         highlightNav(R.id.btn_playing)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != WmpVisualizerView.REQUEST_RECORD_AUDIO) return
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        playingFragment.onRecordAudioPermissionResult(granted)
     }
 }

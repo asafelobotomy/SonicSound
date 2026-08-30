@@ -162,6 +162,12 @@ class SubsonicClient(var initialAccount: Account) {
     fun getTopAlbums(type: String = "frequent", size: Int = 10): List<Album> =
         library.getTopAlbums(type, size)
     fun getAlbumArt(id: String): String = coverCache.getAlbumArt(id)
+
+    /** Requests a larger cover from Subsonic on TV for Now Playing / fullscreen. */
+    fun getAlbumArtForDisplay(id: String): String {
+        val size = if (App.isTv) 1200 else null
+        return coverCache.getAlbumArt(id, size)
+    }
     fun getSpotifyToken(): String = library.getSpotifyToken()
     fun scrobble(id: String) = library.scrobble(id)
     fun getArtistArt(id: String): String = library.getArtistArt(id)

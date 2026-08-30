@@ -29,6 +29,8 @@ export interface ISettings {
     cacheSize: number;
     transcoding: string;
     eqEnabled?: boolean;
+    /** off | flat | bass | treble | vocal | rock | electronic | classical | pop | tv | headphones */
+    audioProfile?: string;
     replayGainEnabled?: boolean;
     youtubeApiKey?: string;
     youtubeVideosEnabled?: boolean;

@@ -7,6 +7,7 @@ import app.sonicsound.models.Album
 import app.sonicsound.models.Playlist
 import app.sonicsound.models.Settings
 import app.sonicsound.models.Song
+import app.sonicsound.playback.AudioProfile
 import com.google.gson.Gson
 
 class KeyValueStorage {
@@ -54,7 +55,15 @@ class KeyValueStorage {
         }
 
         fun setSettings(settings: Settings) {
-            prefs().edit().putString("settings", Gson().toJson(settings)).apply()
+            val previous = getSettings()
+            val normalized = AudioProfile.normalize(settings)
+            prefs().edit().putString("settings", Gson().toJson(normalized)).apply()
+            val audioChanged =
+                AudioProfile.resolve(previous) != AudioProfile.resolve(normalized) ||
+                    previous.replayGainEnabled != normalized.replayGainEnabled
+            if (audioChanged) {
+                Globals.NotifyObservers("AUDIO_SETTINGS", "")
+            }
         }
 
         fun getActiveAccount(): Account {

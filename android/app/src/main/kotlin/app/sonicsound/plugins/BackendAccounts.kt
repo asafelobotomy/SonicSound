@@ -14,6 +14,7 @@ import app.sonicsound.MainActivity
 import app.sonicsound.models.Account
 import app.sonicsound.models.ParameterException
 import app.sonicsound.models.Settings
+import app.sonicsound.playback.AudioProfile
 import app.sonicsound.subsonic.SubsonicClient
 import com.getcapacitor.PluginCall
 
@@ -106,6 +107,7 @@ class BackendAccounts(
             val transcoding = call.getString("transcoding") ?: ""
             val current = getSettings()
             val eqEnabled = call.getBoolean("eqEnabled") ?: current.eqEnabled
+            val audioProfile = call.getString("audioProfile") ?: current.audioProfile
             val replayGainEnabled =
                 call.getBoolean("replayGainEnabled") ?: current.replayGainEnabled
             val youtubeApiKey = call.getString("youtubeApiKey") ?: current.youtubeApiKey
@@ -145,6 +147,7 @@ class BackendAccounts(
                     cacheSize = cacheSize,
                     transcoding = transcoding,
                     eqEnabled = eqEnabled,
+                    audioProfile = audioProfile,
                     replayGainEnabled = replayGainEnabled,
                     youtubeApiKey = youtubeApiKey,
                     youtubeVideosEnabled = youtubeVideosEnabled,
@@ -159,7 +162,7 @@ class BackendAccounts(
                     dvdSpeed = dvdSpeed,
                     fullscreenShowClock = fullscreenShowClock,
                     fullscreenShowDate = fullscreenShowDate,
-                )
+                ).let { AudioProfile.normalize(it) }
             )
             call.resolve(responses.ok(""))
         } catch (e: Exception) {

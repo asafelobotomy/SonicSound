@@ -13,6 +13,7 @@ import android.util.Log
 import app.sonicsound.App
 import app.sonicsound.Globals
 import app.sonicsound.KeyValueStorage
+import app.sonicsound.models.Settings
 import app.sonicsound.models.Song
 import app.sonicsound.subsonic.SubsonicClient
 import kotlinx.coroutines.CoroutineScope
@@ -21,11 +22,8 @@ import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.HWDecoderUtil
 import java.io.File
-import java.io.IOException
-import java.io.RandomAccessFile
-import java.nio.channels.FileLock
-import java.nio.channels.OverlappingFileLockException
 
 /**
  * LibVLC MediaPlayer wrapper: load, play/pause, seek (0..1), volume, audio focus.
@@ -34,10 +32,17 @@ class VlcEngine(
     private val subsonicClient: SubsonicClient,
     private val onDevicesRemoved: () -> Unit
 ) {
-    private val args = mutableListOf("-vvv")
+    private val args = mutableListOf<String>()
     private var mLibVLC: LibVLC? = null
     var mediaPlayer: MediaPlayer? = null
         private set
+
+    private var appliedReplayGain = false
+    private var appliedEqualizerFilter = false
+    /** True when LibVLC was created with --aout=android_audiotrack (Visualizer-friendly). */
+    private var appliedAudioTrackAout = false
+    private var released = false
+    private val lock = Any()
 
     private val mAudioManager: AudioManager =
         App.context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -47,90 +52,151 @@ class VlcEngine(
         .build()
     private var mAudioFocusRequest: AudioFocusRequest? = null
     private var wasPlaying: Boolean = false
+    private var hasAudioFocus = false
 
     private val audioFocusChangeListener = OnAudioFocusChangeListener { focusChange: Int ->
+        if (released) return@OnAudioFocusChangeListener
         when (focusChange) {
-            AudioManager.AUDIOFOCUS_GAIN ->
-                if (mediaPlayer != null &&
-                    mediaPlayer!!.media != null &&
-                    mediaPlayer!!.position < mediaPlayer!!.media!!.duration &&
-                    wasPlaying
-                ) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                hasAudioFocus = true
+                val player = mediaPlayer ?: return@OnAudioFocusChangeListener
+                val media = player.media ?: return@OnAudioFocusChangeListener
+                if (wasPlaying && player.position < media.duration) {
                     wasPlaying = false
-                    mediaPlayer!!.play()
+                    runCatching { player.play() }
                 }
-            AudioManager.AUDIOFOCUS_LOSS,
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> hasAudioFocus = false
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                if (mediaPlayer != null && mediaPlayer!!.isPlaying) {
+                val player = mediaPlayer ?: return@OnAudioFocusChangeListener
+                if (player.isPlaying) {
                     wasPlaying = true
-                    mediaPlayer!!.pause()
+                    runCatching { player.pause() }
                 }
             }
         }
     }
 
-    private inner class DeviceCallback : AudioDeviceCallback() {
+    private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-            onDevicesRemoved()
+            if (!released) onDevicesRemoved()
         }
     }
 
     init {
-        mAudioManager.registerAudioDeviceCallback(DeviceCallback(), null)
+        mAudioManager.registerAudioDeviceCallback(deviceCallback, null)
     }
 
-    private fun buildLibVlcArgs(): ArrayList<String> {
-        val settings = KeyValueStorage.getSettings()
+    private fun wantsAudioTrackAout(): Boolean =
+        HWDecoderUtil.getAudioOutputFromDevice() != HWDecoderUtil.AudioOutput.OPENSLES
+
+    private fun buildLibVlcArgs(settings: Settings): ArrayList<String> {
+        val profile = AudioProfile.resolve(settings)
         val libArgs = ArrayList(args)
-        if (settings.eqEnabled) {
+        if (AudioProfile.needsEqualizerFilter(profile)) {
             libArgs.add("--audio-filter=equalizer")
         }
         if (settings.replayGainEnabled) {
             libArgs.add("--audio-replay-gain-mode=track")
+            libArgs.add("--audio-replay-gain-preamp=0")
+        }
+        // AudioTrack routes through AudioFlinger so Visualizer(0) can see the mix.
+        // OpenSL ES / AAudio often bypass session capture (silent spectrum).
+        // Keep OpenSL on devices that cannot use AudioTrack (e.g. some Amazon sticks).
+        if (wantsAudioTrackAout()) {
+            libArgs.add("--aout=android_audiotrack")
         }
         return libArgs
     }
 
-    fun create(eventListener: MediaPlayer.EventListener) {
-        mLibVLC = LibVLC(App.context, buildLibVlcArgs())
-        mediaPlayer = MediaPlayer(mLibVLC)
-        mediaPlayer!!.setEventListener(eventListener)
+    fun needsRecreate(settings: Settings): Boolean {
+        val profile = AudioProfile.resolve(settings)
+        val wantEqFilter = AudioProfile.needsEqualizerFilter(profile)
+        return settings.replayGainEnabled != appliedReplayGain ||
+            wantEqFilter != appliedEqualizerFilter ||
+            wantsAudioTrackAout() != appliedAudioTrackAout
     }
 
-    fun release() {
-        if (mediaPlayer?.isPlaying == true) mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mLibVLC?.release()
-        mediaPlayer = null
-        mLibVLC = null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mAudioFocusRequest != null) {
-            mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest!!)
-        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            @Suppress("DEPRECATION")
-            mAudioManager.abandonAudioFocus(audioFocusChangeListener)
+    fun create(eventListener: MediaPlayer.EventListener) {
+        synchronized(lock) {
+            released = false
+            val settings = KeyValueStorage.getSettings()
+            val profile = AudioProfile.resolve(settings)
+            appliedReplayGain = settings.replayGainEnabled
+            appliedEqualizerFilter = AudioProfile.needsEqualizerFilter(profile)
+            appliedAudioTrackAout = wantsAudioTrackAout()
+            mLibVLC = LibVLC(App.context, buildLibVlcArgs(settings))
+            mediaPlayer = MediaPlayer(mLibVLC).also {
+                it.setEventListener(eventListener)
+            }
+            applyAudioProfileUnlocked(profile)
         }
     }
 
-    val isPlaying: Boolean get() = mediaPlayer?.isPlaying == true
-    val position: Float get() = mediaPlayer?.position ?: 0f
+    fun applyAudioProfile(profileId: String = AudioProfile.resolve(KeyValueStorage.getSettings())) {
+        synchronized(lock) {
+            applyAudioProfileUnlocked(profileId)
+        }
+    }
+
+    private fun applyAudioProfileUnlocked(
+        profileId: String = AudioProfile.resolve(KeyValueStorage.getSettings()),
+    ) {
+        if (released) return
+        AudioProfile.apply(mediaPlayer, profileId)
+    }
+
+    fun release() {
+        synchronized(lock) {
+            if (released) return
+            released = true
+            runCatching { mAudioManager.unregisterAudioDeviceCallback(deviceCallback) }
+            val player = mediaPlayer
+            mediaPlayer = null
+            if (player != null) {
+                runCatching { player.setEventListener(null) }
+                runCatching {
+                    if (player.isPlaying) player.stop()
+                }
+                runCatching { player.release() }
+            }
+            runCatching { mLibVLC?.release() }
+            mLibVLC = null
+            abandonAudioFocus()
+        }
+    }
+
+    val isPlaying: Boolean get() = synchronized(lock) { !released && mediaPlayer?.isPlaying == true }
+    val position: Float get() = synchronized(lock) { if (released) 0f else mediaPlayer?.position ?: 0f }
 
     fun play() {
-        wasPlaying = false
-        if (mediaPlayer?.media != null) {
-            mediaPlayer!!.play()
+        synchronized(lock) {
+            if (released) return
+            wasPlaying = false
+            val player = mediaPlayer ?: return
+            if (player.media != null) {
+                runCatching { player.play() }
+            }
         }
     }
 
     fun pause() {
-        if (mediaPlayer?.isPlaying == true) {
-            mediaPlayer!!.pause()
+        synchronized(lock) {
+            if (released) return
+            val player = mediaPlayer ?: return
+            if (player.isPlaying) {
+                runCatching { player.pause() }
+            }
         }
     }
 
     /** Seek to a fractional position in [0f, 1f] (LibVLC convention). */
     fun seek(position: Float) {
-        mediaPlayer?.position = position.coerceIn(0f, 1f)
+        synchronized(lock) {
+            if (released) return
+            mediaPlayer?.position = position.coerceIn(0f, 1f)
+        }
     }
 
     /**
@@ -142,23 +208,25 @@ class VlcEngine(
     }
 
     fun setVolume(volume: Int) {
+        if (released) return
         mediaPlayer?.volume = volume
     }
 
     fun requestAudioFocus(context: Context) {
+        if (released || hasAudioFocus) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (mAudioFocusRequest != null) {
-                mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest!!)
+            if (mAudioFocusRequest == null) {
+                mAudioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(mPlaybackAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setWillPauseWhenDucked(false)
+                    .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                    .build()
             }
-            mAudioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(mPlaybackAttributes)
-                .setAcceptsDelayedFocusGain(false)
-                .setWillPauseWhenDucked(false)
-                .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                .build()
             val res = mAudioManager.requestAudioFocus(mAudioFocusRequest!!)
-            if (res == AudioManager.AUDIOFOCUS_REQUEST_FAILED && mediaPlayer?.isPlaying == true) {
-                mediaPlayer!!.pause()
+            hasAudioFocus = res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (!hasAudioFocus) {
+                mediaPlayer?.takeIf { it.isPlaying }?.let { runCatching { it.pause() } }
             }
         } else {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -166,66 +234,99 @@ class VlcEngine(
             val result: Int = audioManager.requestAudioFocus(
                 audioFocusChangeListener,
                 AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN
+                AudioManager.AUDIOFOCUS_GAIN,
             )
-            if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED && mediaPlayer?.isPlaying == true) {
-                mediaPlayer!!.pause()
+            hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (!hasAudioFocus) {
+                mediaPlayer?.takeIf { it.isPlaying }?.let { runCatching { it.pause() } }
             }
         }
+    }
+
+    private fun abandonAudioFocus() {
+        if (!hasAudioFocus) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mAudioFocusRequest != null) {
+            mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest!!)
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            @Suppress("DEPRECATION")
+            mAudioManager.abandonAudioFocus(audioFocusChangeListener)
+        }
+        hasAudioFocus = false
     }
 
     @Throws(Exception::class)
     fun loadMedia(currentTrack: Song) {
-        var uri: String?
-        val file = File(subsonicClient.getLocalSongUri(currentTrack.id))
-        if (file.exists()) {
-            var lock: FileLock? = null
+        synchronized(lock) {
+            if (released) return
+            val uri = resolvePlaybackUri(currentTrack) ?: run {
+                Log.w("VlcEngine", "No URI for track ${currentTrack.id}")
+                return
+            }
+            val lib = mLibVLC ?: return
+            val player = mediaPlayer ?: return
+            val media = Media(lib, Uri.parse(uri))
             try {
-                val channel = RandomAccessFile(file, "rw").channel
-                lock = channel.tryLock()
-                uri = "file://" + file.path
-            } catch (e: OverlappingFileLockException) {
-                uri = subsonicClient.getSongUri(currentTrack)
-            } catch (e: IOException) {
-                uri = subsonicClient.getSongUri(currentTrack)
-            }
-            if (lock != null && lock.isValid) {
-                try {
-                    lock.release()
-                } catch (e: IOException) {
-                    e.printStackTrace()
+                applyMediaOptions(media, uri)
+                // Only stop when something is already loaded — avoids an extra gap on cold start.
+                if (player.media != null) {
+                    runCatching { player.stop() }
                 }
+                player.media = media
+            } finally {
+                media.release()
             }
-        } else {
-            if (KeyValueStorage.getOfflineMode()) {
-                throw Exception("The song did not download successfully. Try to download it again.")
-            }
-            uri = subsonicClient.getSongUri(currentTrack)
+            applyAudioProfileUnlocked()
         }
-        if (uri != null) {
-            val media = Media(mLibVLC, Uri.parse(uri))
-            if (mediaPlayer!!.isPlaying) mediaPlayer!!.pause()
-            mediaPlayer!!.media = media
-            media.release()
-            if (!KeyValueStorage.getOfflineMode()) {
-                CoroutineScope(IO).launch {
-                    try {
-                        subsonicClient.reportPlayback(currentTrack.id, 0, "starting")
-                        subsonicClient.scrobble(currentTrack.id)
-                    } catch (ex: Exception) {
-                        Globals.NotifyObservers("EX", "Couldn't scrobble. Check your connection.")
-                    }
+        if (!KeyValueStorage.getOfflineMode()) {
+            CoroutineScope(IO).launch {
+                try {
+                    subsonicClient.reportPlayback(currentTrack.id, 0, "starting")
+                    subsonicClient.scrobble(currentTrack.id)
+                } catch (ex: Exception) {
+                    Globals.NotifyObservers("EX", "Couldn't scrobble. Check your connection.")
                 }
             }
+        }
+    }
+
+    private fun resolvePlaybackUri(currentTrack: Song): String? {
+        val local = File(subsonicClient.getLocalSongUri(currentTrack.id))
+        if (local.exists() && local.length() > 1024L) {
+            return "file://${local.path}"
+        }
+        if (KeyValueStorage.getOfflineMode()) {
+            throw Exception("The song did not download successfully. Try to download it again.")
+        }
+        return subsonicClient.getSongUri(currentTrack)
+    }
+
+    private fun applyMediaOptions(media: Media, uri: String) {
+        if (uri.startsWith("http://", ignoreCase = true) ||
+            uri.startsWith("https://", ignoreCase = true)
+        ) {
+            media.addOption(":network-caching=1500")
+            media.addOption(":http-reconnect")
         } else {
-            Log.w("VlcEngine", "No URI for track ${currentTrack.id}")
+            media.addOption(":file-caching=300")
         }
     }
 
     fun loadStreamUrl(url: String) {
-        val media = Media(mLibVLC, Uri.parse(url))
-        if (mediaPlayer!!.isPlaying) mediaPlayer!!.pause()
-        mediaPlayer!!.media = media
-        media.release()
+        synchronized(lock) {
+            if (released) return
+            val lib = mLibVLC ?: return
+            val player = mediaPlayer ?: return
+            val media = Media(lib, Uri.parse(url))
+            try {
+                applyMediaOptions(media, url)
+                if (player.media != null) {
+                    runCatching { player.stop() }
+                }
+                player.media = media
+            } finally {
+                media.release()
+            }
+            applyAudioProfileUnlocked()
+        }
     }
 }

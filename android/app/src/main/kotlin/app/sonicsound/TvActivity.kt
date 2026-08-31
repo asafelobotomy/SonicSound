@@ -29,6 +29,7 @@ import app.sonicsound.fragments.VideosFragment
 import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.models.Playlist
 import app.sonicsound.services.MusicService
+import app.sonicsound.update.AppUpdateUi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -308,6 +309,13 @@ class TvActivity : AppCompatActivity() {
             Context.BIND_AUTO_CREATE
         )
         Globals.RegisterObserver(TvActivityObserver())
+        // Once per process: toast + dialog when a newer GitHub release exists.
+        AppUpdateUi.checkAndPrompt(this, force = false)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppUpdateUi.resumePendingIfNeeded(this)
     }
 
     override fun onAttachedToWindow() {

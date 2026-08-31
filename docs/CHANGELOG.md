@@ -1,3 +1,9 @@
+# 0.2.16
+
+- GitHub release self-update on Android (check, download APK, install prompt) from TV Settings
+- Clean WMP viz SoftGlow/hub placeholders; Blazing Colors rays meet at a true center apex
+- Soft orbs for Ambience/Plenoptic; Musical Colors tiles; Plenoptic random seeds; Color Cubes fix
+
 # 0.2.15
 
 - Add Record player (BETA) audio profile with Brand New / Slightly Used / Heavily Used wear

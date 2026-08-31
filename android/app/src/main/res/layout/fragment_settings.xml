@@ -374,5 +374,36 @@
                 android:textColor="#fff"
                 android:textSize="16sp" />
         </LinearLayout>
+
+        <!-- About / updates -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:fontFamily="@font/montserrat"
+            android:text="@string/settings_section_about"
+            android:textColor="#fff"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_app_version"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/montserrat"
+            android:textColor="#99ffffff"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_check_updates"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/round_outline_selector"
+            android:focusable="true"
+            android:text="@string/check_for_updates"
+            android:textAllCaps="false"
+            android:textColor="#fff" />
     </LinearLayout>
 </ScrollView>

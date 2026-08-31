@@ -91,8 +91,9 @@ class WmpRenderState {
         }
         for (i in blobs.indices) {
             val b = blobs[i]
-            b.x = 0.12f + (i % 5) * 0.19f
-            b.y = 0.18f + (i / 5) * 0.28f
+            // Scatter randomly — a fixed grid read as a placeholder lattice.
+            b.x = 0.08f + rng.nextFloat() * 0.84f
+            b.y = 0.10f + rng.nextFloat() * 0.80f
             b.phase = rng.nextFloat() * (PI * 2).toFloat()
             b.band = bandFor(i, blobs.size)
             b.level = 0f

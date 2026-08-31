@@ -7,6 +7,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.Choreographer
 import android.view.View
+import app.sonicsound.BuildConfig
 import app.sonicsound.models.FullscreenVisualizer
 
 /**
@@ -65,7 +66,9 @@ class WmpVisualizerView @JvmOverloads constructor(
             this.mode = mode
             renderState.onModeChanged(mode)
             spectrum.smoothWaveNeeded = mode == "wmp_scope"
-            Log.i(TAG, "mode=$mode ${width}x${height} running=$running")
+            if (BuildConfig.DEBUG) {
+                Log.i(TAG, "mode=$mode ${width}x${height} running=$running")
+            }
             framesInWindow = 0
             windowStartMs = 0L
             maxSimMsInWindow = 0L
@@ -106,6 +109,7 @@ class WmpVisualizerView @JvmOverloads constructor(
     }
 
     private fun noteFrame(simMs: Long) {
+        if (!BuildConfig.DEBUG) return
         if (windowStartMs == 0L) windowStartMs = SystemClock.elapsedRealtime()
         framesInWindow++
         if (simMs > maxSimMsInWindow) maxSimMsInWindow = simMs

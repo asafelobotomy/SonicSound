@@ -60,7 +60,9 @@ object WmpRenderers {
             "wmp_pulsing_colors" -> drawPulsingColors(canvas, spectrum, state, w, h)
             "wmp_startime" -> drawStarTime(canvas, state, spectrum, w, h)
             "wmp_snowtime" -> drawSnowTime(canvas, state, spectrum, w, h)
-            else -> drawBars(canvas, state, spectrum, w, h, cool = false, warm = false)
+            else -> {
+                // Unknown mode: stay black — do not fall back to bars (reads as a stub).
+            }
         }
     }
 
@@ -82,19 +84,22 @@ object WmpRenderers {
     private fun tempo(spectrum: AudioSpectrumSource): Float =
         (spectrum.bpm / 110f).coerceIn(0.55f, 1.75f)
 
-    /** Soft bloom via concentric discs — no per-frame Gradient/ColorFilter allocations. */
-    private fun drawSoftGlow(canvas: Canvas, cx: Float, cy: Float, radius: Float, color: Int) {
+    /**
+     * Soft particle/orb wash for Ambience & Plenoptic — two very translucent fills,
+     * never a hard opaque center disc (old SoftGlow cores read as placeholders).
+     */
+    private fun drawSoftOrb(canvas: Canvas, cx: Float, cy: Float, radius: Float, color: Int) {
         val r = radius.coerceAtLeast(1f)
         fillPaint.shader = null
         fillPaint.colorFilter = null
-        val a = Color.alpha(color)
+        val a = Color.alpha(color).coerceIn(0, 255)
         val cr = Color.red(color)
         val cg = Color.green(color)
         val cb = Color.blue(color)
-        fillPaint.color = Color.argb((a * 0.28f).toInt().coerceIn(0, 255), cr, cg, cb)
+        fillPaint.color = Color.argb((a * 0.20f).toInt().coerceIn(0, 55), cr, cg, cb)
         canvas.drawCircle(cx, cy, r, fillPaint)
-        fillPaint.color = Color.argb(a.coerceIn(0, 255), cr, cg, cb)
-        canvas.drawCircle(cx, cy, r * 0.35f, fillPaint)
+        fillPaint.color = Color.argb((a * 0.12f).toInt().coerceIn(0, 35), cr, cg, cb)
+        canvas.drawCircle(cx, cy, r * 0.55f, fillPaint)
         fillPaint.alpha = 255
     }
 
@@ -189,14 +194,7 @@ object WmpRenderers {
         val lfe = spectrum.lfe()
         val energy = spectrum.energy()
         val sur = spectrum.surround()
-        val coreR = (85f + bass * 110f + lfe * 100f + energy * 45f) * scale
-        drawSoftGlow(
-            canvas, cx, cy, coreR,
-            Color.argb(
-                (32 + ((bass + lfe) * 0.5f) * 70).toInt().coerceIn(0, 255),
-                90, 70, 160,
-            ),
-        )
+        // Rings only — no center SoftGlow disc.
 
         val tScale = tempo(spectrum)
         for (r in 0 until rings) {
@@ -266,7 +264,7 @@ object WmpRenderers {
             val cy = p.y * h
             val tint = hsv(185f + p.hue * 0.2f + mag * 50f + sur * 40f, 0.45f, 0.2f + mag * 0.7f)
             val a = (28 + mag * 165).toInt().coerceIn(0, 255)
-            drawSoftGlow(canvas, cx, cy, r, Color.argb(a, Color.red(tint), Color.green(tint), Color.blue(tint)))
+            drawSoftOrb(canvas, cx, cy, r, Color.argb(a, Color.red(tint), Color.green(tint), Color.blue(tint)))
         }
     }
 
@@ -317,9 +315,12 @@ object WmpRenderers {
             val cx = (b.x + balance * 0.04f) * w
             val cy = b.y * h
             val radius = (50f + mag * 175f + sur * 55f + lfe * 40f + energy * 25f).coerceAtLeast(1f)
-            drawSoftGlow(
+            // Cap alpha so hsv()'s opaque colors can't become solid placeholder discs.
+            val tint = hsv(b.band * 5.5f + mag * 80f + spectrum.mids() * 40f, 0.55f, 0.32f + mag * 0.62f)
+            val a = (40 + mag * 90).toInt().coerceIn(0, 130)
+            drawSoftOrb(
                 canvas, cx, cy, radius,
-                hsv(b.band * 5.5f + mag * 80f + spectrum.mids() * 40f, 0.55f, 0.32f + mag * 0.62f),
+                Color.argb(a, Color.red(tint), Color.green(tint), Color.blue(tint)),
             )
         }
     }
@@ -334,10 +335,7 @@ object WmpRenderers {
         val lfe = spectrum.lfe()
         val side = spectrum.side()
         val scale = min(w, h).toFloat()
-        drawSoftGlow(
-            canvas, cx, cy, scale * 0.55f,
-            Color.argb((28 + energy * 55).toInt(), 20, 80, 90),
-        )
+        // Nested ovals only — no SoftGlow center disc.
 
         for (i in 0 until rings) {
             val mag = bandAcross(spectrum, i, rings)
@@ -358,34 +356,41 @@ object WmpRenderers {
         linePaint.alpha = 255
     }
 
-    /** Musical Colors — grid of shapes; L/R columns; tempo bob; LFE bottom row. */
+    /** Musical Colors — dense animated tile field; L/R columns; tempo bob; LFE bottom weight. */
     private fun drawMusicalColors(canvas: Canvas, spectrum: AudioSpectrumSource, state: WmpRenderState, w: Int, h: Int) {
-        val shapes = 20
-        val cols = 10
+        val cols = 14
+        val rows = 8
+        val shapes = cols * rows
         val tScale = tempo(spectrum)
         val lfe = spectrum.lfe()
+        val cellW = w / (cols + 0.5f)
+        val cellH = h / (rows + 1.2f)
         for (i in 0 until shapes) {
             val mag = bandAcross(spectrum, i, shapes)
             val col = i % cols
             val row = i / cols
             val t = col.toFloat() / (cols - 1).coerceAtLeast(1)
             val ch = channelAt(spectrum, t)
-            val level = (mag * (0.65f + ch * 0.5f) + if (row >= 1) lfe * 0.25f else 0f).coerceIn(0f, 1f)
-            val cx = w * (0.06f + col * 0.098f)
-            val bob = sin(state.simTime * (1.0f + level * 2.4f) * tScale + i) * 0.11f * (0.2f + level)
-            val cy = h * (0.28f + row * 0.36f + bob)
-            fillPaint.color = hsv(i * 18f + level * 90f + spectrum.mids() * 40f, 0.88f, 0.26f + level * 0.74f)
+            val level = (mag * (0.65f + ch * 0.5f) + if (row >= rows - 2) lfe * 0.3f else 0f)
+                .coerceIn(0f, 1f)
+            if (level < 0.04f) continue
+            val cx = cellW * (0.75f + col)
+            val bob = sin(state.simTime * (1.0f + level * 2.4f) * tScale + i) * cellH * 0.12f * (0.2f + level)
+            val cy = cellH * (0.85f + row) + bob
+            val hw = cellW * (0.22f + level * 0.28f)
+            val hh = cellH * (0.18f + level * 0.32f)
+            fillPaint.color = hsv(i * 11f + level * 90f + spectrum.mids() * 40f, 0.88f, 0.26f + level * 0.74f)
+            fillPaint.alpha = (90 + level * 165).toInt().coerceIn(0, 255)
+            // Rounded tiles only — filled circles read as placeholder dots.
             canvas.drawRoundRect(
-                cx - 18f - level * 40f,
-                cy - 12f - level * 26f,
-                cx + 18f + level * 40f,
-                cy + 12f + level * 26f,
-                12f, 12f, fillPaint,
+                cx - hw, cy - hh, cx + hw, cy + hh,
+                10f, 10f, fillPaint,
             )
         }
+        fillPaint.alpha = 255
     }
 
-    /** Blazing Colors — radial rays; stereo bias; LFE core; surround length. */
+    /** Blazing Colors — radial streaks from a point; no hub disc / SoftGlow. */
     private fun drawBlazingColors(canvas: Canvas, spectrum: AudioSpectrumSource, state: WmpRenderState, w: Int, h: Int) {
         val rays = 40
         val cx = w / 2f + (spectrum.right() - spectrum.left()) * w * 0.03f
@@ -395,36 +400,47 @@ object WmpRenderers {
         val bass = spectrum.bass()
         val lfe = spectrum.lfe()
         val sur = spectrum.surround()
-        // Soft core
-        val coreR = min(w, h) * (0.12f + lfe * 0.1f)
-        drawSoftGlow(
-            canvas, cx, cy, coreR,
-            hsv(hueShift, 0.9f, 0.25f + bass * 0.4f + lfe * 0.35f),
-        )
+        val step = (PI * 2 / rays).toFloat()
+        // Narrow wedges + true center apex — a clear hub radius left a circular placeholder edge.
+        val wedge = step * 0.42f
+        val maxR = min(w, h) * 0.62f
 
+        val prevCap = linePaint.strokeCap
+        linePaint.strokeCap = Paint.Cap.BUTT
         for (i in 0 until rays) {
             val mag = bandAcross(spectrum, i, rays)
-            val a = i * (PI * 2 / rays).toFloat() + spin
+            val a = i * step + spin
             val facing = ((cos(a) + 1f) * 0.5f) // 0 leftish, 1 rightish
             val ch = channelAt(spectrum, facing)
             val level = (mag * (0.7f + ch * 0.45f)).coerceIn(0f, 1f)
+            if (level < 0.03f) continue
+            val len = (0.18f + level * 0.55f + sur * 0.12f + bass * 0.08f + lfe * 0.06f).coerceIn(0.12f, 1f)
+            val tipR = maxR * len
+            val midA = a + wedge * 0.5f
             fillPaint.color = hsv(i * 9f + hueShift, 1f, 0.28f + level * 0.72f)
             fillPaint.alpha = (55 + level * 200).toInt().coerceIn(0, 255)
-            val len = 0.15f + level * 0.55f + sur * 0.12f + bass * 0.08f
             path.reset()
             path.moveTo(cx, cy)
-            path.lineTo(cx + cos(a) * w * 0.62f * len, cy + sin(a) * h * 0.62f * len)
-            path.lineTo(cx + cos(a + 0.06f) * w * 0.08f, cy + sin(a + 0.06f) * h * 0.08f)
+            path.lineTo(cx + cos(a) * tipR, cy + sin(a) * tipR)
+            path.lineTo(cx + cos(a + wedge) * tipR * 0.94f, cy + sin(a + wedge) * tipR * 0.94f)
             path.close()
             canvas.drawPath(path, fillPaint)
+            // Bright spine so quiet bands read as streaks, not stubby center blobs.
+            linePaint.color = hsv(i * 9f + hueShift, 0.7f, 0.55f + level * 0.45f)
+            linePaint.alpha = (90 + level * 165).toInt().coerceIn(0, 255)
+            linePaint.strokeWidth = (1.2f + level * 3.5f)
+            canvas.drawLine(cx, cy, cx + cos(midA) * tipR, cy + sin(midA) * tipR, linePaint)
         }
+        linePaint.strokeCap = prevCap
+        linePaint.alpha = 255
         fillPaint.alpha = 255
     }
 
-    /** Color Cubes — grid cubes; column stereo; tempo bounce; full bands. */
+    /** Color Cubes — isometric-ish blocks; column stereo; tempo bounce; full bands. */
     private fun drawColorCubes(canvas: Canvas, spectrum: AudioSpectrumSource, state: WmpRenderState, w: Int, h: Int) {
-        val cubes = 30
-        val cols = 6
+        val cols = 8
+        val rows = 5
+        val cubes = cols * rows
         val tScale = tempo(spectrum)
         val lfe = spectrum.lfe()
         for (i in 0 until cubes) {
@@ -432,26 +448,43 @@ object WmpRenderers {
             val col = i % cols
             val row = i / cols
             val t = col.toFloat() / (cols - 1).coerceAtLeast(1)
-            val level = (mag * (0.65f + channelAt(spectrum, t) * 0.5f) + if (row >= 3) lfe * 0.2f else 0f)
+            val level = (mag * (0.65f + channelAt(spectrum, t) * 0.5f) + if (row >= rows - 2) lfe * 0.25f else 0f)
                 .coerceIn(0f, 1f)
-            val cx = w * (0.1f + col * 0.16f)
-            val cy = h * (0.12f + row * 0.17f)
-            val size = 16f + level * 72f
-            val offset = sin(state.simTime * (1.2f + level * 2.4f) * tScale + i) * 16f * (0.15f + level)
-            fillPaint.color = hsv(i * 12f + level * 70f, 0.8f, 0.28f + level * 0.72f)
-            canvas.drawRect(
-                cx - size / 2, cy - size / 2 + offset,
-                cx + size / 2, cy + size / 2 + offset,
-                fillPaint,
-            )
-            linePaint.color = Color.argb((65 + level * 150).toInt(), 255, 255, 255)
-            linePaint.strokeWidth = 1.4f
-            canvas.drawRect(
-                cx - size / 2, cy - size / 2 + offset,
-                cx + size / 2, cy + size / 2 + offset,
-                linePaint,
-            )
+            if (level < 0.035f) continue
+            val cx = w * (0.08f + col * 0.115f)
+            val cy = h * (0.14f + row * 0.16f)
+            val size = 14f + level * 58f
+            val offset = sin(state.simTime * (1.2f + level * 2.4f) * tScale + i) * 14f * (0.15f + level)
+            val top = cy - size / 2 + offset
+            val bottom = cy + size / 2 + offset
+            val left = cx - size / 2
+            val right = cx + size / 2
+            val depth = size * 0.28f
+            val hue = i * 12f + level * 70f
+            // Top face
+            path.reset()
+            path.moveTo(left, top)
+            path.lineTo(left + depth, top - depth)
+            path.lineTo(right + depth, top - depth)
+            path.lineTo(right, top)
+            path.close()
+            fillPaint.color = hsv(hue, 0.7f, 0.45f + level * 0.55f)
+            fillPaint.alpha = 230
+            canvas.drawPath(path, fillPaint)
+            // Side face
+            path.reset()
+            path.moveTo(right, top)
+            path.lineTo(right + depth, top - depth)
+            path.lineTo(right + depth, bottom - depth)
+            path.lineTo(right, bottom)
+            path.close()
+            fillPaint.color = hsv(hue, 0.85f, 0.18f + level * 0.45f)
+            canvas.drawPath(path, fillPaint)
+            // Front face
+            fillPaint.color = hsv(hue, 0.8f, 0.28f + level * 0.72f)
+            canvas.drawRect(left, top, right, bottom, fillPaint)
         }
+        fillPaint.alpha = 255
     }
 
     /** Pulsing Colors — rings; LFE/bass pulse; stereo oval; surround outer glow. */

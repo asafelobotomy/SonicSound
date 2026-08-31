@@ -1,3 +1,4 @@
+import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { Toast } from "@capacitor/toast";
 import { faGear } from "@fortawesome/free-solid-svg-icons";
@@ -5,6 +6,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import VLC, { ISettings } from "../Plugins/VLC";
+
+const GITHUB_RELEASES_URL = "https://github.com/asafelobotomy/SonicSound/releases";
 
 const PRIMARY_COLORS = [
     "#E53935",
@@ -79,6 +82,7 @@ export default function Settings() {
     const [dvdSpeed, setDvdSpeed] = useState("default");
     const [showClock, setShowClock] = useState(false);
     const [showDate, setShowDate] = useState(false);
+    const [appVersion, setAppVersion] = useState("");
     const readyRef = useRef(false);
     const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isAndroid = Capacitor.getPlatform() === "android";
@@ -185,6 +189,12 @@ export default function Settings() {
             if (isAndroid) {
                 setOfflineMode((await VLC.getOfflineMode()).value!);
                 refreshArtCache();
+            }
+            try {
+                const info = await App.getInfo();
+                if (info.version) setAppVersion(info.version);
+            } catch {
+                // Web / unsupported — leave blank.
             }
             readyRef.current = true;
         };
@@ -430,6 +440,31 @@ export default function Settings() {
                         </div>
                     </>
                 )}
+
+                <div className="section-header text-white">About</div>
+                {appVersion ? (
+                    <div className="subtitle text-white-50 mb-2">
+                        Version {appVersion}
+                    </div>
+                ) : null}
+                <button
+                    type="button"
+                    className="btn btn-outline-light btn-sm mb-3"
+                    onClick={async () => {
+                        try {
+                            window.open(GITHUB_RELEASES_URL, "_blank", "noopener,noreferrer");
+                            await Toast.show({
+                                text: "Opened GitHub releases in your browser",
+                            });
+                        } catch {
+                            await Toast.show({
+                                text: `Releases: ${GITHUB_RELEASES_URL}`,
+                            });
+                        }
+                    }}
+                >
+                    Open releases
+                </button>
             </form>
         </div>
     );

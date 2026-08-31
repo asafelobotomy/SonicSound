@@ -25,6 +25,8 @@ import app.sonicsound.models.FullscreenVisualizer
 import app.sonicsound.playback.AudioProfile
 import app.sonicsound.playback.VinylCondition
 import app.sonicsound.subsonic.SubsonicClient
+import app.sonicsound.update.AppUpdateChecker
+import app.sonicsound.update.AppUpdateUi
 
 class SettingsFragment : Fragment {
     private val primaryColors = listOf(
@@ -247,6 +249,13 @@ class SettingsFragment : Fragment {
                 Toast.LENGTH_SHORT
             ).show()
             refreshCache(cacheInfo)
+        }
+
+        view.findViewById<TextView>(R.id.tv_app_version).text =
+            getString(R.string.app_version_label, AppUpdateChecker.currentVersionName())
+        view.findViewById<Button>(R.id.btn_check_updates).setOnClickListener {
+            val act = activity ?: return@setOnClickListener
+            AppUpdateUi.checkAndPrompt(act, force = true)
         }
 
         // Spinners fire onItemSelected during initial setSelection; ignore until settled.

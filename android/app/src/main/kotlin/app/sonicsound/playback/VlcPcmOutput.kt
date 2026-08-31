@@ -1,6 +1,7 @@
 package app.sonicsound.playback
 
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Build
@@ -44,6 +45,9 @@ object VlcPcmOutput {
     /** Channel count the AudioTrack was opened with (may be less than LibVLC channels). */
     @Volatile
     private var outputChannels = 2
+
+    /** Reused stereo/mono downmix scratch — avoids allocating on the audio callback. */
+    private var downmixScratch = ByteArray(0)
 
     @Volatile
     private var sampleRate = 44100
@@ -139,6 +143,14 @@ object VlcPcmOutput {
         Log.i(TAG, "PCM detach wipeSpectrum=$wipeSpectrum")
     }
 
+    /** Active AudioTrack output device when available (API 23+). */
+    fun routedOutputDevice(): AudioDeviceInfo? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
+        return synchronized(trackLock) {
+            runCatching { track?.routedDevice }.getOrNull()
+        }
+    }
+
     /**
      * Ensure AudioTrack is live when LibVLC reports Playing.
      * Optionally re-attaches if PCM stays silent (Settings recreate race).
@@ -157,20 +169,27 @@ object VlcPcmOutput {
         if (player == null || !ready) return
         val baseline = playCallbacks
         val baselineTime = lastPcmUptimeMs
-        mainHandler.postDelayed(
-            {
-                if (isPcmFresh()) return@postDelayed
-                if (playCallbacks != baseline && lastPcmUptimeMs != baselineTime) return@postDelayed
-                Log.w(TAG, "PCM silent after Playing — re-attaching tap")
-                noteMediaSwap()
-                attach(player)
-                synchronized(trackLock) {
-                    if (track == null) openTrackLocked(sampleRate, channels)
-                    else runCatching { track?.play() }
-                }
-            },
-            900L,
-        )
+        mainHandler.removeCallbacks(pcmHealRunnable)
+        pcmHealPlayer = player
+        pcmHealBaseline = baseline
+        pcmHealBaselineTime = baselineTime
+        mainHandler.postDelayed(pcmHealRunnable, 900L)
+    }
+
+    private var pcmHealPlayer: MediaPlayer? = null
+    private var pcmHealBaseline = 0
+    private var pcmHealBaselineTime = 0L
+    private val pcmHealRunnable = Runnable {
+        val player = pcmHealPlayer ?: return@Runnable
+        if (isPcmFresh()) return@Runnable
+        if (playCallbacks != pcmHealBaseline && lastPcmUptimeMs != pcmHealBaselineTime) return@Runnable
+        Log.w(TAG, "PCM silent after Playing — re-attaching tap")
+        noteMediaSwap()
+        attach(player)
+        synchronized(trackLock) {
+            if (track == null) openTrackLocked(sampleRate, channels)
+            else runCatching { track?.play() }
+        }
     }
 
     private fun playerNativePtr(player: MediaPlayer?): Long {
@@ -221,62 +240,60 @@ object VlcPcmOutput {
         if (len <= 0) return
         val playCh = ch.coerceAtLeast(1)
         val playFrames = frames.coerceAtLeast(1)
+        val rate = sampleRate
 
+        // Keep AudioTrack.write off the spectrum lock — FFT runs on analyzer thread.
         synchronized(trackLock) {
             var t = track
             if (t == null) {
                 Log.w(TAG, "PCM play with null AudioTrack — healing ${sampleRate}Hz/${playCh}ch")
                 if (!openTrackLocked(sampleRate.coerceAtLeast(8000), playCh.coerceIn(1, 8))) {
-                    PlaybackSpectrum.onPcmS16(
-                        pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), sampleRate,
-                    )
                     lastPcmUptimeMs = SystemClock.uptimeMillis()
-                    return
-                }
-                t = track ?: run {
-                    PlaybackSpectrum.onPcmS16(
-                        pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), sampleRate,
-                    )
-                    lastPcmUptimeMs = SystemClock.uptimeMillis()
-                    return
+                    // Fall through to spectrum ingest below.
+                    t = null
+                } else {
+                    t = track
                 }
             }
-            if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                runCatching { t.play() }
+            if (t != null) {
+                if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                    runCatching { t.play() }
+                }
+                val writePcm: ByteArray
+                val writeLen: Int
+                if (playCh == outputChannels || outputChannels < 1) {
+                    writePcm = pcm
+                    writeLen = len
+                } else {
+                    val mixed = downmixToOutput(pcm, len, playCh, playFrames, outputChannels)
+                    writePcm = mixed.first
+                    writeLen = mixed.second
+                }
+                var offset = 0
+                while (offset < writeLen) {
+                    val written = t.write(writePcm, offset, writeLen - offset)
+                    if (written <= 0) break
+                    offset += written
+                }
             }
-            // Spectrum always sees full multi-channel PCM; AudioTrack may be stereo-only.
-            val writePcm: ByteArray
-            val writeLen: Int
-            if (playCh == outputChannels || outputChannels < 1) {
-                writePcm = pcm
-                writeLen = len
-            } else {
-                val mixed = downmixToOutput(pcm, len, playCh, playFrames, outputChannels)
-                writePcm = mixed
-                writeLen = mixed.size
-            }
-            var offset = 0
-            while (offset < writeLen) {
-                val written = t.write(writePcm, offset, writeLen - offset)
-                if (written <= 0) break
-                offset += written
-            }
-            PlaybackSpectrum.onPcmS16(
-                pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), sampleRate,
-            )
             lastPcmUptimeMs = SystemClock.uptimeMillis()
-            val n = playCallbacks + 1
-            playCallbacks = n
-            if (n == 1 || n == 50 || n == 200) {
-                Log.i(
-                    TAG,
-                    "PCM play#$n bytes=$len ch=$playCh outCh=$outputChannels frames=$playFrames " +
-                        "peak=${"%.4f".format(PlaybackSpectrum.lastPcmPeak)} " +
-                        "energy=${"%.3f".format(PlaybackSpectrum.energy())} " +
-                        "bass=${"%.3f".format(PlaybackSpectrum.bass())} " +
-                        "L/R=${"%.2f".format(PlaybackSpectrum.left())}/${"%.2f".format(PlaybackSpectrum.right())}",
-                )
-            }
+            playCallbacks++
+        }
+
+        PlaybackSpectrum.onPcmS16(
+            pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), rate,
+        )
+
+        val n = playCallbacks
+        if (n == 1 || n == 50 || n == 200) {
+            Log.i(
+                TAG,
+                "PCM play#$n bytes=$len ch=$playCh outCh=$outputChannels frames=$playFrames " +
+                    "peak=${"%.4f".format(PlaybackSpectrum.lastPcmPeak)} " +
+                    "energy=${"%.3f".format(PlaybackSpectrum.energy())} " +
+                    "bass=${"%.3f".format(PlaybackSpectrum.bass())} " +
+                    "L/R=${"%.2f".format(PlaybackSpectrum.left())}/${"%.2f".format(PlaybackSpectrum.right())}",
+            )
         }
     }
 
@@ -455,6 +472,7 @@ object VlcPcmOutput {
     /**
      * Downmix multi-channel PCM to the AudioTrack layout when the device cannot
      * open a matching surround track. Spectrum analysis still uses the original buffer.
+     * Reuses [downmixScratch] to avoid GC on the realtime audio path.
      */
     private fun downmixToOutput(
         pcm: ByteArray,
@@ -462,9 +480,18 @@ object VlcPcmOutput {
         inCh: Int,
         frames: Int,
         outCh: Int,
-    ): ByteArray {
-        val frameCount = (bytes / (2 * inCh)).coerceAtMost(frames)
-        val out = ByteArray(frameCount * outCh * 2)
+    ): Pair<ByteArray, Int> {
+        val inChannels = inCh.coerceIn(1, 8)
+        val outChannels = when (outCh) {
+            1 -> 1
+            else -> 2 // Only mono/stereo fallbacks are opened; never write a partial 5.1 frame.
+        }
+        val frameCount = (bytes / (2 * inChannels)).coerceAtMost(frames).coerceAtLeast(0)
+        val need = frameCount * outChannels * 2
+        if (downmixScratch.size < need) {
+            downmixScratch = ByteArray(need.coerceAtLeast(4096))
+        }
+        val out = downmixScratch
         val little = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
         fun read(i: Int): Int {
             if (i + 1 >= bytes) return 0
@@ -485,41 +512,41 @@ object VlcPcmOutput {
             }
         }
         for (f in 0 until frameCount) {
-            val base = f * inCh * 2
-            val c = FloatArray(8)
-            for (i in 0 until inCh.coerceAtMost(8)) {
-                c[i] = read(base + i * 2).toFloat()
-            }
-            when (outCh) {
-                1 -> {
-                    val m = when {
-                        inCh >= 6 -> (c[0] + c[1] + c[2] * 0.7f + c[4] * 0.5f + c[5] * 0.5f) / 3.4f
-                        inCh >= 2 -> (c[0] + c[1]) * 0.5f
-                        else -> c[0]
-                    }
-                    write(f * 2, m.toInt())
+            val base = f * inChannels * 2
+            val c0 = read(base).toFloat()
+            val c1 = if (inChannels > 1) read(base + 2).toFloat() else c0
+            val c2 = if (inChannels > 2) read(base + 4).toFloat() else 0f
+            val c3 = if (inChannels > 3) read(base + 6).toFloat() else 0f
+            val c4 = if (inChannels > 4) read(base + 8).toFloat() else 0f
+            val c5 = if (inChannels > 5) read(base + 10).toFloat() else 0f
+            val c6 = if (inChannels > 6) read(base + 12).toFloat() else 0f
+            val c7 = if (inChannels > 7) read(base + 14).toFloat() else 0f
+            if (outChannels == 1) {
+                val m = when {
+                    inChannels >= 6 -> (c0 + c1 + c2 * 0.7f + c4 * 0.5f + c5 * 0.5f) / 3.4f
+                    inChannels >= 2 -> (c0 + c1) * 0.5f
+                    else -> c0
                 }
-                else -> {
-                    // Stereo fold: L = FL+0.7*FC+0.5*BL(+SL), R = FR+0.7*FC+0.5*BR(+SR)
-                    val l = when {
-                        inCh >= 8 -> c[0] + c[2] * 0.7f + c[4] * 0.5f + c[6] * 0.5f + c[3] * 0.15f
-                        inCh >= 6 -> c[0] + c[2] * 0.7f + c[4] * 0.5f + c[3] * 0.15f
-                        inCh == 4 -> c[0] + c[2] * 0.5f
-                        else -> c[0]
-                    }
-                    val r = when {
-                        inCh >= 8 -> c[1] + c[2] * 0.7f + c[5] * 0.5f + c[7] * 0.5f + c[3] * 0.15f
-                        inCh >= 6 -> c[1] + c[2] * 0.7f + c[5] * 0.5f + c[3] * 0.15f
-                        inCh == 4 -> c[1] + c[3] * 0.5f
-                        inCh >= 2 -> c[1]
-                        else -> c[0]
-                    }
-                    write(f * 4, l.toInt())
-                    write(f * 4 + 2, r.toInt())
+                write(f * 2, m.toInt())
+            } else {
+                val l = when {
+                    inChannels >= 8 -> c0 + c2 * 0.7f + c4 * 0.5f + c6 * 0.5f + c3 * 0.15f
+                    inChannels >= 6 -> c0 + c2 * 0.7f + c4 * 0.5f + c3 * 0.15f
+                    inChannels == 4 -> c0 + c2 * 0.5f
+                    else -> c0
                 }
+                val r = when {
+                    inChannels >= 8 -> c1 + c2 * 0.7f + c5 * 0.5f + c7 * 0.5f + c3 * 0.15f
+                    inChannels >= 6 -> c1 + c2 * 0.7f + c5 * 0.5f + c3 * 0.15f
+                    inChannels == 4 -> c1 + c3 * 0.5f
+                    inChannels >= 2 -> c1
+                    else -> c0
+                }
+                write(f * 4, l.toInt())
+                write(f * 4 + 2, r.toInt())
             }
         }
-        return out
+        return out to need
     }
 
     private fun applyGainLocked(t: AudioTrack) {

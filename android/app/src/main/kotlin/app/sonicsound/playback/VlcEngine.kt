@@ -309,6 +309,7 @@ class VlcEngine(
     fun loadStreamUrl(url: String) {
         synchronized(lock) {
             if (released) return
+            PlaybackSpectrum.prepareForTrack("stream:${url.hashCode()}")
             val lib = mLibVLC ?: return
             val player = mediaPlayer ?: return
             val media = Media(lib, Uri.parse(url))

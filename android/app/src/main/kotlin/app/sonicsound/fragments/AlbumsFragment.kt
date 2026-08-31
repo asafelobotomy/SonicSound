@@ -81,27 +81,32 @@ class AlbumsFragment : Fragment {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
         view.post {
+            if (!isAdded || view !== this.view) return@post
             density = resources.displayMetrics.density
             width = view.width
             viewLifecycleOwner.lifecycleScope.launch {
                 allAlbums = withContext(Dispatchers.IO) {
                     client.getAlbums().onEach { it.image = client.getAlbumArt(it.coverArt) }
                 }
+                if (!isAdded) return@launch
                 render(recycler, empty)
             }
         }
     }
 
     private fun render(recycler: RecyclerView, empty: TextView) {
+        if (!isAdded) return
+        val ctx = context ?: return
         val albums: List<ICardViewModel> = sortAlbums(allAlbums, sort)
         empty.isVisible = albums.isEmpty()
         recycler.isVisible = albums.isNotEmpty()
         val adapter = SonicSoundCardAdapter(albums, recycler, bind)
         recycler.setHasFixedSize(true)
         val columns = ceil(width / (170 * density + 0.5f)).toInt().coerceAtLeast(1)
-        recycler.layoutManager = GridLayoutManager(context, columns)
+        recycler.layoutManager = GridLayoutManager(ctx, columns)
         recycler.adapter = adapter
         recycler.layoutManager?.getChildAt(0)?.post {
+            if (!isAdded) return@post
             val child = recycler.layoutManager?.getChildAt(0) ?: return@post
             val w = child.width + child.marginLeft + child.marginRight
             if (w > 0) {

@@ -19,6 +19,7 @@ import kotlin.math.sqrt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,16 +42,12 @@ object TrackCharacterPrefetch {
 
     fun peek(songId: String): TrackCharacter.Snapshot? = cache[songId]
 
-    fun take(songId: String): TrackCharacter.Snapshot? = cache[songId]
+    fun take(songId: String): TrackCharacter.Snapshot? = cache.remove(songId)
 
     fun remember(songId: String, snapshot: TrackCharacter.Snapshot) {
         if (songId.isBlank()) return
         cache[songId] = snapshot
-        // Bound cache size.
-        if (cache.size > 24) {
-            val drop = cache.keys.take(8)
-            drop.forEach { cache.remove(it) }
-        }
+        trimCache(keep = songId)
     }
 
     /** Song that will soft-reset next (current track being prepared). */
@@ -59,37 +56,53 @@ object TrackCharacterPrefetch {
     }
 
     fun consumeForPlayback(songId: String): TrackCharacter.Snapshot? {
+        setUpcomingPlayback(songId)
+        val snap = cache.remove(songId)
         setUpcomingPlayback(null)
-        return take(songId)
+        return snap
     }
 
     fun prefetch(context: Context, songId: String, uri: String, headers: Map<String, String> = emptyMap()) {
         if (songId.isBlank() || uri.isBlank()) return
         if (cache.containsKey(songId)) return
+        pendingSongId.set(songId)
         job?.cancel()
+        val generation = songId
         job = scope.launch {
             mutex.withLock {
-                if (cache.containsKey(songId)) return@withLock
+                if (cache.containsKey(generation)) return@withLock
                 runCatching {
-                    val snap = analyzeUri(context, uri, headers)
-                    if (snap != null) {
-                        cache[songId] = snap
+                    val snap = analyzeUri(context, uri, headers) {
+                        ensureActive()
+                        pendingSongId.get() == generation
+                    }
+                    if (snap != null && pendingSongId.get() == generation) {
+                        cache[generation] = snap
+                        trimCache(keep = generation)
                         Log.i(
                             TAG,
-                            "prefetch $songId bpm=${"%.0f".format(snap.bpm)} " +
+                            "prefetch $generation bpm=${"%.0f".format(snap.bpm)} " +
                                 "int=${"%.2f".format(snap.intensity)} " +
                                 "dr=${"%.2f".format(snap.dynamicRange)}",
                         )
                     }
-                }.onFailure { Log.w(TAG, "prefetch failed for $songId", it) }
+                }.onFailure { Log.w(TAG, "prefetch failed for $generation", it) }
             }
         }
+    }
+
+    private fun trimCache(keep: String?) {
+        if (cache.size <= 24) return
+        val pending = pendingSongId.get()
+        val victims = cache.keys.filter { it != keep && it != pending }.take(8)
+        victims.forEach { cache.remove(it) }
     }
 
     private fun analyzeUri(
         context: Context,
         uri: String,
         headers: Map<String, String>,
+        stillWanted: () -> Boolean,
     ): TrackCharacter.Snapshot? {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
@@ -128,6 +141,7 @@ object TrackCharacterPrefetch {
             val deadline = SystemClock.uptimeMillis() + ANALYZE_MS + 4_000L
 
             while (!outputDone && samples < maxSamples && SystemClock.uptimeMillis() < deadline) {
+                if (!stillWanted()) return null
                 if (!inputDone) {
                     val inIx = codec.dequeueInputBuffer(4_000)
                     if (inIx >= 0) {

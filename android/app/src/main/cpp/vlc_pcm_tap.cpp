@@ -58,6 +58,8 @@ set_volume_callback_fn g_set_volume_callback = nullptr;
 
 std::mutex g_attach_mu;
 libvlc_media_player_t *g_attached_mp = nullptr;
+/** Serializes play_array create/use/free across audio + detach threads. */
+std::mutex g_play_buf_mu;
 
 struct TapState {
     unsigned channels = 2;
@@ -129,12 +131,14 @@ void detach_if_needed(bool attached) {
 }
 
 int setup_cb(void **data, char *format, unsigned *rate, unsigned *channels) {
-    // Request signed 16-bit native endian — simplest for AudioTrack + FFT.
-    std::strncpy(format, "S16N", 4);
-    format[4] = '\0';
-    g_tap.rate = *rate;
-    g_tap.channels = *channels == 0 ? 2 : *channels;
+    // Request signed 16-bit native endian — 4-char FOURCC only (no trailing NUL).
+    std::memcpy(format, "S16N", 4);
+    g_tap.rate = *rate == 0 ? 44100u : *rate;
+    unsigned ch = *channels == 0 ? 2u : *channels;
+    if (ch > 8u) ch = 8u;
+    g_tap.channels = ch;
     *channels = g_tap.channels;
+    if (*rate == 0) *rate = g_tap.rate;
 
     LOGI("setup_cb rate=%u ch=%u", g_tap.rate, g_tap.channels);
 
@@ -162,10 +166,13 @@ void cleanup_cb(void * /*data*/) {
     if (env && g_bridge_class && g_cleanup_mid) {
         env->CallStaticVoidMethod(g_bridge_class, g_cleanup_mid);
         if (env->ExceptionCheck()) env->ExceptionClear();
-        if (g_tap.play_array) {
-            env->DeleteGlobalRef(g_tap.play_array);
-            g_tap.play_array = nullptr;
-            g_tap.play_array_cap = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_play_buf_mu);
+            if (g_tap.play_array) {
+                env->DeleteGlobalRef(g_tap.play_array);
+                g_tap.play_array = nullptr;
+                g_tap.play_array_cap = 0;
+            }
         }
     }
     detach_if_needed(attached);
@@ -178,7 +185,8 @@ void play_cb(void *data, const void *samples, unsigned count, int64_t /*pts*/) {
     if (!state) state = &g_tap;
     if (!samples || count == 0) return;
 
-    const unsigned channels = state->channels == 0 ? 2 : state->channels;
+    unsigned channels = state->channels == 0 ? 2u : state->channels;
+    if (channels > 8u) channels = 8u;
     const jint bytes = static_cast<jint>(count * channels * sizeof(int16_t));
     if (bytes <= 0) return;
 
@@ -189,31 +197,36 @@ void play_cb(void *data, const void *samples, unsigned count, int64_t /*pts*/) {
         return;
     }
 
-    if (!state->play_array || state->play_array_cap < bytes) {
-        if (state->play_array) env->DeleteGlobalRef(state->play_array);
-        jbyteArray local = env->NewByteArray(bytes);
-        if (!local) {
-            detach_if_needed(attached);
-            return;
+    {
+        std::lock_guard<std::mutex> lock(g_play_buf_mu);
+        if (!state->play_array || state->play_array_cap < bytes) {
+            if (state->play_array) env->DeleteGlobalRef(state->play_array);
+            state->play_array = nullptr;
+            state->play_array_cap = 0;
+            jbyteArray local = env->NewByteArray(bytes);
+            if (!local) {
+                detach_if_needed(attached);
+                return;
+            }
+            state->play_array = static_cast<jbyteArray>(env->NewGlobalRef(local));
+            env->DeleteLocalRef(local);
+            state->play_array_cap = bytes;
+            if (!state->play_array) {
+                detach_if_needed(attached);
+                return;
+            }
         }
-        state->play_array = static_cast<jbyteArray>(env->NewGlobalRef(local));
-        env->DeleteLocalRef(local);
-        state->play_array_cap = bytes;
-        if (!state->play_array) {
-            detach_if_needed(attached);
-            return;
-        }
-    }
 
-    env->SetByteArrayRegion(state->play_array, 0, bytes, reinterpret_cast<const jbyte *>(samples));
-    env->CallStaticVoidMethod(
-        g_bridge_class,
-        g_play_mid,
-        state->play_array,
-        bytes,
-        static_cast<jint>(channels),
-        static_cast<jint>(count));
-    if (env->ExceptionCheck()) env->ExceptionClear();
+        env->SetByteArrayRegion(state->play_array, 0, bytes, reinterpret_cast<const jbyte *>(samples));
+        env->CallStaticVoidMethod(
+            g_bridge_class,
+            g_play_mid,
+            state->play_array,
+            bytes,
+            static_cast<jint>(channels),
+            static_cast<jint>(count));
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
     detach_if_needed(attached);
 }
 
@@ -329,6 +342,7 @@ Java_app_sonicsound_playback_VlcPcmOutput_nativeDetach(JNIEnv *env, jclass, jlon
         g_attached_mp = nullptr;
     }
     if (g_tap.play_array && env) {
+        std::lock_guard<std::mutex> lock(g_play_buf_mu);
         env->DeleteGlobalRef(g_tap.play_array);
         g_tap.play_array = nullptr;
         g_tap.play_array_cap = 0;

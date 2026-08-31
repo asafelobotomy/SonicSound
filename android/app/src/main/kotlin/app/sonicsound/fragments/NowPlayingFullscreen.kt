@@ -428,8 +428,8 @@ class NowPlayingFullscreen(
                 stopDvd()
                 fsArt.isVisible = false
                 fsBackdrop.isVisible = false
-                solidBg.isVisible = true
-                solidBg.setBackgroundColor(Color.BLACK)
+                // Visualizer Surface is opaque — skip an extra fullscreen black layer under it.
+                solidBg.isVisible = false
                 overlay.setBackgroundColor(Color.BLACK)
                 wmpVisualizer.isVisible = true
                 wmpVisualizer.setMode(visualizerMode)
@@ -476,6 +476,7 @@ class NowPlayingFullscreen(
 
     private fun startDvd() {
         if (dvdRunning || videoMode) return
+        refreshDvdSpeedCache()
         val density = root.resources.displayMetrics.density
         if (dvdScreensaver.vx == 0f && dvdScreensaver.vy == 0f) {
             dvdScreensaver.reset(
@@ -508,13 +509,21 @@ class NowPlayingFullscreen(
         wmpVisualizer.isVisible = false
     }
 
+    private var cachedDvdSpeedPx = 0f
+
     private fun dvdSpeedPxPerSec(): Float {
+        if (cachedDvdSpeedPx > 0f) return cachedDvdSpeedPx
+        return refreshDvdSpeedCache()
+    }
+
+    private fun refreshDvdSpeedCache(): Float {
         val density = root.resources.displayMetrics.density
-        return when (KeyValueStorage.getSettings().dvdSpeed) {
+        cachedDvdSpeedPx = when (KeyValueStorage.getSettings().dvdSpeed) {
             FullscreenVisualizer.SPEED_SLOW -> 48f * density
             FullscreenVisualizer.SPEED_FAST -> 160f * density
             else -> 90f * density
         }
+        return cachedDvdSpeedPx
     }
 
     private fun stepDvd(nowMs: Long) {

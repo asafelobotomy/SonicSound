@@ -100,6 +100,7 @@ class ArtistsFragment : Fragment {
             }
         }
         view.post {
+            if (!isAdded || view !== this.view) return@post
             density = resources.displayMetrics.density
             width = view.width
             viewLifecycleOwner.lifecycleScope.launch {
@@ -109,6 +110,7 @@ class ArtistsFragment : Fragment {
                             it.image = client.getAlbumArt(it.coverArt)
                         }
                     }
+                    if (!isAdded) return@launch
                     empty.isVisible = albums.isEmpty()
                     recycler.isVisible = albums.isNotEmpty()
                     setGrid(recycler, SonicSoundCardAdapter(albums, recycler, bind))
@@ -125,6 +127,7 @@ class ArtistsFragment : Fragment {
                             }
                         }
                     }
+                    if (!isAdded) return@launch
                     renderArtists(recycler, empty)
                     hydrateArtistArts(recycler, empty)
                 }
@@ -133,6 +136,7 @@ class ArtistsFragment : Fragment {
     }
 
     private fun renderArtists(recycler: RecyclerView, empty: TextView) {
+        if (!isAdded) return
         val cards: List<ICardViewModel> = sortArtists(allArtists, sort)
         empty.isVisible = cards.isEmpty()
         recycler.isVisible = cards.isNotEmpty()
@@ -147,23 +151,26 @@ class ArtistsFragment : Fragment {
                     chunk.forEach { artist ->
                         try {
                             val url = client.getArtistArt(artist.id)
-                            if (url.isNotBlank()) artist.image = url
+                            if (url.isNotBlank() && artist.image.isBlank()) artist.image = url
                         } catch (_: Exception) {
                         }
                     }
                 }
-                if (view == null) return@launch
+                if (!isAdded || view == null) return@launch
                 renderArtists(recycler, empty)
             }
         }
     }
 
     private fun setGrid(rc: RecyclerView, a: SonicSoundCardAdapter) {
+        if (!isAdded) return
+        val ctx = context ?: return
         rc.setHasFixedSize(true)
         val columns = ceil(width / (170 * density + 0.5f)).toInt().coerceAtLeast(1)
-        rc.layoutManager = GridLayoutManager(context, columns)
+        rc.layoutManager = GridLayoutManager(ctx, columns)
         rc.adapter = a
         rc.layoutManager?.getChildAt(0)?.post {
+            if (!isAdded) return@post
             val child = rc.layoutManager?.getChildAt(0) ?: return@post
             val w = child.width + child.marginLeft + child.marginRight
             if (w > 0) {

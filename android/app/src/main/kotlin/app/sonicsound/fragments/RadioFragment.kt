@@ -57,6 +57,7 @@ class RadioFragment : Fragment {
             TvLibraryDialogs.showRadioStationForm(this, client, null) { refreshStations() }
         }
         view.post {
+            if (!isAdded || view !== this.view) return@post
             density = resources.displayMetrics.density
             width = view.width
             refreshStations()
@@ -71,10 +72,12 @@ class RadioFragment : Fragment {
     }
 
     private fun refreshStations() {
+        if (!isAdded || !::client.isInitialized) return
         viewLifecycleOwner.lifecycleScope.launch {
             val stations: List<ICardViewModel> = withContext(Dispatchers.IO) {
                 client.getInternetRadioStations()
             }
+            if (!isAdded) return@launch
             emptyView.isVisible = stations.isEmpty()
             radioRecycler.isVisible = stations.isNotEmpty()
             if (adapter == null) {

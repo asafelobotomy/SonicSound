@@ -47,6 +47,9 @@ class AudioSpectrumSource(context: Context) {
     var bpm: Float = 110f
         private set
 
+    /** When false, skip per-frame wave envelope (Scope-only). */
+    var smoothWaveNeeded: Boolean = false
+
     fun band(index: Int): Float {
         val i = index.coerceIn(0, smoothBands.lastIndex)
         return smoothBands[i] * volumeScale
@@ -71,13 +74,17 @@ class AudioSpectrumSource(context: Context) {
     }
 
     fun tick(playingOverride: Boolean = playing) {
-        if ((poll++ and 7) == 0) {
+        if ((poll++ and 31) == 0) {
             volumeScale = readVolumeScale()
-            val delay = AudioOutputLatency.estimateMs(appContext)
-            PlaybackSpectrum.setDisplayDelayMs(delay.toLong())
-            if (delay != lastLoggedDelay && (poll and 63) == 0) {
-                lastLoggedDelay = delay
-                AudioOutputLatency.logEstimate(appContext)
+            // Never call AudioManager.getDevices on the frame path — it stalls 50–700ms on Shield.
+            AudioOutputLatency.scheduleRefresh(appContext)
+            PlaybackSpectrum.setDisplayDelayMs(AudioOutputLatency.cachedMs().toLong())
+            if ((poll and 255) == 0) {
+                val delay = AudioOutputLatency.cachedMs()
+                if (delay != lastLoggedDelay) {
+                    lastLoggedDelay = delay
+                    AudioOutputLatency.logEstimate(appContext)
+                }
             }
         }
         PlaybackSpectrum.presentForDisplay()
@@ -102,13 +109,16 @@ class AudioSpectrumSource(context: Context) {
             val cur = smoothBands[i]
             smoothBands[i] = cur + (target - cur) * if (target > cur) aUp else aDown
         }
-        val waveAUp = 1f - exp(-dt * (attackHz * 0.85f))
-        val waveADown = 1f - exp(-dt * (releaseHz * 1.25f))
-        for (i in smoothWave.indices) {
-            val target = PlaybackSpectrum.waveAt(i)
-            val cur = smoothWave[i]
-            val a = if (kotlin.math.abs(target) > kotlin.math.abs(cur)) waveAUp else waveADown
-            smoothWave[i] = cur + (target - cur) * a
+        // Wave smoothing is only consumed by Scope — skip on other modes.
+        if (smoothWaveNeeded) {
+            val waveAUp = 1f - exp(-dt * (attackHz * 0.85f))
+            val waveADown = 1f - exp(-dt * (releaseHz * 1.25f))
+            for (i in smoothWave.indices) {
+                val target = PlaybackSpectrum.waveAt(i)
+                val cur = smoothWave[i]
+                val a = if (kotlin.math.abs(target) > kotlin.math.abs(cur)) waveAUp else waveADown
+                smoothWave[i] = cur + (target - cur) * a
+            }
         }
         fun smoothToward(cur: Float, target: Float): Float =
             cur + (target - cur) * if (target > cur) aUp else aDown
@@ -125,6 +135,7 @@ class AudioSpectrumSource(context: Context) {
 
     fun start(): Boolean {
         lastTickNanos = 0L
+        AudioOutputLatency.scheduleRefresh(appContext)
         return true
     }
 

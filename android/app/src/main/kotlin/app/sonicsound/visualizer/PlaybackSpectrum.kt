@@ -1,10 +1,16 @@
 package app.sonicsound.visualizer
 
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Process
 import android.os.SystemClock
 import java.nio.ByteOrder
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -12,19 +18,19 @@ import kotlin.math.sqrt
 /**
  * Live spectrum fed from LibVLC decoded PCM ([app.sonicsound.playback.VlcPcmOutput]).
  *
- * Sync model:
- * - FFT runs on every hop while PCM is ingested (no waiting for the whole aout chunk)
- * - Snapshots are timestamped into a short history ring
- * - UI reads the snapshot from `now - outputLatency` so bars match Bluetooth/HDMI audio
+ * Pipeline:
+ * 1. Audio callback [onPcmS16] demuxes into a circular window + channel meters (fast)
+ * 2. On each FFT hop, a window snapshot is queued to a dedicated analyzer thread
+ * 3. Analyzer runs FFT / AGC / TrackCharacter and pushes a latency history ring
+ * 4. UI [presentForDisplay] reads `now - outputLatency`
  */
 object PlaybackSpectrum {
     private const val FFT_SIZE = 1024
     private const val BAND_COUNT = 64
     private const val WAVE_COUNT = 128
-    /** ~172 FFT/s at 44.1 kHz — keeps UI within one display frame of analysis. */
     private const val FFT_HOP = FFT_SIZE / 4
-    /** ~1.2s of history at ~170 Hz — covers heavy A2DP paths. */
     private const val HISTORY = 200
+    private const val STAGING_SLOTS = 4
 
     private val window = FloatArray(FFT_SIZE)
     private val fftRe = FloatArray(FFT_SIZE)
@@ -51,6 +57,12 @@ object PlaybackSpectrum {
     private var histWrite = 0
     private var histCount = 0
 
+    /** Chronological mono snapshots waiting for FFT (oldest sample at index 0). */
+    private val stagingWindows = Array(STAGING_SLOTS) { FloatArray(FFT_SIZE) }
+    private val analyzeScratch = FloatArray(FFT_SIZE)
+    private var stagingRead = 0
+    private var stagingPending = 0
+
     private var writePos = 0
     private var framesSinceFft = 0
     private var sampleRate = 44_100
@@ -60,7 +72,6 @@ object PlaybackSpectrum {
     private val character = TrackCharacter()
     private var currentSongId: String? = null
 
-    // Channel levels (linear 0..1-ish), delay-compensated via history.
     private var leftInternal = 0f
     private var rightInternal = 0f
     private var sideInternal = 0f
@@ -77,24 +88,38 @@ object PlaybackSpectrum {
     private var displayDelayMs = 0L
     @Volatile
     private var decayGraceUntilMs = 0L
-    private val lock = Any()
+    /** Shared by ingest / analyzer / UI. UI present uses tryLock so FLAC bursts don't stall frames. */
+    private val lock = ReentrantLock()
+    /** Demux scratch for the audio callback — filled outside [lock], committed under it. */
+    private var midScratch = FloatArray(4096)
 
     @Volatile
     private var hasSignal = false
 
+    @Volatile private var pubBpm = 110f
+    @Volatile private var pubAttackHz = 28f
+    @Volatile private var pubReleaseHz = 11f
+    @Volatile private var pubIntensity = 0.5f
+    @Volatile private var pubDynamicRange = 0.5f
+
+    private val analyzerThread = HandlerThread("ss-spectrum", Process.THREAD_PRIORITY_AUDIO).apply { start() }
+    private val analyzerHandler = Handler(analyzerThread.looper)
+    private val analyzeRunnable = Runnable { drainStaging() }
+    /** Band magnitudes from unlocked FFT — published under [lock]. */
+    private val magScratch = FloatArray(BAND_COUNT)
+
     val active: Boolean get() = hasSignal
     val bandCount: Int get() = BAND_COUNT
     val waveCount: Int get() = WAVE_COUNT
-    val lastPcmPeak: Float get() = synchronized(lock) { pcmPeak }
+    val lastPcmPeak: Float get() = lock.withLock { pcmPeak }
     val displayDelayMsValue: Long get() = displayDelayMs
-    val pcmChannelCount: Int get() = synchronized(lock) { channelCount }
+    val pcmChannelCount: Int get() = lock.withLock { channelCount }
 
-    /** Live song character (BPM / dynamics) — safe to read from the UI thread. */
-    fun estimatedBpm(): Float = synchronized(lock) { character.bpm }
-    fun attackHz(): Float = synchronized(lock) { character.attackHz }
-    fun releaseHz(): Float = synchronized(lock) { character.releaseHz }
-    fun intensity(): Float = synchronized(lock) { character.intensity }
-    fun dynamicRange(): Float = synchronized(lock) { character.dynamicRange }
+    fun estimatedBpm(): Float = pubBpm
+    fun attackHz(): Float = pubAttackHz
+    fun releaseHz(): Float = pubReleaseHz
+    fun intensity(): Float = pubIntensity
+    fun dynamicRange(): Float = pubDynamicRange
 
     fun left(): Float = leftPub
     fun right(): Float = rightPub
@@ -102,41 +127,48 @@ object PlaybackSpectrum {
     fun surround(): Float = surroundPub
     fun lfe(): Float = lfePub
 
-    /** Output-path latency to apply when presenting bands to the UI. */
     fun setDisplayDelayMs(ms: Long) {
         displayDelayMs = ms.coerceIn(0L, 900L)
     }
 
-    /**
-     * Call when a new track is about to play. Seeds BPM/dynamics from next-track
-     * prefetch (or a weak prior) so adaptation settles in ~1–3s.
-     */
     fun prepareForTrack(songId: String) {
-        synchronized(lock) {
+        lock.withLock {
             val prevId = currentSongId
-            if (prevId != null && prevId != songId && character.confidence > 0.2f) {
+            val sameTrack = prevId != null && prevId == songId
+            if (!sameTrack && prevId != null && character.confidence > 0.2f) {
                 TrackCharacterPrefetch.remember(prevId, character.capture())
             }
             currentSongId = songId
-            val snap = TrackCharacterPrefetch.consumeForPlayback(songId)
-            character.reset()
-            if (snap != null) character.seed(snap)
-            // Soft-clear analysis buffers; keep published levels from collapsing to zero.
+            if (!sameTrack) {
+                val snap = TrackCharacterPrefetch.consumeForPlayback(songId)
+                character.reset()
+                if (snap != null) character.seed(snap)
+                histWrite = 0
+                histCount = 0
+                clearStagingLocked()
+            }
             window.fill(0f)
             writePos = 0
             framesSinceFft = 0
-            pcmPeak *= 0.35f
+            pcmPeak *= if (sameTrack) 0.55f else 0.35f
+            val scale = if (sameTrack) 0.55f else 0.35f
             for (i in bandsInternal.indices) {
-                bandsInternal[i] *= 0.35f
-                rawBands[i] *= 0.35f
+                bandsInternal[i] *= scale
+                rawBands[i] *= scale
             }
-            leftInternal *= 0.35f
-            rightInternal *= 0.35f
-            sideInternal *= 0.35f
-            surroundInternal *= 0.35f
-            lfeInternal *= 0.35f
+            leftInternal *= scale
+            rightInternal *= scale
+            sideInternal *= scale
+            surroundInternal *= scale
+            lfeInternal *= scale
+            if (!sameTrack) {
+                pushHistoryLocked()
+                presentLocked(0L)
+            }
+            publishCharacterUnlocked()
             decayGraceUntilMs = SystemClock.uptimeMillis() + 1_800L
         }
+        analyzerHandler.removeCallbacks(analyzeRunnable)
     }
 
     fun band(index: Int): Float {
@@ -151,7 +183,6 @@ object PlaybackSpectrum {
 
     fun bass(): Float {
         val bandBass = average(1, (BAND_COUNT / 8).coerceAtLeast(2))
-        // Blend LFE when present so sub-heavy / surround mixes drive the low end.
         return (bandBass * 0.72f + lfePub.coerceIn(0f, 1f) * 0.55f).coerceIn(0f, 1f)
     }
 
@@ -163,18 +194,19 @@ object PlaybackSpectrum {
 
     fun energy(): Float = average(1, BAND_COUNT)
 
-    /**
-     * Select the history snapshot that aligns with what is leaving the speakers now.
-     * Call once per UI frame before reading [band]/[waveAt]/ etc.
-     */
     fun presentForDisplay() {
-        synchronized(lock) {
+        // Never block the frame loop behind a large FLAC PCM ingest / FFT publish.
+        if (!lock.tryLock()) return
+        try {
             presentLocked(displayDelayMs)
+        } finally {
+            lock.unlock()
         }
     }
 
     fun reset() {
-        synchronized(lock) {
+        analyzerHandler.removeCallbacks(analyzeRunnable)
+        lock.withLock {
             window.fill(0f)
             bandsInternal.fill(0f)
             rawBands.fill(0f)
@@ -201,16 +233,19 @@ object PlaybackSpectrum {
             wavePub.fill(0f)
             histWrite = 0
             histCount = 0
+            clearStagingLocked()
+            publishCharacterUnlocked()
         }
     }
 
     fun softReset() {
-        synchronized(lock) {
+        analyzerHandler.removeCallbacks(analyzeRunnable)
+        lock.withLock {
             window.fill(0f)
             writePos = 0
             framesSinceFft = 0
             pcmPeak *= 0.45f
-            // Keep TrackCharacter — prepareForTrack() already seeded BPM/dynamics.
+            clearStagingLocked()
             for (i in bandsInternal.indices) {
                 bandsInternal[i] *= 0.45f
                 rawBands[i] *= 0.45f
@@ -228,6 +263,11 @@ object PlaybackSpectrum {
         }
     }
 
+    /**
+     * Fast PCM ingest for the audio callback. Demux runs outside [lock]; only the
+     * window/staging commit is locked so UI [presentForDisplay] is not blocked by
+     * large FLAC decode bursts from LibVLC.
+     */
     fun onPcmS16(
         pcm: ByteArray,
         bytes: Int,
@@ -239,19 +279,21 @@ object PlaybackSpectrum {
         if (bytes < 2 || channels < 1 || frames < 1) return
         val ch = channels.coerceIn(1, 8)
         val little = order == ByteOrder.LITTLE_ENDIAN
-        synchronized(lock) {
-            hasSignal = true
-            channelCount = ch
-            if (rateHz >= 8000) sampleRate = rateHz
-            ensureBandPlanLocked()
-            val frameCount = (bytes / (2 * ch)).coerceAtMost(frames)
-            var batchPeak = 0f
-            var sumL = 0f
-            var sumR = 0f
-            var sumSide = 0f
-            var sumSur = 0f
-            var sumLfe = 0f
-            for (f in 0 until frameCount) {
+        val frameCount = (bytes / (2 * ch)).coerceAtMost(frames)
+        if (frameCount <= 0) return
+
+        var scheduleAnalyze = false
+        var batchPeak = 0f
+        var sumL = 0f
+        var sumR = 0f
+        var sumSide = 0f
+        var sumSur = 0f
+        var sumLfe = 0f
+        var f0 = 0
+        while (f0 < frameCount) {
+            val n = min(frameCount - f0, midScratch.size)
+            for (i in 0 until n) {
+                val f = f0 + i
                 val base = f * ch * 2
                 val s0 = readS16(pcm, base, bytes, little)
                 val s1 = if (ch > 1) readS16(pcm, base + 2, bytes, little) else s0
@@ -262,57 +304,114 @@ object PlaybackSpectrum {
                 val s6 = if (ch > 6) readS16(pcm, base + 12, bytes, little) else 0f
                 val s7 = if (ch > 7) readS16(pcm, base + 14, bytes, little) else 0f
 
-                // Mid for FFT/wave: front L/R (+ center when present). Avoid averaging LFE into mid.
                 val mid = when {
                     ch >= 6 -> (s0 + s1 + s2 * 0.75f) / 2.75f
                     ch >= 2 -> (s0 + s1) * 0.5f
                     else -> s0
                 }
-                val left = s0
-                val right = s1
-                val side = (left - right) * 0.5f
+                val side = (s0 - s1) * 0.5f
                 val surround = when {
                     ch >= 8 -> (kotlin.math.abs(s4) + kotlin.math.abs(s5) +
                         kotlin.math.abs(s6) + kotlin.math.abs(s7)) * 0.25f
                     ch >= 6 -> (kotlin.math.abs(s4) + kotlin.math.abs(s5)) * 0.5f
                     ch == 4 -> (kotlin.math.abs(s2) + kotlin.math.abs(s3)) * 0.5f
-                    else -> kotlin.math.abs(side) // stereo width proxy
+                    else -> kotlin.math.abs(side)
                 }
-                val lfe = when {
-                    ch >= 6 -> kotlin.math.abs(s3)
-                    else -> 0f
-                }
+                val lfe = if (ch >= 6) kotlin.math.abs(s3) else 0f
 
-                sumL += kotlin.math.abs(left)
-                sumR += kotlin.math.abs(right)
+                sumL += kotlin.math.abs(s0)
+                sumR += kotlin.math.abs(s1)
                 sumSide += kotlin.math.abs(side)
                 sumSur += surround
                 sumLfe += lfe
-
                 val abs = kotlin.math.abs(mid)
                 if (abs > batchPeak) batchPeak = abs
-                window[writePos] = mid
-                writePos = (writePos + 1) % FFT_SIZE
-                framesSinceFft++
-                if (framesSinceFft >= FFT_HOP) {
-                    framesSinceFft = 0
-                    updateWaveLocked()
-                    computeFftLocked()
-                    pushHistoryLocked()
+                midScratch[i] = mid
+            }
+            lock.withLock {
+                hasSignal = true
+                channelCount = ch
+                if (rateHz >= 8000) sampleRate = rateHz
+                ensureBandPlanLocked()
+                for (i in 0 until n) {
+                    window[writePos] = midScratch[i]
+                    writePos = (writePos + 1) % FFT_SIZE
+                    framesSinceFft++
+                    if (framesSinceFft >= FFT_HOP) {
+                        framesSinceFft = 0
+                        offerStagingLocked()
+                        scheduleAnalyze = true
+                    }
                 }
             }
-            if (frameCount > 0) {
-                val inv = 1f / frameCount
-                val a = 0.22f
-                leftInternal = leftInternal * (1f - a) + (sumL * inv) * a
-                rightInternal = rightInternal * (1f - a) + (sumR * inv) * a
-                sideInternal = sideInternal * (1f - a) + (sumSide * inv) * a
-                surroundInternal = surroundInternal * (1f - a) + (sumSur * inv) * a
-                lfeInternal = lfeInternal * (1f - a) + (sumLfe * inv) * a
-            }
-            pcmPeak = pcmPeak * 0.85f + batchPeak * 0.15f
-            presentLocked(displayDelayMs)
+            f0 += n
         }
+        lock.withLock {
+            val inv = 1f / frameCount
+            val a = 0.22f
+            leftInternal = leftInternal * (1f - a) + (sumL * inv) * a
+            rightInternal = rightInternal * (1f - a) + (sumR * inv) * a
+            sideInternal = sideInternal * (1f - a) + (sumSide * inv) * a
+            surroundInternal = surroundInternal * (1f - a) + (sumSur * inv) * a
+            lfeInternal = lfeInternal * (1f - a) + (sumLfe * inv) * a
+            pcmPeak = pcmPeak * 0.85f + batchPeak * 0.15f
+            leftPub = leftInternal
+            rightPub = rightInternal
+            sidePub = sideInternal
+            surroundPub = surroundInternal
+            lfePub = lfeInternal
+        }
+        if (scheduleAnalyze) {
+            analyzerHandler.removeCallbacks(analyzeRunnable)
+            analyzerHandler.post(analyzeRunnable)
+        }
+    }
+
+    private fun offerStagingLocked() {
+        if (stagingPending == STAGING_SLOTS) {
+            stagingRead = (stagingRead + 1) % STAGING_SLOTS
+            stagingPending--
+        }
+        val slot = (stagingRead + stagingPending) % STAGING_SLOTS
+        val dest = stagingWindows[slot]
+        for (i in 0 until FFT_SIZE) {
+            dest[i] = window[(writePos + i) % FFT_SIZE]
+        }
+        stagingPending++
+    }
+
+    private fun clearStagingLocked() {
+        stagingRead = 0
+        stagingPending = 0
+    }
+
+    private fun drainStaging() {
+        while (true) {
+            lock.withLock {
+                if (stagingPending <= 0) return
+                System.arraycopy(stagingWindows[stagingRead], 0, analyzeScratch, 0, FFT_SIZE)
+                stagingRead = (stagingRead + 1) % STAGING_SLOTS
+                stagingPending--
+                ensureBandPlanLocked()
+            }
+            // FFT stays off the ingest/UI lock — this was stalling Choreographer (~70ms+ tails).
+            computeBandMagnitudes(analyzeScratch, magScratch)
+            lock.withLock {
+                applyAgcAndEnvelopesLocked(magScratch)
+                updateWaveFromStagingLocked(analyzeScratch)
+                pushHistoryLocked()
+                presentLocked(displayDelayMs)
+                publishCharacterUnlocked()
+            }
+        }
+    }
+
+    private fun publishCharacterUnlocked() {
+        pubBpm = character.bpm
+        pubAttackHz = character.attackHz
+        pubReleaseHz = character.releaseHz
+        pubIntensity = character.intensity
+        pubDynamicRange = character.dynamicRange
     }
 
     private fun readS16(pcm: ByteArray, index: Int, bytes: Int, little: Boolean): Float {
@@ -328,7 +427,8 @@ object PlaybackSpectrum {
     fun tickDecay(playing: Boolean) {
         if (playing) return
         if (SystemClock.uptimeMillis() < decayGraceUntilMs) return
-        synchronized(lock) {
+        if (!lock.tryLock()) return
+        try {
             for (i in bandsInternal.indices) {
                 bandsInternal[i] *= 0.88f
                 if (bandsInternal[i] < 0.001f) bandsInternal[i] = 0f
@@ -339,14 +439,16 @@ object PlaybackSpectrum {
             pushHistoryLocked()
             presentLocked(displayDelayMs)
             if (bandsInternal.all { it == 0f }) hasSignal = false
+        } finally {
+            lock.unlock()
         }
     }
 
-    private fun updateWaveLocked() {
+    private fun updateWaveFromStagingLocked(staging: FloatArray) {
         val waveGain = (2.8f + agcGain * 1.2f).coerceIn(2f, 12f)
+        val base = FFT_SIZE - WAVE_COUNT
         for (i in 0 until WAVE_COUNT) {
-            val idx = (writePos - WAVE_COUNT + i + FFT_SIZE) % FFT_SIZE
-            waveInternal[i] = (window[idx] * waveGain).coerceIn(-1f, 1f)
+            waveInternal[i] = (staging[base + i] * waveGain).coerceIn(-1f, 1f)
         }
     }
 
@@ -422,16 +524,13 @@ object PlaybackSpectrum {
         }
     }
 
-    private fun computeFftLocked() {
+    private fun computeBandMagnitudes(staging: FloatArray, outMags: FloatArray) {
         for (i in 0 until FFT_SIZE) {
-            val idx = (writePos + i) % FFT_SIZE
-            fftRe[i] = window[idx] * hann[i]
+            fftRe[i] = staging[i] * hann[i]
             fftIm[i] = 0f
         }
         fftRadix2(fftRe, fftIm)
 
-        var framePeak = 0f
-        var frameSum = 0f
         for (b in 0 until BAND_COUNT) {
             var peak = 0f
             var sum = 0f
@@ -445,13 +544,20 @@ object PlaybackSpectrum {
                 n++
             }
             val avg = if (n == 0) 0f else sum / n
-            val mag = peak * 0.72f + avg * 0.28f
+            outMags[b] = peak * 0.72f + avg * 0.28f
+        }
+    }
+
+    private fun applyAgcAndEnvelopesLocked(mags: FloatArray) {
+        var framePeak = 0f
+        var frameSum = 0f
+        for (b in 0 until BAND_COUNT) {
+            val mag = mags[b]
             rawBands[b] = mag
             if (mag > framePeak) framePeak = mag
             frameSum += mag
         }
 
-        // Update AGC first so character floor/ceil live in the same space as normalize().
         if (framePeak > 1e-5f) {
             val targetLevel = (0.028f + character.dynamicRange * 0.03f - character.intensity * 0.008f)
                 .coerceIn(0.018f, 0.06f)
@@ -463,13 +569,13 @@ object PlaybackSpectrum {
             agcGain = (agcGain * 1.02f).coerceIn(0.2f, 32f)
         }
 
-        // Reuse rawBands buffer as scaled magnitudes for character + norm (then restored unused).
         for (b in 0 until BAND_COUNT) {
             rawBands[b] *= agcGain
         }
         character.observe(rawBands, SystemClock.elapsedRealtime())
 
         val mean = (frameSum * agcGain / BAND_COUNT).coerceAtLeast(1e-8f)
+        val hopSec = FFT_HOP.toFloat() / sampleRate.coerceAtLeast(8_000).toFloat()
         for (b in 0 until BAND_COUNT) {
             val mag = rawBands[b]
             var norm = character.normalize(mag)
@@ -477,9 +583,7 @@ object PlaybackSpectrum {
             val contrastPow = (0.42f + character.dynamicRange * 0.12f).coerceIn(0.35f, 0.55f)
             val contrast = relative.pow(contrastPow).coerceIn(0.4f, 2.6f)
             norm = (norm * contrast).coerceIn(0f, 1f)
-
-            val prev = bandsInternal[b]
-            bandsInternal[b] = character.envelope(prev, norm)
+            bandsInternal[b] = character.envelope(bandsInternal[b], norm, hopSec)
         }
     }
 

@@ -57,6 +57,7 @@ class PlaylistsFragment : Fragment {
             TvLibraryDialogs.showCreatePlaylist(this, client) { refreshPlaylists() }
         }
         view.post {
+            if (!isAdded || view !== this.view) return@post
             density = resources.displayMetrics.density
             width = view.width
             refreshPlaylists()
@@ -71,12 +72,14 @@ class PlaylistsFragment : Fragment {
     }
 
     private fun refreshPlaylists() {
+        if (!isAdded || !::client.isInitialized) return
         viewLifecycleOwner.lifecycleScope.launch {
             val playlists: List<ICardViewModel> = withContext(Dispatchers.IO) {
                 client.getPlaylists().onEach { playlist ->
                     playlist.image = client.getAlbumArt(playlist.coverArt ?: "")
                 }
             }
+            if (!isAdded) return@launch
             emptyView.isVisible = playlists.isEmpty()
             newButton.isVisible = true
             playlistsRecycler.isVisible = playlists.isNotEmpty()

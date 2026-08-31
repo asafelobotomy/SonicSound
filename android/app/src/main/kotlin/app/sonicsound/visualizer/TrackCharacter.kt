@@ -202,10 +202,10 @@ class TrackCharacter {
         return t.pow(gamma).coerceIn(0f, 1f)
     }
 
-    fun envelope(prev: Float, target: Float): Float {
-        val hopSec = 0.006f
+    fun envelope(prev: Float, target: Float, hopSec: Float = 0.006f): Float {
+        val hop = hopSec.coerceIn(0.002f, 0.02f)
         val rate = if (target > prev) attackHz * 1.35f else releaseHz * 1.15f
-        val a = (1f - exp(-hopSec * rate)).coerceIn(0.05f, 0.92f)
+        val a = (1f - exp(-hop * rate)).coerceIn(0.05f, 0.92f)
         return prev + (target - prev) * a
     }
 

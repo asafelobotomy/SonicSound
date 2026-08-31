@@ -42,30 +42,14 @@ class WmpRenderState {
     fun step(dt: Float, spectrum: AudioSpectrumSource, mode: String) {
         time += dt
         ensureSeeded(spectrum.bandCount)
-        // Bars always track the delayed spectrum (used by Bars / Ocean / Fire).
-        updateBars(dt, spectrum)
         when (mode) {
-            "wmp_particle", "wmp_ambience" -> updateParticles(dt, spectrum)
+            "wmp_bars", "wmp_ocean_mist", "wmp_fire_storm" -> updateBars(dt, spectrum)
+            "wmp_ambience" -> updateParticles(dt, spectrum)
+            // Particle draw uses a spectrum grid, not the particle sim — skip wasted updates.
             "wmp_startime" -> updateStars(dt, spectrum)
             "wmp_snowtime" -> updateFlakes(dt, spectrum)
             "wmp_plenoptic" -> updateBlobs(dt, spectrum)
-            "wmp_battery", "wmp_alchemy", "wmp_spikes",
-            "wmp_musical_colors", "wmp_blazing_colors",
-            "wmp_color_cubes", "wmp_pulsing_colors",
-            "wmp_scope", "wmp_bars", "wmp_ocean_mist", "wmp_fire_storm",
-            -> {
-                // Keep sims warm so mode switches stay seamless without hitching.
-                updateParticles(dt * 0.2f, spectrum)
-                updateStars(dt * 0.2f, spectrum)
-                updateFlakes(dt * 0.2f, spectrum)
-                updateBlobs(dt * 0.2f, spectrum)
-            }
-            else -> {
-                updateParticles(dt * 0.2f, spectrum)
-                updateStars(dt * 0.2f, spectrum)
-                updateFlakes(dt * 0.2f, spectrum)
-                updateBlobs(dt * 0.2f, spectrum)
-            }
+            else -> Unit
         }
     }
 
@@ -154,17 +138,19 @@ class WmpRenderState {
     private fun updateParticles(dt: Float, spectrum: AudioSpectrumSource) {
         val energy = spectrum.energy()
         val bass = spectrum.bass()
+        val balance = spectrum.right() - spectrum.left()
+        val tScale = (spectrum.bpm / 110f).coerceIn(0.55f, 1.75f)
         val t = time
         val levelA = 1f - kotlin.math.exp(-dt * spectrum.attackHz * 0.7f)
         val levelR = 1f - kotlin.math.exp(-dt * spectrum.releaseHz)
         for (p in particles) {
             val mag = spectrum.band(p.band)
-            val angle = t * (0.35f + p.size * 0.2f) + p.hue * 0.017f + mag * 1.2f
-            val flowX = cos(angle) * (0.015f + mag * 0.07f + energy * 0.025f)
+            val angle = t * (0.35f + p.size * 0.2f) * tScale + p.hue * 0.017f + mag * 1.2f
+            val flowX = cos(angle) * (0.015f + mag * 0.07f + energy * 0.025f) + balance * 0.02f
             val flowY = sin(angle * 0.9f) * (0.012f + bass * 0.055f + mag * 0.045f)
             p.vx += (flowX - p.vx) * (1f - kotlin.math.exp(-dt * 5f))
             p.vy += (flowY - p.vy) * (1f - kotlin.math.exp(-dt * 5f))
-            val speed = (0.35f + mag * 1.0f + energy * 0.3f).coerceIn(0.2f, 1.8f)
+            val speed = (0.35f + mag * 1.0f + energy * 0.3f).coerceIn(0.2f, 1.8f) * tScale
             p.x += p.vx * speed * dt
             p.y += p.vy * speed * dt
             if (p.x < 0f) p.x += 1f
@@ -178,14 +164,20 @@ class WmpRenderState {
 
     private fun updateStars(dt: Float, spectrum: AudioSpectrumSource) {
         val energy = spectrum.energy()
+        val balance = spectrum.right() - spectrum.left()
+        val tScale = (spectrum.bpm / 110f).coerceIn(0.55f, 1.75f)
         val aUp = 1f - kotlin.math.exp(-dt * spectrum.attackHz * 0.7f)
         val aDown = 1f - kotlin.math.exp(-dt * spectrum.releaseHz)
         for (s in stars) {
             val mag = spectrum.band(s.band)
-            val speed = (0.045f + mag * 0.6f + energy * 0.2f) * s.z
-            s.x += speed * dt
+            val speed = (0.045f + mag * 0.6f + energy * 0.2f) * s.z * tScale
+            s.x += speed * dt + balance * 0.015f * dt
             if (s.x > 1f) {
                 s.x -= 1f
+                s.y = Random.nextFloat()
+            }
+            if (s.x < 0f) {
+                s.x += 1f
                 s.y = Random.nextFloat()
             }
             val a = if (mag > s.twinkle) aUp else aDown
@@ -196,12 +188,14 @@ class WmpRenderState {
     private fun updateFlakes(dt: Float, spectrum: AudioSpectrumSource) {
         val energy = spectrum.energy()
         val bass = spectrum.bass()
+        val wind = (spectrum.right() - spectrum.left()) * 0.08f + spectrum.side() * 0.05f
+        val tScale = (spectrum.bpm / 110f).coerceIn(0.55f, 1.75f)
         val aUp = 1f - kotlin.math.exp(-dt * spectrum.attackHz * 0.7f)
         val aDown = 1f - kotlin.math.exp(-dt * spectrum.releaseHz)
         for (f in flakes) {
             val mag = spectrum.band(f.band)
-            f.y += (f.vy + energy * 0.4f + mag * 0.25f) * dt
-            f.x += (f.vx + sin(time * 1.4f + f.band) * 0.035f * mag) * dt
+            f.y += (f.vy + energy * 0.4f + mag * 0.25f) * tScale * dt
+            f.x += (f.vx + wind + sin(time * 1.4f + f.band) * 0.035f * mag) * dt
             if (f.y > 1.05f) {
                 f.y = -0.05f
                 f.x = Random.nextFloat()
@@ -215,14 +209,16 @@ class WmpRenderState {
     }
 
     private fun updateBlobs(dt: Float, spectrum: AudioSpectrumSource) {
+        val balance = spectrum.right() - spectrum.left()
+        val tScale = (spectrum.bpm / 110f).coerceIn(0.55f, 1.75f)
         val aUp = 1f - kotlin.math.exp(-dt * spectrum.attackHz * 0.7f)
         val aDown = 1f - kotlin.math.exp(-dt * spectrum.releaseHz)
         for (b in blobs) {
             val mag = spectrum.band(b.band)
-            b.phase += dt * (0.7f + mag * 3.4f)
+            b.phase += dt * (0.7f + mag * 3.4f) * tScale
             val a = if (mag > b.level) aUp else aDown
             b.level += (mag - b.level) * a
-            b.x = (b.x + sin(b.phase) * dt * 0.055f * (0.3f + mag)).let {
+            b.x = (b.x + sin(b.phase) * dt * 0.055f * (0.3f + mag) + balance * 0.01f * dt).let {
                 when {
                     it < 0.05f -> 0.05f
                     it > 0.95f -> 0.95f
@@ -278,9 +274,9 @@ class WmpRenderState {
     }
 
     companion object {
-        const val PARTICLE_COUNT = 110
-        const val STAR_COUNT = 140
-        const val FLAKE_COUNT = 100
-        const val BLOB_COUNT = 14
+        const val PARTICLE_COUNT = 64
+        const val STAR_COUNT = 80
+        const val FLAKE_COUNT = 64
+        const val BLOB_COUNT = 12
     }
 }

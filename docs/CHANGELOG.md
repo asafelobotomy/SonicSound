@@ -1,3 +1,10 @@
+# 0.2.14
+
+- Fix WMP viz stutter: move AudioManager latency off the frame path; FFT off audio callback
+- Harden PCM/spectrum pipeline (non-blocking present, demux outside lock, DVD speed cache)
+- Fragment detach guards; leaner Particle/Blazing draws; mode-gated bars/wave sim
+- Classic mode polish and JNI/AudioTrack stability from the day audit
+
 # 0.2.13
 
 - Harden WMP visualizers: latency sync, track/Settings lifecycle, classic mode looks (Spikes/Particle/Battery/Ambience)

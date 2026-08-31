@@ -59,10 +59,18 @@ const AUDIO_PROFILES = [
     { value: "pop", label: "Pop" },
     { value: "tv", label: "TV / living room" },
     { value: "headphones", label: "Headphones" },
+    { value: "vinyl", label: "Record player (BETA)" },
+] as const;
+
+const VINYL_CONDITIONS = [
+    { value: "brand_new", label: "Brand New" },
+    { value: "slightly_used", label: "Slightly Used" },
+    { value: "heavily_used", label: "Heavily Used" },
 ] as const;
 
 export default function Settings() {
     const [audioProfile, setAudioProfile] = useState("off");
+    const [vinylCondition, setVinylCondition] = useState("brand_new");
     const [replayGainEnabled, setReplayGainEnabled] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [artCacheLabel, setArtCacheLabel] = useState("Art cache: …");
@@ -90,6 +98,7 @@ export default function Settings() {
                 ...current,
                 ...form,
                 audioProfile,
+                vinylCondition,
                 eqEnabled: audioProfile !== "off",
                 replayGainEnabled,
                 fullscreenVisualizer: visualizer,
@@ -105,6 +114,7 @@ export default function Settings() {
         },
         [
             audioProfile,
+            vinylCondition,
             replayGainEnabled,
             visualizer,
             solidColor,
@@ -160,6 +170,12 @@ export default function Settings() {
                 settings.value?.audioProfile?.trim() ||
                 (settings.value?.eqEnabled ? "flat" : "off");
             setAudioProfile(profile);
+            const condition = settings.value?.vinylCondition?.trim() || "brand_new";
+            setVinylCondition(
+                VINYL_CONDITIONS.some((c) => c.value === condition)
+                    ? condition
+                    : "brand_new"
+            );
             setReplayGainEnabled(settings.value?.replayGainEnabled ?? false);
             setVisualizer(settings.value?.fullscreenVisualizer ?? "art_background");
             setSolidColor(settings.value?.fullscreenSolidColor ?? "#E53935");
@@ -217,6 +233,29 @@ export default function Settings() {
                         </option>
                     ))}
                 </select>
+                {audioProfile === "vinyl" && (
+                    <>
+                        <label className="subtitle text-white-50 mb-1 d-block">
+                            Record condition
+                        </label>
+                        <select
+                            className="form-select mb-2"
+                            value={vinylCondition}
+                            disabled={!isAndroid}
+                            onChange={(e) => {
+                                const next = e.target.value;
+                                setVinylCondition(next);
+                                persist({ vinylCondition: next });
+                            }}
+                        >
+                            {VINYL_CONDITIONS.map((c) => (
+                                <option key={c.value} value={c.value}>
+                                    {c.label}
+                                </option>
+                            ))}
+                        </select>
+                    </>
+                )}
                 <div className="form-check form-switch mb-3">
                     <input
                         className="form-check-input"

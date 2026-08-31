@@ -29,8 +29,10 @@ export interface ISettings {
     cacheSize: number;
     transcoding: string;
     eqEnabled?: boolean;
-    /** off | flat | bass | treble | vocal | rock | electronic | classical | pop | tv | headphones */
+    /** off | flat | bass | treble | vocal | rock | electronic | classical | pop | tv | headphones | vinyl */
     audioProfile?: string;
+    /** brand_new | slightly_used | heavily_used — used when audioProfile is vinyl */
+    vinylCondition?: string;
     replayGainEnabled?: boolean;
     youtubeApiKey?: string;
     youtubeVideosEnabled?: boolean;

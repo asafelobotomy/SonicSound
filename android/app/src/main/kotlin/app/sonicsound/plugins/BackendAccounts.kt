@@ -108,6 +108,7 @@ class BackendAccounts(
             val current = getSettings()
             val eqEnabled = call.getBoolean("eqEnabled") ?: current.eqEnabled
             val audioProfile = call.getString("audioProfile") ?: current.audioProfile
+            val vinylCondition = call.getString("vinylCondition") ?: current.vinylCondition
             val replayGainEnabled =
                 call.getBoolean("replayGainEnabled") ?: current.replayGainEnabled
             val youtubeApiKey = call.getString("youtubeApiKey") ?: current.youtubeApiKey
@@ -148,6 +149,7 @@ class BackendAccounts(
                     transcoding = transcoding,
                     eqEnabled = eqEnabled,
                     audioProfile = audioProfile,
+                    vinylCondition = vinylCondition,
                     replayGainEnabled = replayGainEnabled,
                     youtubeApiKey = youtubeApiKey,
                     youtubeVideosEnabled = youtubeVideosEnabled,

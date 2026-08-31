@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import app.sonicsound.KeyValueStorage
 import app.sonicsound.visualizer.PlaybackSpectrum
 import org.videolan.libvlc.MediaPlayer
 import java.nio.ByteOrder
@@ -35,6 +36,10 @@ object VlcPcmOutput {
 
     @Volatile
     private var ready = false
+
+    /** True after a successful nativeAttach until detach. */
+    @Volatile
+    private var tapAttached = false
 
     @Volatile
     private var track: AudioTrack? = null
@@ -91,6 +96,28 @@ object VlcPcmOutput {
 
     val isAvailable: Boolean get() = ready
 
+    /** True when LibVLC play callbacks are currently attached to this tap. */
+    fun isTapAttached(): Boolean = ready && tapAttached
+
+    fun currentSampleRate(): Int = sampleRate.coerceAtLeast(8000)
+
+    /**
+     * Apply vinyl FX config from settings. When [tapActive] is false, vinyl profile
+     * keeps EQ warmth only (processor disabled).
+     */
+    fun syncVinylProcessor(tapActive: Boolean = isTapAttached(), sampleRateHint: Int = currentSampleRate()) {
+        val settings = KeyValueStorage.getSettings()
+        val profile = AudioProfile.resolve(settings)
+        val condition = VinylCondition.resolve(settings)
+        val forceOff = profile == AudioProfile.VINYL && !tapActive
+        VinylProcessor.configure(
+            profileId = profile,
+            conditionId = condition,
+            rateHz = sampleRateHint.coerceAtLeast(8000),
+            forceDisableFx = forceOff,
+        )
+    }
+
     /** True if PCM play callbacks arrived recently (visualizer feed is alive). */
     fun isPcmFresh(maxAgeMs: Long = 1_500L): Boolean {
         val last = lastPcmUptimeMs
@@ -113,9 +140,11 @@ object VlcPcmOutput {
         val ptr = playerNativePtr(player)
         if (ptr == 0L) {
             Log.w(TAG, "MediaPlayer native instance is 0")
+            tapAttached = false
             return false
         }
         val ok = nativeAttach(ptr)
+        tapAttached = ok
         Log.i(TAG, if (ok) "PCM tap attached ptr=0x${ptr.toString(16)}" else "PCM tap attach failed")
         return ok
     }
@@ -128,6 +157,7 @@ object VlcPcmOutput {
     fun detach(player: MediaPlayer?, wipeSpectrum: Boolean = true) {
         if (!ready) return
         nativeDetach(playerNativePtr(player))
+        tapAttached = false
         synchronized(trackLock) {
             aoutDepth = 0
             // Keep swap grace if a recreate is in flight.
@@ -139,6 +169,7 @@ object VlcPcmOutput {
         } else {
             PlaybackSpectrum.softReset()
         }
+        VinylProcessor.reset()
         playCallbacks = 0
         Log.i(TAG, "PCM detach wipeSpectrum=$wipeSpectrum")
     }
@@ -185,11 +216,13 @@ object VlcPcmOutput {
         if (playCallbacks != pcmHealBaseline && lastPcmUptimeMs != pcmHealBaselineTime) return@Runnable
         Log.w(TAG, "PCM silent after Playing — re-attaching tap")
         noteMediaSwap()
-        attach(player)
+        val attached = attach(player)
         synchronized(trackLock) {
             if (track == null) openTrackLocked(sampleRate, channels)
             else runCatching { track?.play() }
         }
+        // Heal can restore the tap after create-time attach failure / recreate race.
+        syncVinylProcessor(tapActive = attached, sampleRateHint = currentSampleRate())
     }
 
     private fun playerNativePtr(player: MediaPlayer?): Long {
@@ -208,8 +241,10 @@ object VlcPcmOutput {
 
     @JvmStatic
     fun nativeSetup(rate: Int, ch: Int): Boolean {
+        val ok: Boolean
+        val wantRate: Int
         synchronized(trackLock) {
-            val wantRate = rate.coerceAtLeast(8000)
+            wantRate = rate.coerceAtLeast(8000)
             val wantCh = ch.coerceIn(1, 8)
             playCallbacks = 0
             aoutDepth++
@@ -223,15 +258,19 @@ object VlcPcmOutput {
                     existing.play()
                 }
                 Log.i(TAG, "AudioTrack reused $wantRate Hz / $wantCh ch depth=$aoutDepth")
-                return true
+                ok = true
+            } else {
+                sampleRate = wantRate
+                channels = wantCh
+                ok = openTrackLocked(sampleRate, channels)
+                Log.i(TAG, "AudioTrack setup $sampleRate Hz / $channels ch ok=$ok depth=$aoutDepth")
+                if (!ok && aoutDepth > 0) aoutDepth--
             }
-            sampleRate = wantRate
-            channels = wantCh
-            val ok = openTrackLocked(sampleRate, channels)
-            Log.i(TAG, "AudioTrack setup $sampleRate Hz / $channels ch ok=$ok depth=$aoutDepth")
-            if (!ok && aoutDepth > 0) aoutDepth--
-            return ok
         }
+        // Authoritative rate for vinyl DSP (settings may have configured earlier with default).
+        // nativeSetup only runs when the PCM tap is attached and receiving format callbacks.
+        syncVinylProcessor(tapActive = true, sampleRateHint = wantRate)
+        return ok
     }
 
     @JvmStatic
@@ -241,6 +280,14 @@ object VlcPcmOutput {
         val playCh = ch.coerceAtLeast(1)
         val playFrames = frames.coerceAtLeast(1)
         val rate = sampleRate
+
+        // Vinyl FX on full-channel buffer before downmix (0.2.14: spectrum stays off trackLock).
+        val processed = if (VinylProcessor.isEnabled()) {
+            VinylProcessor.processInPlace(pcm, len, playCh, playFrames, rate)
+            pcm
+        } else {
+            pcm
+        }
 
         // Keep AudioTrack.write off the spectrum lock — FFT runs on analyzer thread.
         synchronized(trackLock) {
@@ -262,10 +309,10 @@ object VlcPcmOutput {
                 val writePcm: ByteArray
                 val writeLen: Int
                 if (playCh == outputChannels || outputChannels < 1) {
-                    writePcm = pcm
+                    writePcm = processed
                     writeLen = len
                 } else {
-                    val mixed = downmixToOutput(pcm, len, playCh, playFrames, outputChannels)
+                    val mixed = downmixToOutput(processed, len, playCh, playFrames, outputChannels)
                     writePcm = mixed.first
                     writeLen = mixed.second
                 }
@@ -281,7 +328,7 @@ object VlcPcmOutput {
         }
 
         PlaybackSpectrum.onPcmS16(
-            pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), rate,
+            processed, len, playCh, playFrames, ByteOrder.nativeOrder(), rate,
         )
 
         val n = playCallbacks
@@ -322,6 +369,7 @@ object VlcPcmOutput {
             }
             PlaybackSpectrum.softReset()
         }
+        VinylProcessor.reset()
         playCallbacks = 0
         Log.i(TAG, "PCM flush/softReset energy=${"%.3f".format(PlaybackSpectrum.energy())}")
     }
@@ -341,6 +389,7 @@ object VlcPcmOutput {
                     track?.flush()
                 }
                 PlaybackSpectrum.softReset()
+                VinylProcessor.reset()
                 playCallbacks = 0
                 Log.i(TAG, "PCM cleanup during media swap — keeping AudioTrack")
                 return
@@ -348,6 +397,7 @@ object VlcPcmOutput {
             releaseTrackLocked()
         }
         PlaybackSpectrum.softReset()
+        VinylProcessor.reset()
         playCallbacks = 0
         Log.i(TAG, "PCM cleanup (soft) — waiting for setup/heal")
     }

@@ -88,6 +88,32 @@
             android:padding="12dp" />
 
         <LinearLayout
+            android:id="@+id/ll_vinyl_condition_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/montserrat"
+                android:text="@string/vinyl_condition_label"
+                android:textColor="#ccffffff"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/spinner_vinyl_condition"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/round_outline_selector"
+                android:focusable="true"
+                android:padding="12dp" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/row_replaygain"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

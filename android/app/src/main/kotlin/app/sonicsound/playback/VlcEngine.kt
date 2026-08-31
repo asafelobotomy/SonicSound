@@ -43,6 +43,9 @@ class VlcEngine(
     private var released = false
     private val lock = Any()
 
+    /** True when LibVLC audio callbacks are attached to [VlcPcmOutput]. */
+    val isPcmTapActive: Boolean get() = VlcPcmOutput.isTapAttached() && synchronized(lock) { !released }
+
     private val mAudioManager: AudioManager =
         App.context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val mPlaybackAttributes: AudioAttributes = AudioAttributes.Builder()
@@ -123,12 +126,20 @@ class VlcEngine(
                 }
             }
             applyAudioProfileUnlocked(profile)
+            VlcPcmOutput.syncVinylProcessor(
+                tapActive = VlcPcmOutput.isTapAttached(),
+                sampleRateHint = VlcPcmOutput.currentSampleRate(),
+            )
         }
     }
 
     fun applyAudioProfile(profileId: String = AudioProfile.resolve(KeyValueStorage.getSettings())) {
         synchronized(lock) {
             applyAudioProfileUnlocked(profileId)
+            VlcPcmOutput.syncVinylProcessor(
+                tapActive = VlcPcmOutput.isTapAttached(),
+                sampleRateHint = VlcPcmOutput.currentSampleRate(),
+            )
         }
     }
 

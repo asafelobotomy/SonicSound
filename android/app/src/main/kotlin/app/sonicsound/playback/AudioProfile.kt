@@ -19,6 +19,7 @@ object AudioProfile {
     const val POP = "pop"
     const val TV = "tv"
     const val HEADPHONES = "headphones"
+    const val VINYL = "vinyl"
 
     val ALL: List<String> = listOf(
         OFF,
@@ -32,23 +33,26 @@ object AudioProfile {
         POP,
         TV,
         HEADPHONES,
+        VINYL,
     )
 
     /** Migrates legacy [Settings.eqEnabled] to [FLAT] when no profile is stored. */
     fun resolve(settings: Settings): String {
-        val stored = settings.audioProfile.trim()
+        val stored = settings.audioProfile?.trim().orEmpty()
         if (stored.isNotEmpty()) {
             return if (stored in ALL) stored else OFF
         }
         return if (settings.eqEnabled) FLAT else OFF
     }
 
-    /** Keep [Settings.audioProfile] and [Settings.eqEnabled] consistent. */
+    /** Keep [Settings.audioProfile], [Settings.eqEnabled], and vinyl condition consistent. */
     fun normalize(settings: Settings): Settings {
         val profile = resolve(settings)
-        return settings.copy(
-            audioProfile = profile,
-            eqEnabled = profile != OFF,
+        return VinylCondition.normalize(
+            settings.copy(
+                audioProfile = profile,
+                eqEnabled = profile != OFF,
+            ),
         )
     }
 
@@ -83,6 +87,12 @@ object AudioProfile {
         TV -> customEqualizer(
             preAmp = -2f,
             amps = floatArrayOf(4f, 3f, 1f, 0f, 2f, 3f, 2f, 1f, 0f, -1f),
+        )
+        // Mild cartridge tilt only — processor owns age HF / surface.
+        // Avoid stacking deep HF cuts (was reading as muted bass EQ).
+        VINYL -> customEqualizer(
+            preAmp = 0f,
+            amps = floatArrayOf(1.4f, 1.0f, 0.3f, 0.6f, 1.4f, 1.2f, 0.3f, -0.4f, -1.2f, -2.0f),
         )
         else -> fromPreset(0)
     }

@@ -159,6 +159,11 @@
     <string name="audio_profile_pop">Pop</string>
     <string name="audio_profile_tv">TV / living room</string>
     <string name="audio_profile_headphones">Headphones</string>
+    <string name="audio_profile_vinyl">Record player (BETA)</string>
+    <string name="vinyl_condition_label">Record condition</string>
+    <string name="vinyl_condition_brand_new">Brand New</string>
+    <string name="vinyl_condition_slightly_used">Slightly Used</string>
+    <string name="vinyl_condition_heavily_used">Heavily Used</string>
     <string name="replaygain_enabled">ReplayGain</string>
     <string name="plaintext_warning_login">Use plaintext password (insecure on http connections, needed for some servers)</string>
     <string name="using_plaintext_password">Using plaintext password</string>

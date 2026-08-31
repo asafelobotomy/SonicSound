@@ -94,8 +94,13 @@ data class Settings(
     val cacheSize: Int = 0,
     val transcoding: String = "",
     val eqEnabled: Boolean = false,
-    /** equalizer profile: off | flat | bass | treble | vocal | rock | electronic | classical | pop | tv | headphones */
-    val audioProfile: String = "",
+    /** equalizer profile: off | flat | bass | treble | vocal | rock | electronic | classical | pop | tv | headphones | vinyl */
+    val audioProfile: String? = null,
+    /**
+     * Record wear when [audioProfile] is vinyl:
+     * brand_new | slightly_used | heavily_used (null/blank → brand_new)
+     */
+    val vinylCondition: String? = null,
     val replayGainEnabled: Boolean = false,
     val youtubeApiKey: String = "",
     val youtubeVideosEnabled: Boolean = false,

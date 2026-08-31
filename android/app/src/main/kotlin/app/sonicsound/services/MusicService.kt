@@ -37,6 +37,7 @@ import app.sonicsound.playback.PlaybackCommander
 import app.sonicsound.playback.PlaybackNotification
 import app.sonicsound.playback.VlcEngine
 import app.sonicsound.playback.VlcPcmOutput
+import app.sonicsound.playback.VinylProcessor
 import app.sonicsound.subsonic.SubsonicClient
 import app.sonicsound.visualizer.TrackCharacterPrefetch
 import java.util.concurrent.ExecutionException
@@ -185,7 +186,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 }
                 return
             }
-            // Profile / EQ only — never tear down the PCM tap for Settings visits.
+            // Profile / EQ / vinyl — never tear down the PCM tap for Settings visits.
             engine.applyAudioProfile(AudioProfile.resolve(settings))
         }
     }
@@ -357,11 +358,21 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         return (engine.position * track.duration * 1000).toLong()
     }
 
+    private fun durationMs(): Long {
+        val track = queue.currentTrack ?: return 0L
+        return (track.duration * 1000L).coerceAtLeast(0L)
+    }
+
+    private fun publishVinylClock() {
+        VinylProcessor.publishClock(positionMs(), durationMs())
+    }
+
     override fun onEvent(event: MediaPlayer.Event) {
         if (ignoringEvents) return
         val track = queue.currentTrack
         when (event.type) {
             MediaPlayer.Event.TimeChanged -> {
+                publishVinylClock()
                 session.setPlayingState(positionMs(), 0f)
                 notifyListeners("progress", JSObject("{\"time\": ${engine.position}}"))
             }
@@ -375,6 +386,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 track?.let { notification.update(it, null, true) }
             }
             MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> {
+                publishVinylClock()
                 notifyListeners("paused", null)
                 session.setPausedState(positionMs())
                 track?.let { notification.update(it, null, true) }
@@ -385,6 +397,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                     engine.seek(seekPos)
                 }
                 VlcPcmOutput.onEnginePlaying(engine.mediaPlayer)
+                publishVinylClock()
                 notifyListeners("play", null)
                 if (track != null) {
                     notifyListeners(

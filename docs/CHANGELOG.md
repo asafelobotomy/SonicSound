@@ -1,3 +1,9 @@
+# 0.2.15
+
+- Add Record player (BETA) audio profile with Brand New / Slightly Used / Heavily Used wear
+- Android vinyl DSP on PCM path: wow/flutter, cartridge tone, sparse crackle/pops, soft dips
+- Wire vinylCondition through settings (TV + web), prefs, and live AUDIO_SETTINGS apply
+
 # 0.2.14
 
 - Fix WMP viz stutter: move AudioManager latency off the frame path; FFT off audio callback

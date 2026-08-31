@@ -8,6 +8,7 @@ import app.sonicsound.models.Playlist
 import app.sonicsound.models.Settings
 import app.sonicsound.models.Song
 import app.sonicsound.playback.AudioProfile
+import app.sonicsound.playback.VinylCondition
 import com.google.gson.Gson
 
 class KeyValueStorage {
@@ -48,7 +49,10 @@ class KeyValueStorage {
         fun getSettings(): Settings {
             val raw = prefs().getString("settings", "")
             return try {
-                Gson().fromJson(raw, Settings::class.java) ?: Settings()
+                val parsed = Gson().fromJson(raw, Settings::class.java) ?: Settings()
+                // Normalize on read so Gson-null fields (e.g. vinylCondition) match persisted form
+                // and no-op setSettings comparisons stay stable.
+                AudioProfile.normalize(parsed)
             } catch (_: Exception) {
                 Settings()
             }
@@ -62,7 +66,8 @@ class KeyValueStorage {
             prefs().edit().putString("settings", Gson().toJson(normalized)).apply()
             val audioChanged =
                 AudioProfile.resolve(previous) != AudioProfile.resolve(normalized) ||
-                    previous.replayGainEnabled != normalized.replayGainEnabled
+                    previous.replayGainEnabled != normalized.replayGainEnabled ||
+                    VinylCondition.resolve(previous) != VinylCondition.resolve(normalized)
             if (audioChanged) {
                 Globals.NotifyObservers("AUDIO_SETTINGS", "")
             }

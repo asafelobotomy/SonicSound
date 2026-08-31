@@ -23,6 +23,7 @@ import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import app.sonicsound.models.FullscreenVisualizer
 import app.sonicsound.playback.AudioProfile
+import app.sonicsound.playback.VinylCondition
 import app.sonicsound.subsonic.SubsonicClient
 
 class SettingsFragment : Fragment {
@@ -48,6 +49,7 @@ class SettingsFragment : Fragment {
     private lateinit var transcoding: EditText
     private lateinit var cacheSize: EditText
     private lateinit var audioProfileSpinner: Spinner
+    private lateinit var vinylConditionSpinner: Spinner
     private lateinit var rgSwitch: SwitchCompat
     private lateinit var offlineSwitch: SwitchCompat
     private lateinit var vizSpinner: Spinner
@@ -56,6 +58,7 @@ class SettingsFragment : Fragment {
     private lateinit var dateSwitch: SwitchCompat
     private lateinit var vizModes: List<Pair<String, String>>
     private lateinit var audioProfiles: List<Pair<String, String>>
+    private lateinit var vinylConditions: List<Pair<String, String>>
     private lateinit var speeds: List<Pair<String, String>>
 
     constructor() : super()
@@ -80,6 +83,7 @@ class SettingsFragment : Fragment {
         transcoding = view.findViewById(R.id.et_transcoding)
         cacheSize = view.findViewById(R.id.et_cache_size)
         audioProfileSpinner = view.findViewById(R.id.spinner_audio_profile)
+        vinylConditionSpinner = view.findViewById(R.id.spinner_vinyl_condition)
         rgSwitch = view.findViewById(R.id.switch_replaygain)
         offlineSwitch = view.findViewById(R.id.switch_offline)
         val cacheInfo = view.findViewById<TextView>(R.id.tv_cache_info)
@@ -87,6 +91,7 @@ class SettingsFragment : Fragment {
         speedSpinner = view.findViewById(R.id.spinner_dvd_speed)
         val solidRow = view.findViewById<View>(R.id.ll_solid_color_row)
         val dvdRow = view.findViewById<View>(R.id.ll_dvd_speed_row)
+        val vinylRow = view.findViewById<View>(R.id.ll_vinyl_condition_row)
         val swatches = view.findViewById<LinearLayout>(R.id.ll_solid_color_swatches)
         clockSwitch = view.findViewById(R.id.switch_fs_clock)
         dateSwitch = view.findViewById(R.id.switch_fs_date)
@@ -117,6 +122,21 @@ class SettingsFragment : Fragment {
         val resolvedProfile = AudioProfile.resolve(settings)
         audioProfileSpinner.setSelection(
             audioProfiles.indexOfFirst { it.first == resolvedProfile }.coerceAtLeast(0)
+        )
+
+        vinylConditions = VinylCondition.ALL.map { id ->
+            id to getString(vinylConditionLabel(id))
+        }
+        vinylConditionSpinner.adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            vinylConditions.map { it.second }
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        val resolvedCondition = VinylCondition.resolve(settings)
+        vinylConditionSpinner.setSelection(
+            vinylConditions.indexOfFirst { it.first == resolvedCondition }.coerceAtLeast(0)
         )
 
         vizModes = FullscreenVisualizer.ALL_MODES.map { mode ->
@@ -152,6 +172,9 @@ class SettingsFragment : Fragment {
                 ?: FullscreenVisualizer.ART_BACKGROUND
             solidRow.isVisible = mode == FullscreenVisualizer.ART_SOLID
             dvdRow.isVisible = mode == FullscreenVisualizer.DVD
+            val profile = audioProfiles.getOrNull(audioProfileSpinner.selectedItemPosition)?.first
+                ?: AudioProfile.OFF
+            vinylRow.isVisible = profile == AudioProfile.VINYL
         }
         vizSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
@@ -179,6 +202,19 @@ class SettingsFragment : Fragment {
         refreshConditionalRows()
         bindColorSwatches(swatches)
         audioProfileSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) {
+                refreshConditionalRows()
+                persistSettings()
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        vinylConditionSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>?,
                 view: View?,
@@ -233,7 +269,9 @@ class SettingsFragment : Fragment {
 
     private fun persistSettings() {
         if (suppressAutoSave || !isAdded || view == null) return
-        if (!::transcoding.isInitialized || !::audioProfiles.isInitialized || !::vizModes.isInitialized) {
+        if (!::transcoding.isInitialized || !::audioProfiles.isInitialized ||
+            !::vinylConditions.isInitialized || !::vizModes.isInitialized
+        ) {
             return
         }
         val parsedCache =
@@ -244,12 +282,15 @@ class SettingsFragment : Fragment {
             ?: FullscreenVisualizer.SPEED_DEFAULT
         val profile = audioProfiles.getOrNull(audioProfileSpinner.selectedItemPosition)?.first
             ?: AudioProfile.OFF
+        val vinylCondition = vinylConditions.getOrNull(vinylConditionSpinner.selectedItemPosition)?.first
+            ?: VinylCondition.BRAND_NEW
         val current = KeyValueStorage.getSettings()
         KeyValueStorage.setSettings(
             current.copy(
                 transcoding = transcoding.text?.toString().orEmpty(),
                 cacheSize = parsedCache,
                 audioProfile = profile,
+                vinylCondition = vinylCondition,
                 eqEnabled = profile != AudioProfile.OFF,
                 replayGainEnabled = rgSwitch.isChecked,
                 fullscreenVisualizer = mode,
@@ -347,6 +388,14 @@ class SettingsFragment : Fragment {
         AudioProfile.POP -> R.string.audio_profile_pop
         AudioProfile.TV -> R.string.audio_profile_tv
         AudioProfile.HEADPHONES -> R.string.audio_profile_headphones
+        AudioProfile.VINYL -> R.string.audio_profile_vinyl
         else -> R.string.audio_profile_off
+    }
+
+    private fun vinylConditionLabel(id: String): Int = when (id) {
+        VinylCondition.BRAND_NEW -> R.string.vinyl_condition_brand_new
+        VinylCondition.SLIGHTLY_USED -> R.string.vinyl_condition_slightly_used
+        VinylCondition.HEAVILY_USED -> R.string.vinyl_condition_heavily_used
+        else -> R.string.vinyl_condition_brand_new
     }
 }

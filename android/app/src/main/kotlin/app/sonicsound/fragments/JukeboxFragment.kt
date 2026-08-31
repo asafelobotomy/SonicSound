@@ -55,9 +55,11 @@ class JukeboxFragment : Fragment {
         recycler = view.findViewById(R.id.rv_jukebox)
         emptyView = view.findViewById(R.id.tv_jukebox_empty)
         view.post {
+            // Rapid sidebar nav can detach before this runs.
+            if (!isAdded || view !== this.view) return@post
             density = resources.displayMetrics.density
             width = view.width
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 buildTabs()
                 loadTab(Tab.RANDOM)
             }

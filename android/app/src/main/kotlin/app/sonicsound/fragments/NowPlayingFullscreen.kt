@@ -14,9 +14,9 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
-import app.sonicsound.Globals
 import app.sonicsound.KeyValueStorage
 import app.sonicsound.R
 import app.sonicsound.TvActivity
@@ -69,6 +69,7 @@ class NowPlayingFullscreen(
     private val fsPlay: ImageButton = root.findViewById(R.id.btn_fs_play)
     private val fsPrev: ImageButton = root.findViewById(R.id.btn_fs_prev)
     private val fsNextBtn: ImageButton = root.findViewById(R.id.btn_fs_next)
+    private val fsVisualizer: ImageButton = root.findViewById(R.id.btn_fs_visualizer)
     private val fsShuffle: ImageButton = root.findViewById(R.id.btn_fs_shuffle)
     private val fsRepeat: ImageButton = root.findViewById(R.id.btn_fs_repeat)
     private val fsLike: ImageButton = root.findViewById(R.id.btn_fs_like)
@@ -103,7 +104,6 @@ class NowPlayingFullscreen(
     private var dvdRunning = false
     private var dvdLayoutPrepared = false
     private var lastArtUrl: String? = null
-    private var ensuredVisualizerAout = false
     private val dvdScreensaver = DvdScreensaver(speedPxPerSec = { dvdSpeedPxPerSec() })
     private val dvdFrameCallback = object : android.view.Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -120,12 +120,17 @@ class NowPlayingFullscreen(
         if (enableMusicVideo) {
             fsMusicVideo.visibility = View.VISIBLE
             fsMusicVideo.isFocusable = true
-            fsButtons.addAll(listOf(fsShuffle, fsRepeat, fsPrev, fsPlay, fsNextBtn, fsMusicVideo, fsLike))
+            fsButtons.addAll(
+                listOf(fsShuffle, fsRepeat, fsPrev, fsPlay, fsNextBtn, fsVisualizer, fsMusicVideo, fsLike),
+            )
         } else {
             fsMusicVideo.visibility = View.GONE
             fsMusicVideo.isFocusable = false
-            fsButtons.addAll(listOf(fsShuffle, fsRepeat, fsPrev, fsPlay, fsNextBtn, fsLike))
+            fsButtons.addAll(
+                listOf(fsShuffle, fsRepeat, fsPrev, fsPlay, fsNextBtn, fsVisualizer, fsLike),
+            )
         }
+        refreshVisualizerButton()
         fsButtons.forEach { btn ->
             btn.setOnClickListener {
                 rememberFocus(btn)
@@ -136,6 +141,7 @@ class NowPlayingFullscreen(
                     R.id.btn_fs_shuffle -> onShuffle()
                     R.id.btn_fs_repeat -> onRepeat()
                     R.id.btn_fs_like -> onLike()
+                    R.id.btn_fs_visualizer -> cycleVisualizer()
                     R.id.btn_fs_music_video -> if (enableMusicVideo) onMusicVideo()
                 }
                 showControls()
@@ -185,6 +191,64 @@ class NowPlayingFullscreen(
         showControls()
         fsPlay.requestFocus()
         startClockUpdates()
+    }
+
+    /** Re-read settings while fullscreen is already open (Settings spinner / cycle button). */
+    fun reloadVisualizerFromSettings() {
+        if (!active || videoMode) return
+        applyModeFromSettings(reloadArt = true)
+    }
+
+    /**
+     * Advance to the next entry in [FullscreenVisualizer.ALL_MODES], persist, and apply
+     * immediately so the switch feels instant on the remote.
+     */
+    private fun cycleVisualizer() {
+        if (!active || videoMode) return
+        val current = KeyValueStorage.getSettings().fullscreenVisualizer
+        val next = FullscreenVisualizer.nextMode(current)
+        val settings = KeyValueStorage.getSettings()
+        KeyValueStorage.setSettings(settings.copy(fullscreenVisualizer = next))
+        applyModeFromSettings(reloadArt = true)
+        val label = root.resources.getString(FullscreenVisualizer.labelRes(next))
+        fsVisualizer.contentDescription =
+            root.resources.getString(R.string.cycle_visualizer_fmt, label)
+        Toast.makeText(
+            root.context,
+            root.resources.getString(R.string.cycle_visualizer_fmt, label),
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    private fun applyModeFromSettings(reloadArt: Boolean) {
+        applyVisualizerChrome()
+        if (visualizerMode == FullscreenVisualizer.DVD) {
+            startDvd()
+        } else {
+            stopDvd()
+        }
+        if (FullscreenVisualizer.isWmpMode(visualizerMode)) {
+            startWmpVisualizer()
+        } else {
+            stopWmpVisualizer()
+        }
+        applyMetaVisibility()
+        refreshVisualizerButton()
+        if (reloadArt) {
+            // Force art path to rebind when switching art ↔ WMP ↔ DVD.
+            val url = lastArtUrl
+            lastArtUrl = null
+            url?.let { loadArtForMode(it) }
+        }
+    }
+
+    private fun refreshVisualizerButton() {
+        val mode = KeyValueStorage.getSettings().fullscreenVisualizer
+        val label = root.resources.getString(FullscreenVisualizer.labelRes(mode))
+        fsVisualizer.contentDescription =
+            root.resources.getString(R.string.cycle_visualizer_fmt, label)
+        fsVisualizer.isVisible = !videoMode
+        fsVisualizer.isFocusable = !videoMode
     }
 
     fun updateTrack(
@@ -286,6 +350,7 @@ class NowPlayingFullscreen(
             fsBackdrop.alpha = 0.35f
             overlay.setBackgroundColor(Color.parseColor("#E6282c34"))
             resetArtLayoutForStandard()
+            refreshVisualizerButton()
             refreshClock()
             return
         }
@@ -353,6 +418,7 @@ class NowPlayingFullscreen(
                 resetArtLayoutForStandard()
             }
         }
+        refreshVisualizerButton()
         refreshClock()
     }
 
@@ -405,11 +471,6 @@ class NowPlayingFullscreen(
     }
 
     private fun startWmpVisualizer() {
-        // Once per immersive session: recreate LibVLC if aout isn't Visualizer-friendly yet.
-        if (!ensuredVisualizerAout) {
-            ensuredVisualizerAout = true
-            Globals.NotifyObservers("AUDIO_SETTINGS", "")
-        }
         wmpVisualizer.isVisible = true
         wmpVisualizer.setMode(visualizerMode)
         wmpVisualizer.setPlaying(bind.getCurrentState()?.playing == true)
@@ -419,11 +480,6 @@ class NowPlayingFullscreen(
     private fun stopWmpVisualizer() {
         wmpVisualizer.stop()
         wmpVisualizer.isVisible = false
-    }
-
-    /** Forward RECORD_AUDIO grant so the spectrum source can attach mid-session. */
-    fun onRecordAudioPermissionResult(granted: Boolean) {
-        wmpVisualizer.onRecordAudioPermissionResult(granted)
     }
 
     private fun dvdSpeedPxPerSec(): Float {
@@ -482,7 +538,6 @@ class NowPlayingFullscreen(
     fun exit() {
         if (!active) return
         active = false
-        ensuredVisualizerAout = false
         hideHandler.removeCallbacks(hideRunnable)
         stopDvd()
         stopWmpVisualizer()
@@ -501,7 +556,6 @@ class NowPlayingFullscreen(
         if (active) {
             exit()
         } else {
-            ensuredVisualizerAout = false
             hideHandler.removeCallbacks(hideRunnable)
             stopDvd()
             stopWmpVisualizer()

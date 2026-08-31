@@ -558,6 +558,16 @@
                         android:src="@drawable/ic_skip_forward" />
 
                     <ImageButton
+                        android:id="@+id/btn_fs_visualizer"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="6dp"
+                        android:background="@drawable/round_outline_selector"
+                        android:contentDescription="@string/cycle_visualizer"
+                        android:focusable="true"
+                        android:src="@drawable/ic_visualizer" />
+
+                    <ImageButton
                         android:id="@+id/btn_fs_music_video"
                         android:layout_width="40dp"
                         android:layout_height="40dp"

@@ -1,3 +1,10 @@
+# 0.2.12
+
+- Fix live WMP visualizers: LibVLC PCM tap via dlopen (Android RTLD_LOCAL), FFT spectrum feed
+- Fullscreen control to cycle all visualizer modes; Settings change applies live
+- Scale WMP motion with device volume; spectrum AGC for quiet material
+- Guard JukeboxFragment detach race on rapid sidebar navigation
+
 # 0.2.5
 
 - TV/web nav: Artists, Albums, Settings, Videos; logo in sidebar; unified nav icons

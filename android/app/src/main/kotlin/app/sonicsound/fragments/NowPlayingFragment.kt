@@ -116,10 +116,6 @@ class NowPlayingFragment : Fragment {
         super.onDestroyView()
     }
 
-    fun onRecordAudioPermissionResult(granted: Boolean) {
-        fullscreen?.onRecordAudioPermissionResult(granted)
-    }
-
     /** @return true if back was consumed (scrub disarm or exit fullscreen). */
     fun handleBackPress(): Boolean {
         if (scrubber?.disarmOnBack() == true) return true
@@ -155,6 +151,9 @@ class NowPlayingFragment : Fragment {
                 "MSprogress" -> {
                     val progress = JSObject(value).optDouble("time", Double.NaN)
                     if (!progress.isNaN()) applyProgress(progress)
+                }
+                "VISUALIZER_SETTINGS" -> {
+                    view?.post { fullscreen?.reloadVisualizerFromSettings() }
                 }
             }
         }

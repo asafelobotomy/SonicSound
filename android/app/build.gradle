@@ -57,6 +57,12 @@ android {
             // Default arm64-only keeps Shield installs small; libvlc-all otherwise pulls every ABI.
             abiFilters(*abiFiltersList)
         }
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_static"
+            }
+        }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -92,6 +98,15 @@ android {
     lint {
         warningsAsErrors true
         disable 'VectorPath', 'Overdraw', 'TypographyEllipsis', 'InvalidSetHasFixedSize', 'UnusedResources', 'IconXmlAndPng', 'IconLauncherShape', 'IconDipSize', 'IconDuplicatesConfig', 'IconLocation', 'IconDensities', 'IconDuplicates'
+    }
+
+    ndkVersion "27.3.13750724"
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
     }
 
 }

@@ -64,6 +64,14 @@ class KeyValueStorage {
             if (audioChanged) {
                 Globals.NotifyObservers("AUDIO_SETTINGS", "")
             }
+            if (previous.fullscreenVisualizer != normalized.fullscreenVisualizer ||
+                previous.fullscreenSolidColor != normalized.fullscreenSolidColor ||
+                previous.dvdSpeed != normalized.dvdSpeed ||
+                previous.fullscreenShowClock != normalized.fullscreenShowClock ||
+                previous.fullscreenShowDate != normalized.fullscreenShowDate
+            ) {
+                Globals.NotifyObservers("VISUALIZER_SETTINGS", normalized.fullscreenVisualizer)
+            }
         }
 
         fun getActiveAccount(): Account {

@@ -1,5 +1,7 @@
 package app.sonicsound.models
 
+import app.sonicsound.R
+
 /** Fullscreen Now Playing visualizer modes. */
 object FullscreenVisualizer {
     const val ART_BACKGROUND = "art_background"
@@ -56,6 +58,36 @@ object FullscreenVisualizer {
         WMP_STARTIME,
         WMP_SNOWTIME,
     )
+
+    /** Next mode in [ALL_MODES], wrapping; unknown current → first entry. */
+    fun nextMode(current: String): String {
+        val i = ALL_MODES.indexOf(current)
+        return ALL_MODES[(if (i < 0) 0 else i + 1) % ALL_MODES.size]
+    }
+
+    fun labelRes(mode: String): Int = when (mode) {
+        ART_BACKGROUND -> R.string.fullscreen_viz_art_background
+        ART_BLACK -> R.string.fullscreen_viz_art_black
+        ART_SOLID -> R.string.fullscreen_viz_art_solid
+        DVD -> R.string.fullscreen_viz_dvd
+        WMP_BARS -> R.string.fullscreen_viz_wmp_bars
+        WMP_SCOPE -> R.string.fullscreen_viz_wmp_scope
+        WMP_OCEAN_MIST -> R.string.fullscreen_viz_wmp_ocean_mist
+        WMP_FIRE_STORM -> R.string.fullscreen_viz_wmp_fire_storm
+        WMP_BATTERY -> R.string.fullscreen_viz_wmp_battery
+        WMP_ALCHEMY -> R.string.fullscreen_viz_wmp_alchemy
+        WMP_AMBIENCE -> R.string.fullscreen_viz_wmp_ambience
+        WMP_PARTICLE -> R.string.fullscreen_viz_wmp_particle
+        WMP_PLENOPTIC -> R.string.fullscreen_viz_wmp_plenoptic
+        WMP_SPIKES -> R.string.fullscreen_viz_wmp_spikes
+        WMP_MUSICAL_COLORS -> R.string.fullscreen_viz_wmp_musical_colors
+        WMP_BLAZING_COLORS -> R.string.fullscreen_viz_wmp_blazing_colors
+        WMP_COLOR_CUBES -> R.string.fullscreen_viz_wmp_color_cubes
+        WMP_PULSING_COLORS -> R.string.fullscreen_viz_wmp_pulsing_colors
+        WMP_STARTIME -> R.string.fullscreen_viz_wmp_startime
+        WMP_SNOWTIME -> R.string.fullscreen_viz_wmp_snowtime
+        else -> R.string.fullscreen_viz_art_background
+    }
 }
 
 data class Settings(

@@ -15,6 +15,29 @@ RepoType: git
 Repo: https://github.com/asafelobotomy/SonicSound.git
 
 Builds:
+  - versionName: 0.2.12
+    versionCode: 212
+    commit: v0.2.12
+    subdir: android/app
+    sudo:
+      - apt-get update || apt-get update
+      - apt-get install -y openjdk-17-jdk-headless npm nodejs
+    init: |
+      cd ../..
+      npm ci
+      npm run build
+      npx cap sync android
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-release-unsigned.apk
+    srclibs: []
+    rm:
+      - src-tauri
+      - docs/screenshots
+    prebuild:
+      - sdkmanager "platforms;android-34" "build-tools;34.0.0" || true
+    scanignore:
+      - android/app/src/main/assets/public
   - versionName: 0.2.11
     versionCode: 211
     commit: v0.2.11
@@ -214,5 +237,5 @@ Description: |-
 
 Summary: Subsonic/Navidrome music player for phone and TV
 
-CurrentVersion: 0.2.11
-CurrentVersionCode: 211
+CurrentVersion: 0.2.12
+CurrentVersionCode: 212

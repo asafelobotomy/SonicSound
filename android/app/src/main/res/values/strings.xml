@@ -165,6 +165,8 @@
     <string name="logout">Logout</string>
     <string name="settings_section_fullscreen">Fullscreen</string>
     <string name="fullscreen_visualizer_label">Visualizer</string>
+    <string name="cycle_visualizer">Cycle visualizer</string>
+    <string name="cycle_visualizer_fmt">Visualizer: %1$s</string>
     <string name="fullscreen_viz_art_background">Album art &amp; background</string>
     <string name="fullscreen_viz_art_black">Album art &amp; no background</string>
     <string name="fullscreen_viz_art_solid">Album art &amp; solid color</string>
@@ -190,8 +192,6 @@
     <string name="dvd_speed_slow">Slow</string>
     <string name="dvd_speed_default">Default</string>
     <string name="dvd_speed_fast">Fast</string>
-    <string name="visualizer_needs_mic_permission">Allow microphone access so the visualizer can react to music</string>
-    <string name="visualizer_waiting_for_audio">Waiting for audio…</string>
     <string name="fullscreen_show_clock">Show current time</string>
     <string name="fullscreen_show_date">Show current date</string>
     <string name="clear_cache">Clear art cache</string>

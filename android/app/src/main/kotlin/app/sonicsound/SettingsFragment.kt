@@ -120,7 +120,7 @@ class SettingsFragment : Fragment {
         )
 
         vizModes = FullscreenVisualizer.ALL_MODES.map { mode ->
-            mode to getString(visualizerLabel(mode))
+            mode to getString(FullscreenVisualizer.labelRes(mode))
         }
         vizSpinner.adapter = ArrayAdapter(
             requireContext(),
@@ -347,29 +347,5 @@ class SettingsFragment : Fragment {
         AudioProfile.TV -> R.string.audio_profile_tv
         AudioProfile.HEADPHONES -> R.string.audio_profile_headphones
         else -> R.string.audio_profile_off
-    }
-
-    private fun visualizerLabel(mode: String): Int = when (mode) {
-        FullscreenVisualizer.ART_BACKGROUND -> R.string.fullscreen_viz_art_background
-        FullscreenVisualizer.ART_BLACK -> R.string.fullscreen_viz_art_black
-        FullscreenVisualizer.ART_SOLID -> R.string.fullscreen_viz_art_solid
-        FullscreenVisualizer.DVD -> R.string.fullscreen_viz_dvd
-        FullscreenVisualizer.WMP_BARS -> R.string.fullscreen_viz_wmp_bars
-        FullscreenVisualizer.WMP_SCOPE -> R.string.fullscreen_viz_wmp_scope
-        FullscreenVisualizer.WMP_OCEAN_MIST -> R.string.fullscreen_viz_wmp_ocean_mist
-        FullscreenVisualizer.WMP_FIRE_STORM -> R.string.fullscreen_viz_wmp_fire_storm
-        FullscreenVisualizer.WMP_BATTERY -> R.string.fullscreen_viz_wmp_battery
-        FullscreenVisualizer.WMP_ALCHEMY -> R.string.fullscreen_viz_wmp_alchemy
-        FullscreenVisualizer.WMP_AMBIENCE -> R.string.fullscreen_viz_wmp_ambience
-        FullscreenVisualizer.WMP_PARTICLE -> R.string.fullscreen_viz_wmp_particle
-        FullscreenVisualizer.WMP_PLENOPTIC -> R.string.fullscreen_viz_wmp_plenoptic
-        FullscreenVisualizer.WMP_SPIKES -> R.string.fullscreen_viz_wmp_spikes
-        FullscreenVisualizer.WMP_MUSICAL_COLORS -> R.string.fullscreen_viz_wmp_musical_colors
-        FullscreenVisualizer.WMP_BLAZING_COLORS -> R.string.fullscreen_viz_wmp_blazing_colors
-        FullscreenVisualizer.WMP_COLOR_CUBES -> R.string.fullscreen_viz_wmp_color_cubes
-        FullscreenVisualizer.WMP_PULSING_COLORS -> R.string.fullscreen_viz_wmp_pulsing_colors
-        FullscreenVisualizer.WMP_STARTIME -> R.string.fullscreen_viz_wmp_startime
-        FullscreenVisualizer.WMP_SNOWTIME -> R.string.fullscreen_viz_wmp_snowtime
-        else -> R.string.fullscreen_viz_art_background
     }
 }

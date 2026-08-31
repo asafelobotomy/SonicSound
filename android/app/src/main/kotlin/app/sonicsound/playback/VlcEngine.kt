@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
-import org.videolan.libvlc.util.HWDecoderUtil
 import java.io.File
 
 /**
@@ -39,8 +38,7 @@ class VlcEngine(
 
     private var appliedReplayGain = false
     private var appliedEqualizerFilter = false
-    /** True when LibVLC was created with --aout=android_audiotrack (Visualizer-friendly). */
-    private var appliedAudioTrackAout = false
+    private var appliedPcmTap = false
     private var released = false
     private val lock = Any()
 
@@ -88,9 +86,6 @@ class VlcEngine(
         mAudioManager.registerAudioDeviceCallback(deviceCallback, null)
     }
 
-    private fun wantsAudioTrackAout(): Boolean =
-        HWDecoderUtil.getAudioOutputFromDevice() != HWDecoderUtil.AudioOutput.OPENSLES
-
     private fun buildLibVlcArgs(settings: Settings): ArrayList<String> {
         val profile = AudioProfile.resolve(settings)
         val libArgs = ArrayList(args)
@@ -101,21 +96,18 @@ class VlcEngine(
             libArgs.add("--audio-replay-gain-mode=track")
             libArgs.add("--audio-replay-gain-preamp=0")
         }
-        // AudioTrack routes through AudioFlinger so Visualizer(0) can see the mix.
-        // OpenSL ES / AAudio often bypass session capture (silent spectrum).
-        // Keep OpenSL on devices that cannot use AudioTrack (e.g. some Amazon sticks).
-        if (wantsAudioTrackAout()) {
-            libArgs.add("--aout=android_audiotrack")
-        }
+        // When PCM tap is available, LibVLC audio callbacks own playback (no aout module).
+        // Otherwise keep the historical device-default aout.
         return libArgs
     }
 
     fun needsRecreate(settings: Settings): Boolean {
         val profile = AudioProfile.resolve(settings)
         val wantEqFilter = AudioProfile.needsEqualizerFilter(profile)
+        val wantPcm = VlcPcmOutput.isAvailable
         return settings.replayGainEnabled != appliedReplayGain ||
             wantEqFilter != appliedEqualizerFilter ||
-            wantsAudioTrackAout() != appliedAudioTrackAout
+            wantPcm != appliedPcmTap
     }
 
     fun create(eventListener: MediaPlayer.EventListener) {
@@ -125,10 +117,16 @@ class VlcEngine(
             val profile = AudioProfile.resolve(settings)
             appliedReplayGain = settings.replayGainEnabled
             appliedEqualizerFilter = AudioProfile.needsEqualizerFilter(profile)
-            appliedAudioTrackAout = wantsAudioTrackAout()
+            appliedPcmTap = VlcPcmOutput.isAvailable
             mLibVLC = LibVLC(App.context, buildLibVlcArgs(settings))
-            mediaPlayer = MediaPlayer(mLibVLC).also {
-                it.setEventListener(eventListener)
+            mediaPlayer = MediaPlayer(mLibVLC).also { player ->
+                player.setEventListener(eventListener)
+                if (appliedPcmTap) {
+                    if (!VlcPcmOutput.attach(player)) {
+                        Log.w("VlcEngine", "PCM tap attach failed — using LibVLC aout")
+                        appliedPcmTap = false
+                    }
+                }
             }
             applyAudioProfileUnlocked(profile)
         }
@@ -155,6 +153,7 @@ class VlcEngine(
             val player = mediaPlayer
             mediaPlayer = null
             if (player != null) {
+                runCatching { VlcPcmOutput.detach(player) }
                 runCatching { player.setEventListener(null) }
                 runCatching {
                     if (player.isPlaying) player.stop()

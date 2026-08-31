@@ -1,3 +1,10 @@
+# 0.2.13
+
+- Harden WMP visualizers: latency sync, track/Settings lifecycle, classic mode looks (Spikes/Particle/Battery/Ambience)
+- Smooth tempo-aware motion; per-track BPM/dynamics with next-track prefetch
+- Stereo/surround channel mapping for spectrum and AudioTrack (with stereo fallback downmix)
+- In-app fullscreen viz toast; soft spectrum resets across album swaps and EQ-only settings
+
 # 0.2.12
 
 - Fix live WMP visualizers: LibVLC PCM tap via dlopen (Android RTLD_LOCAL), FFT spectrum feed

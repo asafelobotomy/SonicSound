@@ -50,6 +50,18 @@ class PlayQueue {
         return currentTrack!!
     }
 
+    fun peekNext(): Song? {
+        val list = entries()
+        if (list.isEmpty()) return null
+        val idx = list.indexOf(currentTrack)
+        if (idx >= 0 && idx < list.size - 1) return list[idx + 1]
+        return when (repeatMode) {
+            RepeatMode.ONE -> currentTrack
+            RepeatMode.ALL -> list.firstOrNull()
+            RepeatMode.OFF -> null
+        }
+    }
+
     fun next(): Song? {
         val list = entries()
         if (list.isEmpty()) return null

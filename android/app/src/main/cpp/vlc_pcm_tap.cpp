@@ -47,6 +47,7 @@ jclass g_bridge_class = nullptr;
 jmethodID g_setup_mid = nullptr;
 jmethodID g_play_mid = nullptr;
 jmethodID g_pause_mid = nullptr;
+jmethodID g_resume_mid = nullptr;
 jmethodID g_flush_mid = nullptr;
 jmethodID g_cleanup_mid = nullptr;
 jmethodID g_volume_mid = nullptr;
@@ -135,6 +136,8 @@ int setup_cb(void **data, char *format, unsigned *rate, unsigned *channels) {
     g_tap.channels = *channels == 0 ? 2 : *channels;
     *channels = g_tap.channels;
 
+    LOGI("setup_cb rate=%u ch=%u", g_tap.rate, g_tap.channels);
+
     bool attached = false;
     JNIEnv *env = env_for_thread(&attached);
     if (!env || !g_bridge_class || !g_setup_mid) {
@@ -169,8 +172,11 @@ void cleanup_cb(void * /*data*/) {
 }
 
 void play_cb(void *data, const void *samples, unsigned count, int64_t /*pts*/) {
+    // After cleanup, VLC may still deliver a play with a stale/null opaque pointer
+    // until setup runs again — always fall back to the process-wide tap state.
     auto *state = static_cast<TapState *>(data);
-    if (!state || !samples || count == 0) return;
+    if (!state) state = &g_tap;
+    if (!samples || count == 0) return;
 
     const unsigned channels = state->channels == 0 ? 2 : state->channels;
     const jint bytes = static_cast<jint>(count * channels * sizeof(int16_t));
@@ -222,7 +228,13 @@ void pause_cb(void * /*data*/, int64_t /*pts*/) {
 }
 
 void resume_cb(void * /*data*/, int64_t /*pts*/) {
-    // AudioTrack remains playing; no-op.
+    bool attached = false;
+    JNIEnv *env = env_for_thread(&attached);
+    if (env && g_bridge_class && g_resume_mid) {
+        env->CallStaticVoidMethod(g_bridge_class, g_resume_mid);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
+    detach_if_needed(attached);
 }
 
 void flush_cb(void * /*data*/, int64_t /*pts*/) {
@@ -277,10 +289,12 @@ Java_app_sonicsound_playback_VlcPcmOutput_nativeInit(JNIEnv *env, jclass) {
     g_setup_mid = env->GetStaticMethodID(g_bridge_class, "nativeSetup", "(II)Z");
     g_play_mid = env->GetStaticMethodID(g_bridge_class, "nativePlay", "([BIII)V");
     g_pause_mid = env->GetStaticMethodID(g_bridge_class, "nativePause", "()V");
+    g_resume_mid = env->GetStaticMethodID(g_bridge_class, "nativeResume", "()V");
     g_flush_mid = env->GetStaticMethodID(g_bridge_class, "nativeFlush", "()V");
     g_cleanup_mid = env->GetStaticMethodID(g_bridge_class, "nativeCleanup", "()V");
     g_volume_mid = env->GetStaticMethodID(g_bridge_class, "nativeVolume", "(FZ)V");
-    if (!g_setup_mid || !g_play_mid || !g_pause_mid || !g_flush_mid || !g_cleanup_mid || !g_volume_mid) {
+    if (!g_setup_mid || !g_play_mid || !g_pause_mid || !g_resume_mid || !g_flush_mid ||
+        !g_cleanup_mid || !g_volume_mid) {
         LOGE("Missing JNI method IDs");
         return JNI_FALSE;
     }

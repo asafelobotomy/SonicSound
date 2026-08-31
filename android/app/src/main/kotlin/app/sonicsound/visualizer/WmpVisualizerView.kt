@@ -13,29 +13,34 @@ class WmpVisualizerView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {
     private var mode: String = FullscreenVisualizer.WMP_BARS
-    private var tick = 0
     private val spectrum = AudioSpectrumSource(context)
+    private val renderState = WmpRenderState()
     private var running = false
     private var playing = false
-    private var lastFrameMs = 0L
+    private var lastFrameNanos = 0L
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running) return
-            val now = frameTimeNanos / 1_000_000L
-            val minDelta = if (playing) 0L else IDLE_FRAME_MS
-            if (now - lastFrameMs >= minDelta) {
-                lastFrameMs = now
-                spectrum.tick()
-                tick++
-                invalidate()
+            val dt = if (lastFrameNanos == 0L) {
+                1f / 60f
+            } else {
+                ((frameTimeNanos - lastFrameNanos) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
             }
-            scheduleNextFrame()
+            lastFrameNanos = frameTimeNanos
+            spectrum.tick(playing)
+            renderState.step(dt, spectrum, mode)
+            invalidate()
+            // Always lock to display refresh while visible — smooth across track gaps.
+            Choreographer.getInstance().postFrameCallback(this)
         }
     }
 
     fun setMode(mode: String) {
-        this.mode = mode
+        if (this.mode != mode) {
+            this.mode = mode
+            renderState.onModeChanged(mode)
+        }
         invalidate()
     }
 
@@ -43,8 +48,8 @@ class WmpVisualizerView @JvmOverloads constructor(
         spectrum.start()
         if (running) return
         running = true
-        lastFrameMs = 0L
-        scheduleNextFrame()
+        lastFrameNanos = 0L
+        Choreographer.getInstance().postFrameCallback(frameCallback)
     }
 
     fun stop() {
@@ -56,34 +61,16 @@ class WmpVisualizerView @JvmOverloads constructor(
     fun setPlaying(playing: Boolean) {
         this.playing = playing
         spectrum.setPlaying(playing)
-        if (playing && running) {
-            lastFrameMs = 0L
-            Choreographer.getInstance().removeFrameCallback(frameCallback)
-            scheduleNextFrame()
-        }
-    }
-
-    private fun scheduleNextFrame() {
-        if (!running) return
-        if (playing) {
-            Choreographer.getInstance().postFrameCallback(frameCallback)
-        } else {
-            Choreographer.getInstance().postFrameCallbackDelayed(frameCallback, IDLE_FRAME_MS)
-        }
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (width <= 0 || height <= 0) return
-        WmpRenderers.draw(mode, canvas, spectrum, tick, width, height)
+        WmpRenderers.draw(mode, canvas, spectrum, renderState, width, height)
     }
 
     override fun onDetachedFromWindow() {
         stop()
         super.onDetachedFromWindow()
-    }
-
-    companion object {
-        private const val IDLE_FRAME_MS = 64L
     }
 }

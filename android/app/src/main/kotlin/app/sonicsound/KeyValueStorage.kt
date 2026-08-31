@@ -57,6 +57,8 @@ class KeyValueStorage {
         fun setSettings(settings: Settings) {
             val previous = getSettings()
             val normalized = AudioProfile.normalize(settings)
+            // Skip no-op writes so opening Settings / spinner bind cannot thrash audio.
+            if (normalized == previous) return
             prefs().edit().putString("settings", Gson().toJson(normalized)).apply()
             val audioChanged =
                 AudioProfile.resolve(previous) != AudioProfile.resolve(normalized) ||

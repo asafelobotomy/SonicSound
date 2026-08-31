@@ -213,7 +213,7 @@ class SettingsFragment : Fragment {
             refreshCache(cacheInfo)
         }
 
-        // Spinners fire onItemSelected during initial setSelection; ignore until ready.
+        // Spinners fire onItemSelected during initial setSelection; ignore until settled.
         val generation = ++bindGeneration
         enableSaveRunnable?.let { saveHandler.removeCallbacks(it) }
         enableSaveRunnable = Runnable {
@@ -221,7 +221,8 @@ class SettingsFragment : Fragment {
                 suppressAutoSave = false
             }
         }
-        saveHandler.post(enableSaveRunnable!!)
+        // Delay past any deferred spinner callbacks so open-Settings cannot persist/recreate.
+        saveHandler.postDelayed(enableSaveRunnable!!, 450)
     }
 
     private fun scheduleTextSave() {

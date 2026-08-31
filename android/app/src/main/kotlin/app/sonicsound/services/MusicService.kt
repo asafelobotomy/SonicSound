@@ -36,7 +36,9 @@ import app.sonicsound.playback.PlayQueue
 import app.sonicsound.playback.PlaybackCommander
 import app.sonicsound.playback.PlaybackNotification
 import app.sonicsound.playback.VlcEngine
+import app.sonicsound.playback.VlcPcmOutput
 import app.sonicsound.subsonic.SubsonicClient
+import app.sonicsound.visualizer.TrackCharacterPrefetch
 import java.util.concurrent.ExecutionException
 
 class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
@@ -160,13 +162,16 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         synchronized(playbackLock) {
             val settings = KeyValueStorage.getSettings()
             if (engine.needsRecreate(settings)) {
+                Log.i("MusicService", "Recreating VlcEngine (ReplayGain changed)")
                 val track = queue.currentTrack
                 val pos = engine.position
                 val playing = engine.isPlaying
                 ignoringEvents = true
                 pendingSeek = if (pos > 0.001f) pos else null
                 try {
-                    engine.release()
+                    // Soft detach keeps spectrum continuity; longer grace for setup/play.
+                    VlcPcmOutput.noteEngineRecreate()
+                    engine.release(wipeSpectrum = false)
                     engine = VlcEngine(subsonicClient) { pause() }
                     engine.create(this)
                     track?.let {
@@ -180,6 +185,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 }
                 return
             }
+            // Profile / EQ only — never tear down the PCM tap for Settings visits.
             engine.applyAudioProfile(AudioProfile.resolve(settings))
         }
     }
@@ -205,6 +211,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         val currentTrack = queue.currentTrack ?: return
         engine.requestAudioFocus(this)
         engine.play()
+        prefetchNextTrackCharacter()
         CoroutineScope(IO).launch {
             session.putAlbumAndDuration(currentTrack)
             val albumArtUri = Uri.parse(subsonicClient.getAlbumArt(currentTrack.albumId))
@@ -220,6 +227,22 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
             }
             session.updateMediaMetadata(currentTrack, albumArtBitmap)
             notification.update(currentTrack, albumArtBitmap)
+        }
+    }
+
+    /** Decode ~3s of the upcoming track off-path so BPM/dynamics are ready on skip. */
+    private fun prefetchNextTrackCharacter() {
+        val next = queue.peekNext() ?: return
+        CoroutineScope(IO).launch {
+            runCatching {
+                val local = java.io.File(subsonicClient.getLocalSongUri(next.id))
+                val uri = when {
+                    local.exists() && local.length() > 1024L -> "file://${local.path}"
+                    KeyValueStorage.getOfflineMode() -> null
+                    else -> subsonicClient.getSongUri(next)
+                } ?: return@launch
+                TrackCharacterPrefetch.prefetch(App.context, next.id, uri)
+            }
         }
     }
 
@@ -361,6 +384,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                     pendingSeek = null
                     engine.seek(seekPos)
                 }
+                VlcPcmOutput.onEnginePlaying(engine.mediaPlayer)
                 notifyListeners("play", null)
                 if (track != null) {
                     notifyListeners(

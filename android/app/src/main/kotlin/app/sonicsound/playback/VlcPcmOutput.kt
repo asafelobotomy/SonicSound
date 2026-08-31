@@ -4,6 +4,9 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import app.sonicsound.visualizer.PlaybackSpectrum
 import org.videolan.libvlc.MediaPlayer
@@ -13,11 +16,21 @@ import kotlin.math.min
 /**
  * LibVLC decoded-PCM audio output via [libvlc_audio_set_callbacks].
  *
- * Replaces the platform aout so we can play through [AudioTrack] and feed
- * [PlaybackSpectrum] without RECORD_AUDIO / Visualizer.
+ * Lifecycle hazards this object defends against (historically killed visualizations):
+ * - Track skip → flush without resume
+ * - Album / media replace → cleanup with no matching setup
+ * - Settings / ReplayGain → full [VlcEngine] recreate + detach
+ * - Stale cleanup after a newer setup (aout depth)
+ * - Re-attach mid-stream clearing format callbacks
+ *
+ * Strategy: soft spectrum resets across gaps, keep/reuse AudioTrack during media-swap
+ * grace, heal a missing track on play / Playing, never hard-wipe spectrum except on
+ * true teardown ([detach] with wipeSpectrum=true).
  */
 object VlcPcmOutput {
     private const val TAG = "VlcPcmOutput"
+    private const val MEDIA_SWAP_GRACE_MS = 2_500L
+    private const val ENGINE_RECREATE_GRACE_MS = 5_000L
 
     @Volatile
     private var ready = false
@@ -27,6 +40,10 @@ object VlcPcmOutput {
 
     @Volatile
     private var channels = 2
+
+    /** Channel count the AudioTrack was opened with (may be less than LibVLC channels). */
+    @Volatile
+    private var outputChannels = 2
 
     @Volatile
     private var sampleRate = 44100
@@ -40,11 +57,21 @@ object VlcPcmOutput {
     @Volatile
     private var playCallbacks = 0
 
+    @Volatile
+    private var lastPcmUptimeMs = 0L
+
+    /** Nested setup/cleanup depth — ignores stale cleanup after a newer setup. */
+    private var aoutDepth = 0
+
+    /** While swapping media / recreating the engine, keep AudioTrack when possible. */
+    @Volatile
+    private var mediaSwapUntilMs = 0L
+
     private val trackLock = Any()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     init {
         try {
-            // LibVLC must be mapped before nativeInit dlopen("libvlc.so").
             runCatching { System.loadLibrary("c++_shared") }
             System.loadLibrary("vlc")
             runCatching { System.loadLibrary("vlcjni") }
@@ -60,7 +87,23 @@ object VlcPcmOutput {
 
     val isAvailable: Boolean get() = ready
 
-    /** Attach PCM callbacks to a LibVLC media player instance. */
+    /** True if PCM play callbacks arrived recently (visualizer feed is alive). */
+    fun isPcmFresh(maxAgeMs: Long = 1_500L): Boolean {
+        val last = lastPcmUptimeMs
+        if (last == 0L) return false
+        return SystemClock.uptimeMillis() - last <= maxAgeMs
+    }
+
+    /** Call before replacing media so cleanup does not drop the live tap. */
+    fun noteMediaSwap(graceMs: Long = MEDIA_SWAP_GRACE_MS) {
+        mediaSwapUntilMs = SystemClock.uptimeMillis() + graceMs
+    }
+
+    /** Longer grace used around [VlcEngine] recreate (Settings / ReplayGain). */
+    fun noteEngineRecreate() {
+        noteMediaSwap(ENGINE_RECREATE_GRACE_MS)
+    }
+
     fun attach(player: MediaPlayer): Boolean {
         if (!ready) return false
         val ptr = playerNativePtr(player)
@@ -73,13 +116,63 @@ object VlcPcmOutput {
         return ok
     }
 
-    fun detach(player: MediaPlayer?) {
+    /**
+     * @param wipeSpectrum hard-clear FFT state. Use true only when the player is going
+     * away for good (service destroy). Hot recreates should soft-reset so the UI
+     * recovers as soon as PCM resumes.
+     */
+    fun detach(player: MediaPlayer?, wipeSpectrum: Boolean = true) {
         if (!ready) return
         nativeDetach(playerNativePtr(player))
-        nativeCleanup()
+        synchronized(trackLock) {
+            aoutDepth = 0
+            // Keep swap grace if a recreate is in flight.
+            if (wipeSpectrum) mediaSwapUntilMs = 0L
+            releaseTrackLocked()
+        }
+        if (wipeSpectrum) {
+            PlaybackSpectrum.reset()
+        } else {
+            PlaybackSpectrum.softReset()
+        }
+        playCallbacks = 0
+        Log.i(TAG, "PCM detach wipeSpectrum=$wipeSpectrum")
     }
 
-    /** LibVLC [VLCObject.getInstance] — Kotlin property access is unreliable across versions. */
+    /**
+     * Ensure AudioTrack is live when LibVLC reports Playing.
+     * Optionally re-attaches if PCM stays silent (Settings recreate race).
+     */
+    fun onEnginePlaying(player: MediaPlayer? = null) {
+        synchronized(trackLock) {
+            val t = track
+            if (t == null) {
+                if (openTrackLocked(sampleRate, channels)) {
+                    Log.w(TAG, "onEnginePlaying healed null AudioTrack")
+                }
+            } else if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                runCatching { t.play() }
+            }
+        }
+        if (player == null || !ready) return
+        val baseline = playCallbacks
+        val baselineTime = lastPcmUptimeMs
+        mainHandler.postDelayed(
+            {
+                if (isPcmFresh()) return@postDelayed
+                if (playCallbacks != baseline && lastPcmUptimeMs != baselineTime) return@postDelayed
+                Log.w(TAG, "PCM silent after Playing — re-attaching tap")
+                noteMediaSwap()
+                attach(player)
+                synchronized(trackLock) {
+                    if (track == null) openTrackLocked(sampleRate, channels)
+                    else runCatching { track?.play() }
+                }
+            },
+            900L,
+        )
+    }
+
     private fun playerNativePtr(player: MediaPlayer?): Long {
         if (player == null) return 0L
         return runCatching {
@@ -94,33 +187,199 @@ object VlcPcmOutput {
         }
     }
 
-    // --- Called from JNI (VLC audio thread) ---
-
     @JvmStatic
     fun nativeSetup(rate: Int, ch: Int): Boolean {
         synchronized(trackLock) {
-            releaseTrackLocked()
+            val wantRate = rate.coerceAtLeast(8000)
+            val wantCh = ch.coerceIn(1, 8)
             playCallbacks = 0
-            sampleRate = rate.coerceAtLeast(8000)
-            channels = ch.coerceIn(1, 8)
-            Log.i(TAG, "AudioTrack setup $sampleRate Hz / $channels ch")
-            val channelMask = if (channels >= 2) {
-                AudioFormat.CHANNEL_OUT_STEREO
-            } else {
-                AudioFormat.CHANNEL_OUT_MONO
+            aoutDepth++
+            val existing = track
+            if (existing != null && sampleRate == wantRate && channels == wantCh) {
+                sampleRate = wantRate
+                channels = wantCh
+                runCatching {
+                    existing.pause()
+                    existing.flush()
+                    existing.play()
+                }
+                Log.i(TAG, "AudioTrack reused $wantRate Hz / $wantCh ch depth=$aoutDepth")
+                return true
             }
+            sampleRate = wantRate
+            channels = wantCh
+            val ok = openTrackLocked(sampleRate, channels)
+            Log.i(TAG, "AudioTrack setup $sampleRate Hz / $channels ch ok=$ok depth=$aoutDepth")
+            if (!ok && aoutDepth > 0) aoutDepth--
+            return ok
+        }
+    }
+
+    @JvmStatic
+    fun nativePlay(pcm: ByteArray, bytes: Int, ch: Int, frames: Int) {
+        val len = min(bytes, pcm.size)
+        if (len <= 0) return
+        val playCh = ch.coerceAtLeast(1)
+        val playFrames = frames.coerceAtLeast(1)
+
+        synchronized(trackLock) {
+            var t = track
+            if (t == null) {
+                Log.w(TAG, "PCM play with null AudioTrack — healing ${sampleRate}Hz/${playCh}ch")
+                if (!openTrackLocked(sampleRate.coerceAtLeast(8000), playCh.coerceIn(1, 8))) {
+                    PlaybackSpectrum.onPcmS16(
+                        pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), sampleRate,
+                    )
+                    lastPcmUptimeMs = SystemClock.uptimeMillis()
+                    return
+                }
+                t = track ?: run {
+                    PlaybackSpectrum.onPcmS16(
+                        pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), sampleRate,
+                    )
+                    lastPcmUptimeMs = SystemClock.uptimeMillis()
+                    return
+                }
+            }
+            if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                runCatching { t.play() }
+            }
+            // Spectrum always sees full multi-channel PCM; AudioTrack may be stereo-only.
+            val writePcm: ByteArray
+            val writeLen: Int
+            if (playCh == outputChannels || outputChannels < 1) {
+                writePcm = pcm
+                writeLen = len
+            } else {
+                val mixed = downmixToOutput(pcm, len, playCh, playFrames, outputChannels)
+                writePcm = mixed
+                writeLen = mixed.size
+            }
+            var offset = 0
+            while (offset < writeLen) {
+                val written = t.write(writePcm, offset, writeLen - offset)
+                if (written <= 0) break
+                offset += written
+            }
+            PlaybackSpectrum.onPcmS16(
+                pcm, len, playCh, playFrames, ByteOrder.nativeOrder(), sampleRate,
+            )
+            lastPcmUptimeMs = SystemClock.uptimeMillis()
+            val n = playCallbacks + 1
+            playCallbacks = n
+            if (n == 1 || n == 50 || n == 200) {
+                Log.i(
+                    TAG,
+                    "PCM play#$n bytes=$len ch=$playCh outCh=$outputChannels frames=$playFrames " +
+                        "peak=${"%.4f".format(PlaybackSpectrum.lastPcmPeak)} " +
+                        "energy=${"%.3f".format(PlaybackSpectrum.energy())} " +
+                        "bass=${"%.3f".format(PlaybackSpectrum.bass())} " +
+                        "L/R=${"%.2f".format(PlaybackSpectrum.left())}/${"%.2f".format(PlaybackSpectrum.right())}",
+                )
+            }
+        }
+    }
+
+    @JvmStatic
+    fun nativePause() {
+        synchronized(trackLock) {
+            runCatching { track?.pause() }
+        }
+    }
+
+    @JvmStatic
+    fun nativeResume() {
+        synchronized(trackLock) {
+            runCatching { track?.play() }
+        }
+        Log.i(TAG, "PCM resume energy=${"%.3f".format(PlaybackSpectrum.energy())}")
+    }
+
+    @JvmStatic
+    fun nativeFlush() {
+        synchronized(trackLock) {
+            runCatching {
+                track?.pause()
+                track?.flush()
+                track?.play()
+            }
+            PlaybackSpectrum.softReset()
+        }
+        playCallbacks = 0
+        Log.i(TAG, "PCM flush/softReset energy=${"%.3f".format(PlaybackSpectrum.energy())}")
+    }
+
+    @JvmStatic
+    fun nativeCleanup() {
+        val inSwap = SystemClock.uptimeMillis() < mediaSwapUntilMs
+        synchronized(trackLock) {
+            if (aoutDepth > 0) aoutDepth--
+            if (aoutDepth > 0) {
+                Log.i(TAG, "PCM cleanup skipped — newer aout still live (depth=$aoutDepth)")
+                return
+            }
+            if (inSwap && track != null) {
+                runCatching {
+                    track?.pause()
+                    track?.flush()
+                }
+                PlaybackSpectrum.softReset()
+                playCallbacks = 0
+                Log.i(TAG, "PCM cleanup during media swap — keeping AudioTrack")
+                return
+            }
+            releaseTrackLocked()
+        }
+        PlaybackSpectrum.softReset()
+        playCallbacks = 0
+        Log.i(TAG, "PCM cleanup (soft) — waiting for setup/heal")
+    }
+
+    @JvmStatic
+    fun nativeVolume(volume: Float, mute: Boolean) {
+        volumeLinear = volume.coerceIn(0f, 2f)
+        muted = mute
+        synchronized(trackLock) {
+            track?.let { applyGainLocked(it) }
+        }
+    }
+
+    /** Estimated AudioTrack output latency in milliseconds (0 if unknown). */
+    fun outputLatencyMs(): Int {
+        synchronized(trackLock) {
+            val t = track ?: return 0
+            val rate = sampleRate.coerceAtLeast(1)
+            val fromApi = runCatching {
+                // getLatency() is hidden/deprecated on some SDKs — reflect safely.
+                val m = AudioTrack::class.java.methods.firstOrNull {
+                    it.name == "getLatency" && it.parameterCount == 0
+                }
+                (m?.invoke(t) as? Int) ?: 0
+            }.getOrDefault(0).coerceAtLeast(0)
+            val bufMs = ((t.bufferSizeInFrames.toLong() * 1000L) / rate).toInt()
+            return when {
+                fromApi > 0 -> fromApi.coerceIn(0, 500)
+                bufMs > 0 -> (bufMs / 2).coerceIn(0, 500)
+                else -> 0
+            }
+        }
+    }
+
+    private fun openTrackLocked(rate: Int, ch: Int): Boolean {
+        releaseTrackLocked()
+        sampleRate = rate.coerceAtLeast(8000)
+        channels = ch.coerceIn(1, 8)
+        val masks = channelMaskCandidates(channels)
+        var lastError: Exception? = null
+        for (channelMask in masks) {
             val minBuf = AudioTrack.getMinBufferSize(
                 sampleRate,
                 channelMask,
                 AudioFormat.ENCODING_PCM_16BIT,
             )
-            if (minBuf <= 0) {
-                Log.e(TAG, "Invalid AudioTrack buffer for $sampleRate Hz / $channels ch")
-                return false
-            }
-            // 3× min keeps underruns rare without huge latency on TV.
-            val bufSize = minBuf * 3
-            return try {
+            if (minBuf <= 0) continue
+            val bufSize = minBuf * 2
+            try {
                 val builder = AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
@@ -144,81 +403,123 @@ object VlcPcmOutput {
                 t.play()
                 applyGainLocked(t)
                 track = t
-                true
+                outputChannels = when (channelMask) {
+                    AudioFormat.CHANNEL_OUT_MONO -> 1
+                    AudioFormat.CHANNEL_OUT_STEREO -> 2
+                    AudioFormat.CHANNEL_OUT_QUAD -> 4
+                    AudioFormat.CHANNEL_OUT_5POINT1 -> 6
+                    else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                        channelMask == AudioFormat.CHANNEL_OUT_7POINT1_SURROUND
+                    ) {
+                        8
+                    } else {
+                        channels.coerceIn(1, 8)
+                    }
+                }
+                Log.i(
+                    TAG,
+                    "AudioTrack open ${sampleRate}Hz mask=0x${channelMask.toString(16)} " +
+                        "inCh=$channels outCh=$outputChannels buf=${bufSize}B latency~${outputLatencyMs()}ms",
+                )
+                return true
             } catch (e: Exception) {
-                Log.e(TAG, "AudioTrack setup failed", e)
-                track = null
-                false
+                lastError = e
             }
         }
+        Log.e(TAG, "AudioTrack setup failed for $sampleRate Hz / $channels ch", lastError)
+        track = null
+        return false
     }
 
-    @JvmStatic
-    fun nativePlay(pcm: ByteArray, bytes: Int, ch: Int, frames: Int) {
-        val t = track ?: return
-        val len = min(bytes, pcm.size)
-        if (len <= 0) return
-        // Pace playback — LibVLC expects the play callback to consume in real time.
-        var offset = 0
-        while (offset < len) {
-            val written = t.write(pcm, offset, len - offset)
-            if (written <= 0) break
-            offset += written
-        }
-        PlaybackSpectrum.onPcmS16(
-            pcm,
-            len,
-            ch.coerceAtLeast(1),
-            frames.coerceAtLeast(1),
-            ByteOrder.nativeOrder(),
-        )
-        val n = playCallbacks + 1
-        playCallbacks = n
-        if (n == 1 || n == 50 || n == 200) {
-            Log.i(
-                TAG,
-                "PCM play#$n bytes=$len ch=$ch frames=$frames " +
-                    "peak=${"%.4f".format(PlaybackSpectrum.lastPcmPeak)} " +
-                    "energy=${"%.3f".format(PlaybackSpectrum.energy())} " +
-                    "bass=${"%.3f".format(PlaybackSpectrum.bass())}",
-            )
-        }
-    }
-
-    @JvmStatic
-    fun nativePause() {
-        synchronized(trackLock) {
-            runCatching { track?.pause() }
-        }
-    }
-
-    @JvmStatic
-    fun nativeFlush() {
-        synchronized(trackLock) {
-            runCatching {
-                track?.pause()
-                track?.flush()
-                track?.play()
+    /** Prefer true multi-channel out; fall back toward stereo/mono if the device rejects it. */
+    private fun channelMaskCandidates(ch: Int): List<Int> {
+        val primary = when (ch) {
+            1 -> AudioFormat.CHANNEL_OUT_MONO
+            2 -> AudioFormat.CHANNEL_OUT_STEREO
+            4 -> AudioFormat.CHANNEL_OUT_QUAD
+            6 -> AudioFormat.CHANNEL_OUT_5POINT1
+            8 -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                AudioFormat.CHANNEL_OUT_7POINT1_SURROUND
+            } else {
+                AudioFormat.CHANNEL_OUT_5POINT1
             }
-            PlaybackSpectrum.reset()
+            else -> if (ch > 2) AudioFormat.CHANNEL_OUT_5POINT1 else AudioFormat.CHANNEL_OUT_STEREO
         }
+        return listOf(
+            primary,
+            AudioFormat.CHANNEL_OUT_STEREO,
+            AudioFormat.CHANNEL_OUT_MONO,
+        ).distinct()
     }
 
-    @JvmStatic
-    fun nativeCleanup() {
-        synchronized(trackLock) {
-            releaseTrackLocked()
+    /**
+     * Downmix multi-channel PCM to the AudioTrack layout when the device cannot
+     * open a matching surround track. Spectrum analysis still uses the original buffer.
+     */
+    private fun downmixToOutput(
+        pcm: ByteArray,
+        bytes: Int,
+        inCh: Int,
+        frames: Int,
+        outCh: Int,
+    ): ByteArray {
+        val frameCount = (bytes / (2 * inCh)).coerceAtMost(frames)
+        val out = ByteArray(frameCount * outCh * 2)
+        val little = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
+        fun read(i: Int): Int {
+            if (i + 1 >= bytes) return 0
+            return if (little) {
+                ((pcm[i].toInt() and 0xFF) or (pcm[i + 1].toInt() shl 8)).toShort().toInt()
+            } else {
+                ((pcm[i + 1].toInt() and 0xFF) or (pcm[i].toInt() shl 8)).toShort().toInt()
+            }
         }
-        PlaybackSpectrum.reset()
-    }
-
-    @JvmStatic
-    fun nativeVolume(volume: Float, mute: Boolean) {
-        volumeLinear = volume.coerceIn(0f, 2f)
-        muted = mute
-        synchronized(trackLock) {
-            track?.let { applyGainLocked(it) }
+        fun write(o: Int, sample: Int) {
+            val s = sample.coerceIn(-32768, 32767)
+            if (little) {
+                out[o] = (s and 0xFF).toByte()
+                out[o + 1] = ((s shr 8) and 0xFF).toByte()
+            } else {
+                out[o] = ((s shr 8) and 0xFF).toByte()
+                out[o + 1] = (s and 0xFF).toByte()
+            }
         }
+        for (f in 0 until frameCount) {
+            val base = f * inCh * 2
+            val c = FloatArray(8)
+            for (i in 0 until inCh.coerceAtMost(8)) {
+                c[i] = read(base + i * 2).toFloat()
+            }
+            when (outCh) {
+                1 -> {
+                    val m = when {
+                        inCh >= 6 -> (c[0] + c[1] + c[2] * 0.7f + c[4] * 0.5f + c[5] * 0.5f) / 3.4f
+                        inCh >= 2 -> (c[0] + c[1]) * 0.5f
+                        else -> c[0]
+                    }
+                    write(f * 2, m.toInt())
+                }
+                else -> {
+                    // Stereo fold: L = FL+0.7*FC+0.5*BL(+SL), R = FR+0.7*FC+0.5*BR(+SR)
+                    val l = when {
+                        inCh >= 8 -> c[0] + c[2] * 0.7f + c[4] * 0.5f + c[6] * 0.5f + c[3] * 0.15f
+                        inCh >= 6 -> c[0] + c[2] * 0.7f + c[4] * 0.5f + c[3] * 0.15f
+                        inCh == 4 -> c[0] + c[2] * 0.5f
+                        else -> c[0]
+                    }
+                    val r = when {
+                        inCh >= 8 -> c[1] + c[2] * 0.7f + c[5] * 0.5f + c[7] * 0.5f + c[3] * 0.15f
+                        inCh >= 6 -> c[1] + c[2] * 0.7f + c[5] * 0.5f + c[3] * 0.15f
+                        inCh == 4 -> c[1] + c[3] * 0.5f
+                        inCh >= 2 -> c[1]
+                        else -> c[0]
+                    }
+                    write(f * 4, l.toInt())
+                    write(f * 4 + 2, r.toInt())
+                }
+            }
+        }
+        return out
     }
 
     private fun applyGainLocked(t: AudioTrack) {

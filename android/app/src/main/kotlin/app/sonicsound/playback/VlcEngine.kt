@@ -16,6 +16,7 @@ import app.sonicsound.KeyValueStorage
 import app.sonicsound.models.Settings
 import app.sonicsound.models.Song
 import app.sonicsound.subsonic.SubsonicClient
+import app.sonicsound.visualizer.PlaybackSpectrum
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
@@ -87,27 +88,20 @@ class VlcEngine(
     }
 
     private fun buildLibVlcArgs(settings: Settings): ArrayList<String> {
-        val profile = AudioProfile.resolve(settings)
         val libArgs = ArrayList(args)
-        if (AudioProfile.needsEqualizerFilter(profile)) {
-            libArgs.add("--audio-filter=equalizer")
-        }
+        // Equalizer is applied via MediaPlayer.setEqualizer — do NOT toggle
+        // --audio-filter=equalizer here; that forced a full LibVLC recreate on every
+        // Settings audio-profile change and killed the PCM visualizer tap.
         if (settings.replayGainEnabled) {
             libArgs.add("--audio-replay-gain-mode=track")
             libArgs.add("--audio-replay-gain-preamp=0")
         }
-        // When PCM tap is available, LibVLC audio callbacks own playback (no aout module).
-        // Otherwise keep the historical device-default aout.
         return libArgs
     }
 
     fun needsRecreate(settings: Settings): Boolean {
-        val profile = AudioProfile.resolve(settings)
-        val wantEqFilter = AudioProfile.needsEqualizerFilter(profile)
-        val wantPcm = VlcPcmOutput.isAvailable
-        return settings.replayGainEnabled != appliedReplayGain ||
-            wantEqFilter != appliedEqualizerFilter ||
-            wantPcm != appliedPcmTap
+        // Only ReplayGain is a LibVLC-instance flag. EQ/profile changes use setEqualizer.
+        return settings.replayGainEnabled != appliedReplayGain
     }
 
     fun create(eventListener: MediaPlayer.EventListener) {
@@ -145,7 +139,7 @@ class VlcEngine(
         AudioProfile.apply(mediaPlayer, profileId)
     }
 
-    fun release() {
+    fun release(wipeSpectrum: Boolean = true) {
         synchronized(lock) {
             if (released) return
             released = true
@@ -153,7 +147,7 @@ class VlcEngine(
             val player = mediaPlayer
             mediaPlayer = null
             if (player != null) {
-                runCatching { VlcPcmOutput.detach(player) }
+                runCatching { VlcPcmOutput.detach(player, wipeSpectrum = wipeSpectrum) }
                 runCatching { player.setEventListener(null) }
                 runCatching {
                     if (player.isPlaying) player.stop()
@@ -261,15 +255,17 @@ class VlcEngine(
                 Log.w("VlcEngine", "No URI for track ${currentTrack.id}")
                 return
             }
+            PlaybackSpectrum.prepareForTrack(currentTrack.id)
             val lib = mLibVLC ?: return
             val player = mediaPlayer ?: return
             val media = Media(lib, Uri.parse(uri))
             try {
                 applyMediaOptions(media, uri)
-                // Only stop when something is already loaded — avoids an extra gap on cold start.
-                if (player.media != null) {
-                    runCatching { player.stop() }
-                }
+                // Avoid player.stop() here: it triggers audio cleanup and, on album
+                // swaps, LibVLC often never re-runs setup/play into our PCM tap —
+                // audio may continue via a fallback aout while the visualizer dies.
+                // Replacing media is enough; VLC flushes/stops the previous item.
+                VlcPcmOutput.noteMediaSwap()
                 player.media = media
             } finally {
                 media.release()
@@ -318,9 +314,7 @@ class VlcEngine(
             val media = Media(lib, Uri.parse(url))
             try {
                 applyMediaOptions(media, url)
-                if (player.media != null) {
-                    runCatching { player.stop() }
-                }
+                VlcPcmOutput.noteMediaSwap()
                 player.media = media
             } finally {
                 media.release()

@@ -14,7 +14,6 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import app.sonicsound.KeyValueStorage
@@ -74,6 +73,7 @@ class NowPlayingFullscreen(
     private val fsRepeat: ImageButton = root.findViewById(R.id.btn_fs_repeat)
     private val fsLike: ImageButton = root.findViewById(R.id.btn_fs_like)
     private val fsMusicVideo: ImageButton = root.findViewById(R.id.btn_fs_music_video)
+    private val fsToast: TextView = root.findViewById(R.id.tv_fs_toast)
     private val fsSeekBar = root.findViewById<android.widget.SeekBar>(R.id.sb_fs_progress)
     private val fsScrubber = NowPlayingScrubber(
         root.findViewById(R.id.ll_fs_scrubber),
@@ -87,6 +87,7 @@ class NowPlayingFullscreen(
     )
     private val hideHandler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { hideControls() }
+    private val toastHideRunnable = Runnable { hideAppToast() }
     private val clockHandler = Handler(Looper.getMainLooper())
     private val clockRunnable = object : Runnable {
         override fun run() {
@@ -213,11 +214,36 @@ class NowPlayingFullscreen(
         val label = root.resources.getString(FullscreenVisualizer.labelRes(next))
         fsVisualizer.contentDescription =
             root.resources.getString(R.string.cycle_visualizer_fmt, label)
-        Toast.makeText(
-            root.context,
-            root.resources.getString(R.string.cycle_visualizer_fmt, label),
-            Toast.LENGTH_SHORT,
-        ).show()
+        showAppToast(root.resources.getString(R.string.cycle_visualizer_fmt, label))
+    }
+
+    private fun showAppToast(message: String) {
+        hideHandler.removeCallbacks(toastHideRunnable)
+        fsToast.animate().cancel()
+        fsToast.text = message
+        fsToast.alpha = 0f
+        fsToast.isVisible = true
+        fsToast.bringToFront()
+        (fsToast.parent as? android.view.ViewGroup)?.let { parent ->
+            parent.invalidate()
+        }
+        fsToast.animate()
+            .alpha(1f)
+            .setDuration(160)
+            .start()
+        hideHandler.postDelayed(toastHideRunnable, 2200)
+    }
+
+    private fun hideAppToast() {
+        if (!fsToast.isVisible) return
+        fsToast.animate()
+            .alpha(0f)
+            .setDuration(220)
+            .withEndAction {
+                fsToast.isVisible = false
+                fsToast.alpha = 1f
+            }
+            .start()
     }
 
     private fun applyModeFromSettings(reloadArt: Boolean) {
@@ -539,6 +565,9 @@ class NowPlayingFullscreen(
         if (!active) return
         active = false
         hideHandler.removeCallbacks(hideRunnable)
+        hideHandler.removeCallbacks(toastHideRunnable)
+        fsToast.animate().cancel()
+        fsToast.isVisible = false
         stopDvd()
         stopWmpVisualizer()
         stopClockUpdates()

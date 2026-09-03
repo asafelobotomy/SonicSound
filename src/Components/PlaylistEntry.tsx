@@ -15,8 +15,6 @@ import { MenuContext } from "../AppContext";
 import { SecondsToHHSS } from "../Helpers";
 import { IAlbumSongResponse } from "../Models/API/Responses/IArtistResponse";
 import { IPlaylist } from "../Models/API/Responses/IPlaylistsResponse";
-import AndroidTVPlugin from "../Plugins/AndroidTV";
-
 import VLC from "../Plugins/VLC";
 import "./PlaylistEntry.scss";
 
@@ -44,7 +42,6 @@ export function PlaylistEntry({
     const [downloadProgress, setDownloadProgress] = useState<number>(0);
     const vlcListener = useRef<PluginListenerHandle>();
     const [cached, setCached] = useState<boolean>(false);
-    const [androidTv, setAndroidTv] = useState<boolean>(false);
 
     const [coverArt, setCoverArt] = useState<string>("");
     useEffect(() => {
@@ -145,21 +142,14 @@ export function PlaylistEntry({
         if (
             currentTrack.id === item.id &&
             selfRef.current &&
-            (actionable || androidTv || state?.id === "current")
+            (actionable || state?.id === "current")
         ) {
             selfRef.current.scrollIntoView({
                 behavior: "smooth",
                 block: "center",
             });
         }
-    }, [actionable, androidTv, currentTrack, item.id, state?.id]);
-
-    useEffect(() => {
-        const f = async () => {
-            setAndroidTv((await AndroidTVPlugin.get()).value);
-        };
-        f();
-    }, []);
+    }, [actionable, currentTrack, item.id, state?.id]);
 
     const onClick = useCallback(async () => {
         if (state && state.id === "current") {

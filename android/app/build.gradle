@@ -69,8 +69,8 @@ android {
             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
-        buildConfigField "String", "SPOTIFY_CLIENT_ID", "\"${System.getenv("SPOTIFY_CLIENT_ID") ?: localProperties.getProperty("spotify.clientId", "")}\""
-        buildConfigField "String", "SPOTIFY_CLIENT_SECRET", "\"${System.getenv("SPOTIFY_CLIENT_SECRET") ?: localProperties.getProperty("spotify.clientSecret", "")}\""
+        // Spotify client-credentials secrets must not be baked into the APK.
+        // Native Spotify art is disabled until a server-side token proxy exists.
     }
     signingConfigs {
         if (hasReleaseSigning) {
@@ -148,7 +148,7 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
     implementation 'com.google.zxing:core:3.4.1'
-
+    implementation 'androidx.security:security-crypto:1.0.0'
 
     implementation "androidx.room:room-ktx:$roomVersion"
     kapt "androidx.room:room-compiler:$roomVersion"

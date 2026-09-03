@@ -14,11 +14,8 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.sonicsound.CurrentState
@@ -29,16 +26,11 @@ import app.sonicsound.R
 import app.sonicsound.TvActivity
 import app.sonicsound.adapters.SonicSoundPlaylistItemAdapter
 import app.sonicsound.extensions.clearAlbumArtTarget
-import app.sonicsound.extensions.loadAlbumArt
-import app.sonicsound.extensions.loadUrl
 import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.subsonic.SubsonicClient
 import app.sonicsound.playback.RepeatMode
 import com.getcapacitor.JSObject
 import kotlin.math.roundToInt
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class NowPlayingFragment : Fragment {
     private lateinit var bind: TvActivity.TvActivityBind
@@ -304,11 +296,9 @@ class NowPlayingFragment : Fragment {
         )
     }
 
-    private fun setPlayingUi(playing: Boolean) {
-        val icon = if (playing) R.drawable.ic_pause_icon else R.drawable.ic_play
-        btnPlay.setImageDrawable(ResourcesCompat.getDrawable(resources, icon, null))
-        fullscreen?.setPlaying(playing)
-    }
+    private fun setPlayingUi(playing: Boolean) =
+        NowPlayingControlsUi.setPlayingUi(this, btnPlay, fullscreen, playing)
+
 
     private fun applyProgress(progress: Double) {
         lastProgressFraction = progress
@@ -317,16 +307,13 @@ class NowPlayingFragment : Fragment {
     }
 
     private fun updateProgressUi(progress: Double) {
-        val pct = (progress * NowPlayingScrubber.PROGRESS_STEPS).roundToInt()
-            .coerceIn(0, NowPlayingScrubber.PROGRESS_STEPS)
-        if (scrubber?.armed != true) sbProgress.progress = pct
         val state = bind.getCurrentState() ?: return
-        val dur = state.currentTrack.duration
-        val current = secondsToHHSS((progress * dur).roundToInt().coerceAtMost(dur))
-        currentTimeText.text = current
-        fullscreen?.setProgress(pct, current, durationText.text.toString())
-        musicVideo?.onProgress(progress, dur)
+        NowPlayingControlsUi.updateProgressLabels(
+            sbProgress, currentTimeText, durationText, fullscreen, musicVideo,
+            scrubber?.armed == true, progress, state.currentTrack.duration,
+        )
     }
+
 
     private fun startProgressTicker(playing: Boolean) {
         progressTickPlaying = playing
@@ -337,126 +324,61 @@ class NowPlayingFragment : Fragment {
         }
     }
 
-    private fun secondsToHHSS(seconds: Int): String =
-        "${(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}"
+    private fun secondsToHHSS(seconds: Int): String = NowPlayingControlsUi.secondsToHHSS(seconds)
 
     private fun loadAlbumArt(url: String) {
         if (!::image.isInitialized) return
-        if (url.isBlank()) {
-            lastArtUrl = null
-            image.loadUrl("")
-            return
-        }
-        if (url == lastArtUrl) return
-        lastArtUrl = url
-        image.scaleType = ImageView.ScaleType.FIT_CENTER
-        image.loadAlbumArt(url, upscaleLowRes = true) { w, h -> applyMediaAspect(w, h) }
-        backdrop.loadUrl(url)
-        backdrop.alpha = 0.35f
+        NowPlayingControlsUi.loadAlbumArt(
+            image, backdrop, url, lastArtUrl,
+            onLoaded = { lastArtUrl = it },
+            onAspect = { w, h -> applyMediaAspect(w, h) },
+        )
     }
 
+
     private fun applyMediaAspect(widthPx: Int, heightPx: Int) {
-        if (!::mediaFrame.isInitialized || heightPx <= 0) return
-        val ratio = widthPx.toFloat() / heightPx.toFloat()
-        val params = mediaFrame.layoutParams as ConstraintLayout.LayoutParams
-        params.dimensionRatio = when {
-            ratio in 1.20f..1.45f -> "H,4:3"
-            ratio < 1.15f -> "H,1:1"
-            else -> "H,16:9"
-        }
-        mediaFrame.layoutParams = params
-        image.scaleType = ImageView.ScaleType.FIT_CENTER
+        if (!::mediaFrame.isInitialized) return
+        NowPlayingStateBinder.applyMediaAspect(mediaFrame, image, widthPx, heightPx)
     }
+
 
     @SuppressLint("SetTextI18n")
     fun getCurrentState() {
         if (!::bind.isInitialized || !::client.isInitialized) return
-        val currentState: CurrentState? = bind.getCurrentState()
-        if (currentState == null || currentState.currentTrack.id == "") return
-        firstLine.text = currentState.currentTrack.title
-        secondLine.text = currentState.currentTrack.artist
-        val artUrl = client.getAlbumArtForDisplay(currentState.currentTrack.albumId)
-        loadAlbumArt(artUrl)
-        durationText.text = secondsToHHSS(currentState.currentTrack.duration)
-        setPlayingUi(currentState.playing)
-        startProgressTicker(currentState.playing)
-        updateShuffleUi(currentState.shuffling)
-        updateRepeatUi(RepeatMode.fromWire(currentState.repeatMode))
-        liked = currentState.currentTrack.isStarred
-        updateLikeUi()
-        val entries = bind.getCurrentPlaylist()?.entry.orEmpty()
-        val idx = entries.indexOfFirst { it.id == currentState.currentTrack.id }
-        val next = entries.getOrNull(idx + 1)
-        if (entries.isNotEmpty()) {
-            val ids = entries.joinToString(",") { it.id }
-            if (ids != lastQueueIds) {
-                lastQueueIds = ids
-                for (song in entries) song.image = client.getAlbumArt(song.albumId)
-                playlistAdapter.setNewDataSet(entries)
-            }
-            val retain = keepQueueFocus || playlistRecyclerView.hasFocus()
-            keepQueueFocus = false
-            playlistAdapter.updateSelected(idx, keepFocus = retain)
-        }
-        if (fullscreen?.active == true) {
-            fullscreen?.updateTrack(
-                artUrl,
-                currentState.currentTrack.title,
-                currentState.currentTrack.artist,
-                next,
-                musicVideo?.isVideoActive == true,
-            )
-            fullscreen?.setPlaying(currentState.playing)
-            fullscreen?.setShuffle(currentState.shuffling)
-            fullscreen?.setRepeat(RepeatMode.fromWire(currentState.repeatMode))
-            fullscreen?.setLiked(liked)
-        }
-    }
-
-    private fun updateShuffleUi(shuffling: Boolean) {
-        if (!::btnShuffle.isInitialized) return
-        btnShuffle.setImageDrawable(
-            ResourcesCompat.getDrawable(
-                resources,
-                if (shuffling) R.drawable.ic_shuffle_fill_primary else R.drawable.ic_shuffle_fill,
-                null
-            )
+        NowPlayingStateBinder.bindState(
+            bind, client, firstLine, secondLine, durationText,
+            playlistRecyclerView, playlistAdapter, fullscreen, musicVideo,
+            lastQueueIds, keepQueueFocus, liked, ::secondsToHHSS, ::loadAlbumArt,
+            ::setPlayingUi, ::startProgressTicker, ::updateShuffleUi, ::updateRepeatUi, ::updateLikeUi,
+            setLiked = { liked = it },
+            setLastQueueIds = { lastQueueIds = it },
+            setKeepQueueFocus = { keepQueueFocus = it },
         )
     }
 
+
+    private fun updateShuffleUi(shuffling: Boolean) {
+        if (!::btnShuffle.isInitialized) return
+        NowPlayingControlsUi.updateShuffleUi(this, btnShuffle, shuffling)
+    }
+
+
     private fun updateRepeatUi(mode: RepeatMode) {
         if (!::btnRepeat.isInitialized) return
-        val (icon, label) = when (mode) {
-            RepeatMode.ALL -> R.drawable.ic_repeat_primary to R.string.repeat_queue
-            RepeatMode.ONE -> R.drawable.ic_repeat_one_primary to R.string.repeat_one
-            RepeatMode.OFF -> R.drawable.ic_repeat to R.string.repeat_off
-        }
-        btnRepeat.setImageDrawable(ResourcesCompat.getDrawable(resources, icon, null))
-        btnRepeat.contentDescription = getString(label)
+        NowPlayingControlsUi.updateRepeatUi(this, btnRepeat, mode)
     }
+
 
     private fun updateLikeUi() {
         if (!::btnLike.isInitialized) return
-        btnLike.setImageResource(if (liked) R.drawable.ic_nav_like else R.drawable.ic_nav_unlike)
-        btnLike.contentDescription =
-            getString(if (liked) R.string.unlike_song else R.string.like_song)
-        fullscreen?.setLiked(liked)
+        NowPlayingControlsUi.updateLikeUi(this, btnLike, fullscreen, liked)
     }
 
+
     private fun toggleLike() {
-        val track = bind.getCurrentState()?.currentTrack ?: return
-        if (track.id.isBlank()) return
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    if (liked) client.unstar(track.id) else client.star(track.id)
-                }
-                liked = !liked
-                track.starred = if (liked) "now" else null
-                updateLikeUi()
-            } catch (_: Exception) {
-                Toast.makeText(requireContext(), R.string.like_failed, Toast.LENGTH_SHORT).show()
-            }
+        NowPlayingControlsUi.toggleLike(this, bind, client, liked) { next ->
+            liked = next
+            updateLikeUi()
         }
     }
 }

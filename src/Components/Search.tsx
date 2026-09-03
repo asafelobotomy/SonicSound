@@ -1,7 +1,6 @@
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import { useEffect, useRef, useState } from "react";
 import { ISearchResult } from "../Models/API/Responses/IArtistInfoResponse";
-import AndroidTVPlugin from "../Plugins/AndroidTV";
 import VLC from "../Plugins/VLC";
 import AlbumCard from "./AlbumCard";
 import ArtistCard from "./ArtistCard";
@@ -13,12 +12,11 @@ export default function Search() {
     const setValue = (ev: any) => {
         setSearchValue(ev.target.value);
     };
-    const [androidTv, setAndroidTv] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout>(setTimeout(() => {}, 500));
     const songsRef = useRef(null);
     const albumsRef = useRef(null);
     const artistsRef = useRef(null);
-    const { focused, ref, focusSelf } = useFocusable();
+    const { focused, ref } = useFocusable();
     useEffect(() => {
         const fetch = async () => {
             clearTimeout(timeoutRef.current);
@@ -44,16 +42,6 @@ export default function Search() {
         }
     }, [focused, ref]);
 
-    useEffect(() => {
-        const r = async () => {
-            const androidTv = (await AndroidTVPlugin.get()).value;
-            if (androidTv) {
-                setAndroidTv(true);
-                focusSelf();
-            }
-        };
-        r();
-    }, [focusSelf]);
     return (
         <>
             <div className="text-white section-header text-start">Search</div>
@@ -75,7 +63,7 @@ export default function Search() {
                 className="d-flex flex-column align-items-center justify-content-start overflow-auto"
                 style={{ height: "100%" }}
             >
-                {result?.artist && !androidTv && (
+                {result?.artist && (
                     <>
                         <div
                             ref={artistsRef}

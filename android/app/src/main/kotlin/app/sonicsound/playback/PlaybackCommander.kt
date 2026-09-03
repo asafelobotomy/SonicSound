@@ -38,6 +38,8 @@ class PlaybackCommander(
         when (intent.action) {
             Constants.SERVICE_PLAY_PAUSE ->
                 if (engine.isPlaying) onPause() else onPlay()
+            Constants.SERVICE_PLAY -> onPlay()
+            Constants.SERVICE_PAUSE -> onPause()
             Constants.SERVICE_NEXT -> onNext()
             Constants.SERVICE_PREV -> onPrev()
             Constants.SERVICE_PLAY_ALBUM -> {

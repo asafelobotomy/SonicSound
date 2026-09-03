@@ -82,7 +82,7 @@ export default function Sidebar({
                 {item("/search", faMagnifyingGlass)}
                 {item("/playlists", faListUl)}
         {item("/radio", faBroadcastTower)}
-        {item("/jukebox", faListUl)}
+        {Capacitor.getPlatform() === "android" && item("/jukebox", faListUl)}
         {Features.youtubeMusicVideos && item("/videos", faFilm)}
         {Capacitor.getPlatform() === "android" && item("/remote", faQrcode)}
                 {item("/settings", faGear)}

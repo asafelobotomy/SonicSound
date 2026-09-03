@@ -14,7 +14,6 @@ import {
     useFocusable,
 } from "@noriginmedia/norigin-spatial-navigation";
 import classNames from "classnames";
-import { QRCode } from "react-qrcode-logo";
 
 interface FormData {
     username: string;
@@ -27,9 +26,6 @@ export default function PlayTest() {
     const { context, setContext } = useContext(AppContext);
     const navigate = useNavigate();
     const [accounts, setAccounts] = useState<IAccount[]>([]);
-    const [androidTv, setAndroidTv] = useState<boolean>(false);
-    const [localIp, setLocalIp] = useState<string>("");
-    const [showQr, setShowQr] = useState<boolean>(false);
     const [showPassword, setShowPassword] = useState<boolean>(false);
     const controls = useAnimation();
 
@@ -68,7 +64,6 @@ export default function PlayTest() {
     const {
         ref: usernameRef,
         focused: usernameFocused,
-        focusSelf,
     } = useFocusable({
         onEnterPress: () => {
             setFocus("username");
@@ -90,11 +85,6 @@ export default function PlayTest() {
             onSubmit();
         },
     });
-    const { ref: qrRef, focused: qrFocused } = useFocusable({
-        onEnterPress: () => {
-            setShowQr(!showQr);
-        },
-    });
 
     useEffect(() => {
         const run = async () => {
@@ -108,91 +98,24 @@ export default function PlayTest() {
                 } else {
                     Toast.show({ text: ret.error });
                 }
-                const androidTv = (await AndroidTVPlugin.get()).value;
-                setAndroidTv(androidTv);
-                if (androidTv) {
-                    setLocalIp((await AndroidTVPlugin.getIp()).value);
-                    focusSelf();
-                }
             }
         };
         run();
-    }, [context, controls, focusSelf, navigate]);
+    }, [context, controls, navigate]);
 
     useEffect(() => {
-        if (usernameFocused) {
-            // setFocus("username");
-        }
-        if (passwordFocused) {
-            // setFocus("password");
-        }
-        if (urlFocused) {
-            // setFocus("url");
-        }
         if (buttonFocused) {
             buttonRef.current.focus();
         }
-        if (qrFocused) {
-            qrRef.current.focus();
-        }
-    }, [
-        usernameFocused,
-        passwordFocused,
-        urlFocused,
-        buttonFocused,
-        qrFocused,
-        buttonRef,
-        qrRef,
-    ]);
+    }, [buttonFocused, buttonRef]);
 
     return (
         <FocusContext.Provider value={focusKey}>
             <div
                 ref={parentRef}
                 className={"row d-flex align-items-center"}
-                style={
-                    androidTv
-                        ? { height: "100%", width: "100vw" }
-                        : { height: "100vh" }
-                }
+                style={{ height: "100vh" }}
             >
-                <div
-                    className={classNames(
-                        showQr ? "d-flex" : "d-none",
-                        "sonicsound-modal",
-                        "flex-column",
-                        "align-items-center",
-                        "justify-content-center"
-                    )}
-                    style={{
-                        width: "80vw",
-                        height: "80vh",
-                        top: "10vh",
-                        left: "10vw",
-                        position: "absolute",
-                        borderRadius: "15px",
-                    }}
-                >
-                    <div
-                        className="p-5 d-flex align-items-center justify-content-around"
-                        style={{
-                            backgroundColor: "white",
-                            borderRadius: "5px",
-                        }}
-                    >
-                        <QRCode
-                            style={{ borderRadius: "5px" }}
-                            qrStyle="dots"
-                            eyeRadius={5}
-                            removeQrCodeBehindLogo={true}
-                            bgColor="#282c34"
-                            fgColor="#ebebeb"
-                            ecLevel="H"
-                            value={localIp}
-                        ></QRCode>
-                    </div>
-                    <span className="text-white">{localIp}</span>
-                </div>
                 <form onSubmit={onSubmit}>
                     <motion.div
                         className="container"
@@ -306,25 +229,7 @@ export default function PlayTest() {
                             Log In!
                         </button>
 
-                        {androidTv && (
-                            <button
-                                ref={qrRef}
-                                type="button"
-                                onClick={() => {
-                                    setShowQr(!showQr);
-                                }}
-                                className={classNames(
-                                    "btn",
-                                    qrFocused ? "btn-selected" : "btn-primary",
-                                    "mb-3",
-                                    "ms-3"
-                                )}
-                            >
-                                Display QR
-                            </button>
-                        )}
-
-                        {accounts.length > 0 && !androidTv && (
+                        {accounts.length > 0 && (
                             <div className="d-flex flex-column align-items-center justify-content-center">
                                 {accounts.map((s) => (
                                     <AccountItem account={s} del={del} />

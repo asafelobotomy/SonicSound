@@ -1,25 +1,24 @@
 ## Copy this file to local.properties (gitignored). Do not commit secrets.
 #
 # Required for local Android builds:
-#   1. Install JDK 17+
+#   1. Install JDK 17 and set JAVA_HOME to it (not 21/26 — Capacitor jlink fails)
 #   2. Install Android SDK (API 34) via Android Studio or sdkmanager
-#   3. Set sdk.dir below to your SDK path
+#   3. Uncomment and set sdk.dir below (or export ANDROID_HOME instead)
 #
-# sdk.dir=/home/YOU/Android/Sdk
+sdk.dir=/home/YOU/Android/Sdk
 #   macOS example: /Users/YOU/Library/Android/sdk
 #   Windows example: C\:\\Users\\YOU\\AppData\\Local\\Android\\Sdk
 #
-# Release signing (optional; debug builds work without these):
-# sonicsound.keystore=/absolute/path/to/release.jks
+# Release signing (optional; debug builds work without these).
+# Keep the JKS outside the repo — never commit *.jks:
+# sonicsound.keystore=/home/YOU/.local/share/sonicsound/release.jks
 # sonicsound.keystorePassword=
 # sonicsound.keyAlias=releasekey
 # sonicsound.keyPassword=
 #
-# Optional Spotify similarity features (native BuildConfig only — never ship
-# client secrets in production web/Vite bundles):
-# spotify.clientId=
-# spotify.clientSecret=
-#
 # Equivalent env vars: SONICSOUND_KEYSTORE, SONICSOUND_KEYSTORE_PASSWORD,
-# SONICSOUND_KEY_ALIAS, SONICSOUND_KEY_PASSWORD, SPOTIFY_CLIENT_ID,
-# SPOTIFY_CLIENT_SECRET
+# SONICSOUND_KEY_ALIAS, SONICSOUND_KEY_PASSWORD
+#
+# Note: Spotify client secrets are not accepted here — they must not be baked
+# into the APK. Native Spotify art requires a future server-side token proxy.
+# Dev web can still use VITE_SPOTIFY_CLIENT_* in a local .env (never commit).

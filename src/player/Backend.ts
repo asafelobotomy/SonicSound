@@ -8,9 +8,11 @@ import {
     IBackendPlugin,
     IBackendResponse,
     ICurrentState,
+    ISettings,
 } from "../Plugins/VLC";
 import { basicParamsFor, loadStoredContext } from "./accounts";
 import { backendApi } from "./backendApi";
+import { backendRemote } from "./backendRemote";
 import type { BackendApiMethods } from "./backendApiMethods";
 import {
     emptyPlaylist,
@@ -21,13 +23,6 @@ import {
 import { errorResponse, okResponse } from "../subsonic/errors";
 import * as lib from "../subsonic/endpoints/library";
 import * as playlists from "../subsonic/endpoints/playlists";
-import { ISettings } from "../Plugins/VLC";
-
-function isValidIp(ip: string): boolean {
-    return /^(25[0-5]|2[0-4]\d|[01]?\d\d?)(\.(25[0-5]|2[0-4]\d|[01]?\d\d?)){3}$/.test(
-        ip
-    );
-}
 
 /**
  * Web/PWA Capacitor backend: HTMLAudioElement playback + Subsonic REST.
@@ -45,7 +40,14 @@ export class Backend extends WebPlugin implements IBackendPlugin {
 
     constructor() {
         super();
-        Object.assign(this, backendApi);
+        // Explicit method assignment (typed) instead of Object.assign(backendApi).
+        const api = { ...backendApi, ...backendRemote };
+        for (const key of Object.keys(api) as (keyof typeof api)[]) {
+            const value = api[key];
+            if (typeof value === "function") {
+                (this as Record<string, unknown>)[key as string] = value.bind(this);
+            }
+        }
         this.wireAudioElement();
     }
 
@@ -138,46 +140,6 @@ export class Backend extends WebPlugin implements IBackendPlugin {
                   : "off";
         this.notifyListeners("playlistUpdated", null);
         return Promise.resolve(okResponse(this.repeatMode));
-    }
-
-    sendUdpBroadcast() {
-        return Promise.reject(new Error("Method not implemented."));
-    }
-    async getWebsocketStatus() {
-        return okResponse(false);
-    }
-    async disconnectWebsocket() {
-        return okResponse("");
-    }
-    async qrLogin(options: { ip: string; mode?: "remote" | "login" }) {
-        if (!isValidIp(options.ip)) {
-            return errorResponse(
-                "The QR code is not an IP address. Please try again."
-            );
-        }
-        try {
-            const socket = new WebSocket(`ws://${options.ip}:30001`);
-            socket.onopen = () => {
-                socket.send(
-                    JSON.stringify({
-                        type: "login",
-                        data: this.context.activeAccount,
-                    })
-                );
-            };
-            socket.onerror = () => {
-                this.notifyListeners(
-                    "EX",
-                    "There was an error connecting to the TV. Please, try again"
-                );
-            };
-            socket.onmessage = (message) => {
-                if (message.data === "sonicsound") socket.close();
-            };
-            return okResponse("Login request sent");
-        } catch (e: unknown) {
-            return errorResponse((e as Error).message);
-        }
     }
 
     getCurrentState(): Promise<IBackendResponse<ICurrentState>> {
@@ -415,39 +377,5 @@ export class Backend extends WebPlugin implements IBackendPlugin {
     }
     removeAllListeners() {
         return super.removeAllListeners();
-    }
-
-    async connectRemote() {
-        return errorResponse("Remote is only available on Android");
-    }
-    async startRemoteDiscovery() {
-        return errorResponse("Remote is only available on Android");
-    }
-    async stopRemoteDiscovery() {
-        return okResponse("");
-    }
-    async getDiscoveredRemotes() {
-        return okResponse([]);
-    }
-    async playJukeboxCollection(_o: { collection: string; remote?: boolean }) {
-        return errorResponse("Jukebox collections require the Android app");
-    }
-    async getGenres(): Promise<
-        IBackendResponse<{ value: string; songCount?: number }[]>
-    > {
-        return errorResponse("Not implemented on web");
-    }
-    async getServerCapabilities(): Promise<
-        IBackendResponse<{
-            playbackReport: boolean;
-            sonicSimilarity: boolean;
-            playQueue: boolean;
-        }>
-    > {
-        return okResponse({
-            playbackReport: false,
-            sonicSimilarity: false,
-            playQueue: false,
-        });
     }
 }

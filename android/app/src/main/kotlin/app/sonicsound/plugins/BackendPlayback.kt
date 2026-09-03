@@ -1,10 +1,8 @@
 package app.sonicsound.plugins
 
-import android.content.Intent
-import app.sonicsound.App
-import app.sonicsound.Constants
 import app.sonicsound.KeyValueStorage.Companion.getOfflineMode
 import app.sonicsound.models.ParameterException
+import app.sonicsound.playback.PlaybackFacade
 import app.sonicsound.services.MusicService
 import app.sonicsound.services.MusicService.LocalBinder
 import com.getcapacitor.PluginCall
@@ -28,6 +26,7 @@ class BackendPlayback(
     private val mBound: Boolean get() = boundProvider()
     private val webSocketConnected: Boolean get() = webSocketConnectedProvider()
     private val mWebSocket: WebSocket? get() = webSocketProvider()
+    private val startService = PlaybackFacade::defaultStartService
 
     private fun wsCommand(command: String, data: String): WebSocketCommand =
         WebSocketCommand(command, data)
@@ -47,7 +46,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (mBound) binder!!.shuffle()
+            PlaybackFacade.shuffle(binder, mBound)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -61,7 +60,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (mBound) binder!!.cycleRepeat()
+            PlaybackFacade.cycleRepeat(binder, mBound)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -74,9 +73,7 @@ class BackendPlayback(
             call.resolve(responses.ok(""))
             return
         }
-        val intent = Intent(App.context, MusicService::class.java)
-        intent.action = Constants.SERVICE_PLAY_PAUSE
-        App.context.startService(intent)
+        PlaybackFacade.play(binder, mBound, startService)
         call.resolve(responses.ok(""))
     }
 
@@ -86,9 +83,7 @@ class BackendPlayback(
             call.resolve(responses.ok(""))
             return
         }
-        val intent = Intent(App.context, MusicService::class.java)
-        intent.action = Constants.SERVICE_PLAY_PAUSE
-        App.context.startService(intent)
+        PlaybackFacade.pause(binder, mBound, startService)
         call.resolve(responses.ok(""))
     }
 
@@ -100,7 +95,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (mBound) binder!!.seek(value)
+            PlaybackFacade.seek(binder, mBound, value)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -109,10 +104,13 @@ class BackendPlayback(
 
     fun setVolume(call: PluginCall) {
         try {
-            if (mBound) {
-                val value = call.getInt("volume", 100) ?: throw ParameterException("volume")
-                binder!!.setVolume(value)
+            val value = call.getInt("volume", 100) ?: throw ParameterException("volume")
+            if (webSocketConnected) {
+                sendWs("setVolume", value.toString())
+                call.resolve(responses.ok(""))
+                return
             }
+            PlaybackFacade.setVolume(binder, mBound, value)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -131,14 +129,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (!mBound) {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_RADIO
-                intent.putExtra("id", id)
-                App.context.startService(intent)
-            } else {
-                binder!!.playRadio(id)
-            }
+            PlaybackFacade.playRadio(binder, mBound, startService, id)
             call.resolve(responses.ok(""))
         } catch (e: NullPointerException) {
             call.resolve(responses.error("One of the parameters was null"))
@@ -151,11 +142,15 @@ class BackendPlayback(
         try {
             val streamUrl = call.getString("streamUrl") ?: throw ParameterException("streamUrl")
             val name = call.getString("name") ?: "Radio"
-            if (!mBound) {
+            if (webSocketConnected) {
+                sendWs("playInternetRadio", gson.toJson(mapOf("streamUrl" to streamUrl, "name" to name)))
+                call.resolve(responses.ok(""))
+                return
+            }
+            if (!PlaybackFacade.playInternetRadio(binder, mBound, streamUrl, name)) {
                 call.resolve(responses.error("Music service not bound"))
                 return
             }
-            binder!!.playInternetRadio(streamUrl, name)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -171,15 +166,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (!mBound) {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_ALBUM
-                intent.putExtra("id", id)
-                intent.putExtra("track", track)
-                App.context.startService(intent)
-            } else {
-                binder!!.playAlbum(id, track)
-            }
+            PlaybackFacade.playAlbum(binder, mBound, startService, id, track)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -192,9 +179,8 @@ class BackendPlayback(
             call.resolve(responses.ok(""))
             return
         }
-        val intent = Intent(App.context, MusicService::class.java)
-        intent.action = Constants.SERVICE_NEXT
-        App.context.startService(intent)
+        // Prefer service intent for next/prev so MusicService handles unbound cold start.
+        PlaybackFacade.next(null, false, startService)
         call.resolve(responses.ok(""))
     }
 
@@ -204,9 +190,7 @@ class BackendPlayback(
             call.resolve(responses.ok(""))
             return
         }
-        val intent = Intent(App.context, MusicService::class.java)
-        intent.action = Constants.SERVICE_PREV
-        App.context.startService(intent)
+        PlaybackFacade.prev(null, false, startService)
         call.resolve(responses.ok(""))
     }
 
@@ -235,7 +219,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (mBound) binder!!.skipTo(track)
+            PlaybackFacade.skipTo(binder, mBound, track)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -251,15 +235,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (mBound) {
-                binder!!.playPlaylist(id, track)
-            } else {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_PLAYLIST
-                intent.putExtra("id", id)
-                intent.putExtra("track", track)
-                App.context.startService(intent)
-            }
+            PlaybackFacade.playPlaylist(binder, mBound, startService, id, track)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
@@ -274,14 +250,7 @@ class BackendPlayback(
                 call.resolve(responses.ok(""))
                 return
             }
-            if (mBound) {
-                binder!!.playJukeboxCollection(collection)
-            } else {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_JUKEBOX
-                intent.putExtra("collection", collection)
-                App.context.startService(intent)
-            }
+            PlaybackFacade.playJukeboxCollection(binder, mBound, startService, collection)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))

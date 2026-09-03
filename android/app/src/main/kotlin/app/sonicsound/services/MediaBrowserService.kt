@@ -33,10 +33,28 @@ class MediaBrowserService : MediaBrowserServiceCompat() {
         clientPackageName: String,
         clientUid: Int,
         rootHints: Bundle?
-    ): BrowserRoot {
+    ): BrowserRoot? {
+        if (!isTrustedMediaBrowserClient(clientPackageName)) {
+            return null
+        }
         val extras = Bundle()
         extras.putInt("android.media.browse.CONTENT_STYLE_PLAYABLE_HINT", 2)
         return BrowserRoot("HOME", extras)
+    }
+
+    private fun isTrustedMediaBrowserClient(clientPackageName: String): Boolean {
+        if (clientPackageName.isBlank()) return true
+        return when (clientPackageName) {
+            packageName,
+            "app.sonicsound",
+            "com.google.android.projection.gearhead",
+            "com.google.android.gms",
+            "com.android.systemui",
+            "com.google.android.carassistant",
+            "com.google.android.googlequicksearchbox",
+            -> true
+            else -> false
+        }
     }
 
     private fun placeholderBitmap(): Bitmap {

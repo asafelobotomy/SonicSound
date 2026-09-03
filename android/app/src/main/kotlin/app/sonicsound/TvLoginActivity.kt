@@ -43,6 +43,7 @@ class TvLoginActivity : AppCompatActivity() {
         supportActionBar?.hide()
         // Accept phone QR / websocket login even while splash auto-login runs.
         ensureWsLoginObserver()
+        MessageServer.enablePairing()
         val account = KeyValueStorage.getActiveAccount()
         if (account.username != null) {
             // Keep SonicSound splash visible while restoring the session.
@@ -57,6 +58,7 @@ class TvLoginActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        MessageServer.disablePairing()
         wsLoginObserver?.let { Globals.UnregisterObserver(it) }
         wsLoginObserver = null
         super.onDestroy()
@@ -76,6 +78,7 @@ class TvLoginActivity : AppCompatActivity() {
         )
         bindUi()
         ensureWsLoginObserver()
+        MessageServer.enablePairing()
         loginUiReady = true
     }
 
@@ -120,6 +123,7 @@ class TvLoginActivity : AppCompatActivity() {
                     )
                 }
                 startActivity(Intent(this@TvLoginActivity, TvActivity::class.java))
+                MessageServer.disablePairing()
                 finish()
             } catch (e: Exception) {
                 // Leave splash if auto-login or QR-during-splash failed.
@@ -208,8 +212,11 @@ class TvLoginActivity : AppCompatActivity() {
         text.text = ip
         val qrButton: Button = findViewById(R.id.btn_tv_qr)
         qrButton.setOnClickListener {
-            layout.visibility =
-                if (layout.visibility == View.VISIBLE) View.INVISIBLE else View.VISIBLE
+            val showing = layout.visibility != View.VISIBLE
+            layout.visibility = if (showing) View.VISIBLE else View.INVISIBLE
+            if (showing) {
+                MessageServer.enablePairing()
+            }
         }
     }
 

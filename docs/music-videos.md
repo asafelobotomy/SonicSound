@@ -1,13 +1,17 @@
-# Music videos (YouTube)
+# Music videos (YouTube) — **deferred**
+
+> **Status:** Feature-gated **off** (`Features.youtubeMusicVideos` / `Features.YOUTUBE_MUSIC_VIDEOS = false`).
+> Settings YouTube UI and Videos nav are removed while the gate is false. The steps below are for when the flag is re-enabled as a unit — they are **not** reachable in current builds.
 
 SonicSound supports optional music-video search via the **official YouTube Data API v3** using **Google OAuth** (device-code flow for TVs).
 
-## Setup
+## Setup (when re-enabled)
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), enable **YouTube Data API v3** and create an OAuth client for your Android package (or TV device client).
-2. Open SonicSound **Settings** → enable music video search → **Sign in with Google**.
-3. Pick the Google account already signed into the TV and allow YouTube access.
-4. Optionally enable **Allow any YouTube channel** (default off = VEVO / Official / artist channels only).
+2. Flip both feature flags to `true`, restore Settings / Videos UI, rebuild.
+3. Open SonicSound **Settings** → enable music video search → **Sign in with Google**.
+4. Pick the Google account already signed into the TV and allow YouTube access.
+5. Optionally enable **Allow any YouTube channel** (default off = VEVO / Official / artist channels only).
 
 No manual API key is required on TV when Google account authorization succeeds.
 

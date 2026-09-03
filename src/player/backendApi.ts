@@ -95,11 +95,12 @@ export const backendApi = {
         localStorage.setItem("settings", JSON.stringify(options));
         return okResponse("");
     },
+    /** Camera QR was removed; stubs keep IBackendPlugin satisfied for web. */
     getCameraPermission(this: Backend) {
-        return Promise.reject(new Error("Method not implemented."));
+        return Promise.resolve(errorResponse("Camera is not available on web"));
     },
     getCameraPermissionStatus(this: Backend) {
-        return Promise.reject(new Error("Method not implemented."));
+        return Promise.resolve(errorResponse("Camera is not available on web"));
     },
     async getCurrentPlaylist(this: Backend) {
         return okResponse(this.currentPlaylist);

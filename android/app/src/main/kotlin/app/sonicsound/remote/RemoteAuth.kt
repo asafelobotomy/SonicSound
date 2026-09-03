@@ -1,9 +1,13 @@
 package app.sonicsound.remote
 
 import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /** LAN Remote pairing: account fingerprint and challenge-response auth (no password on wire). */
 object RemoteAuth {
+    const val PROTOCOL_VERSION = 2
+
     fun normalizeServerUrl(url: String): String =
         url.trim().removeSuffix("/").lowercase()
 
@@ -25,10 +29,16 @@ object RemoteAuth {
         return remote.isNotEmpty() && remote == local
     }
 
-    fun computeAuthProof(nonce: String, password: String): String = md5("$nonce$password")
+    /** HMAC-SHA256(key=password, data=nonce) as lowercase hex. */
+    fun computeAuthProof(nonce: String, password: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(password.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        val bytes = mac.doFinal(nonce.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
 
     fun verifyAuthProof(nonce: String, password: String, proof: String): Boolean =
-        computeAuthProof(nonce, password) == proof
+        computeAuthProof(nonce, password).equals(proof, ignoreCase = false)
 
     private fun md5(input: String): String {
         val digest = MessageDigest.getInstance("MD5")

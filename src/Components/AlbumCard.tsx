@@ -8,7 +8,6 @@ import VLC from "../Plugins/VLC";
 import classnames from "classnames";
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import { StateContext } from "../AppContext";
-import AndroidTVPlugin from "../Plugins/AndroidTV";
 
 interface AlbumCardProps {
     item: IAlbumArtistResponse;
@@ -21,14 +20,13 @@ interface AlbumCardProps {
 export default function AlbumCard({
     item,
     forceWidth,
-    parentRef,
+    parentRef: _parentRef,
     columnIndex,
     rowIndex,
 }: AlbumCardProps) {
     const navigate = useNavigate();
     const [coverArt, setCoverArt] = useState<string>("");
     const { stateContext, setStateContext } = useContext(StateContext);
-    const [androidTv, setAndroidTv] = useState<boolean>(false);
     useEffect(() => {
         if (!item?.id) {
             setCoverArt("");
@@ -39,7 +37,6 @@ export default function AlbumCard({
             if (ret.status === "ok") {
                 setCoverArt(ret.value!);
             }
-            setAndroidTv((await AndroidTVPlugin.get()).value);
         };
         const handler = setTimeout(func, 500);
         return () => {
@@ -62,27 +59,8 @@ export default function AlbumCard({
     };
     const play = useCallback(async () => {
         VLC.playAlbum({ album: item.id, track: 0 });
-        const isTv =
-            androidTv || (await AndroidTVPlugin.get()).value;
-        if (isTv) {
-            navigate("/playing");
-        }
-    }, [item.id, navigate, androidTv]);
+    }, [item.id]);
     const { focused, ref } = useFocusable({ onEnterPress: play });
-    useEffect(() => {
-        if (focused && androidTv) {
-            parentRef?.current.scrollIntoView({
-                behavior: "smooth",
-                block: "end",
-                inline: "center",
-            });
-            ref.current.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-                inline: "center",
-            });
-        }
-    }, [focused, androidTv, parentRef, ref]);
 
     const nav = useCallback(() => {
         if (columnIndex !== undefined && rowIndex !== undefined) {

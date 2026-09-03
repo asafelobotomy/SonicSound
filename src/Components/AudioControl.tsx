@@ -12,11 +12,10 @@ import { CurrentTrackContextDefValue } from "../AudioContext";
 import { SecondsToHHSS } from "../Helpers";
 import "./AudioControl.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import classnames from "classnames";
 import VLC from "../Plugins/VLC";
-import { Capacitor, PluginListenerHandle } from "@capacitor/core";
-import AndroidTVPlugin from "../Plugins/AndroidTV";
+import { PluginListenerHandle } from "@capacitor/core";
 import { IAlbumSongResponse } from "../Models/API/Responses/IArtistResponse";
 import { Toast } from "@capacitor/toast";
 import LyricsPanel from "./LyricsPanel";
@@ -32,8 +31,6 @@ export default function AudioControl() {
     const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
     const progressAnchor = useRef({ fraction: 0, at: 0 });
     const [coverArt, setCoverArt] = useState<string>("");
-    const [androidTV, setAndroidTV] = useState<boolean>(false);
-    const location = useLocation();
     const navigate = useNavigate();
     const [volume, setVolume] = useState<number>(1);
     const listeners = useRef<PluginListenerHandle[]>([]);
@@ -57,17 +54,6 @@ export default function AudioControl() {
         },
         []
     );
-    useEffect(() => {
-        const fetch = async () => {
-            try {
-                if (Capacitor.isPluginAvailable("AndroidTV")) {
-                    setAndroidTV((await AndroidTVPlugin.get()).value);
-                }
-            } catch (e: any) {}
-        };
-        fetch();
-    }, []);
-
     useEffect(() => {
         if (currentTrack.id === "") {
             return;
@@ -126,11 +112,11 @@ export default function AudioControl() {
     }, [currentTrack.parent, navigate]);
 
     const hide = useCallback(() => {
-        if (currentTrack.id === "" || location.pathname.match(/playing/)) {
+        if (currentTrack.id === "") {
             return "d-none";
         }
         return "d-flex";
-    }, [currentTrack, location.pathname]);
+    }, [currentTrack]);
     useEffect(() => {
         const aw = async () => {
             listeners.current.forEach(async (listener) => {
@@ -311,8 +297,7 @@ export default function AudioControl() {
                             "hide-mobile-flex",
                             "flex-row",
                             "align-items-center",
-                            "justify-content-center",
-                            androidTV ? "d-none" : ""
+                            "justify-content-center"
                         )}
                     >
                         <FontAwesomeIcon
@@ -345,7 +330,6 @@ export default function AudioControl() {
             </div>
             <div className="w-100 mb-3">
                 <input
-                    disabled={androidTV}
                     type="range"
                     className="w-100"
                     min={0}

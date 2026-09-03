@@ -10,6 +10,7 @@ data class RemoteBeacon(
     val accountFingerprint: String = "",
     val deviceName: String = "",
     val wsPort: Int = 30001,
+    val authProtocol: Int = RemoteAuth.PROTOCOL_VERSION,
 ) {
     companion object {
         const val TYPE = "sonicsound-remote"
@@ -23,12 +24,14 @@ data class RemoteBeacon(
             accountFingerprint: String,
             deviceName: String,
             wsPort: Int = 30001,
+            authProtocol: Int = RemoteAuth.PROTOCOL_VERSION,
         ): RemoteBeacon = RemoteBeacon(
             role = ROLE_TV,
             serverUrl = serverUrl,
             accountFingerprint = accountFingerprint,
             deviceName = deviceName,
             wsPort = wsPort,
+            authProtocol = authProtocol,
         )
 
         fun probe(): RemoteBeacon = RemoteBeacon(role = ROLE_PROBE)

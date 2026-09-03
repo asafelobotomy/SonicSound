@@ -1,11 +1,8 @@
 package app.sonicsound
 
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,18 +26,6 @@ import app.sonicsound.update.AppUpdateChecker
 import app.sonicsound.update.AppUpdateUi
 
 class SettingsFragment : Fragment {
-    private val primaryColors = listOf(
-        "#E53935", // red
-        "#FB8C00", // orange
-        "#FDD835", // yellow
-        "#43A047", // green
-        "#1E88E5", // blue
-        "#8E24AA", // purple
-        "#00ACC1", // cyan
-        "#D81B60", // magenta
-        "#FFFFFF", // white
-    )
-
     private var selectedSolidColor: String = FullscreenVisualizer.DEFAULT_SOLID
     private var suppressAutoSave = true
     private var bindGeneration = 0
@@ -112,7 +97,7 @@ class SettingsFragment : Fragment {
         refreshCache(cacheInfo)
 
         audioProfiles = AudioProfile.ALL.map { id ->
-            id to getString(audioProfileLabel(id))
+            id to getString(SettingsPreferenceUi.audioProfileLabel(id))
         }
         audioProfileSpinner.adapter = ArrayAdapter(
             requireContext(),
@@ -127,7 +112,7 @@ class SettingsFragment : Fragment {
         )
 
         vinylConditions = VinylCondition.ALL.map { id ->
-            id to getString(vinylConditionLabel(id))
+            id to getString(SettingsPreferenceUi.vinylConditionLabel(id))
         }
         vinylConditionSpinner.adapter = ArrayAdapter(
             requireContext(),
@@ -202,7 +187,10 @@ class SettingsFragment : Fragment {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
         refreshConditionalRows()
-        bindColorSwatches(swatches)
+        SettingsPreferenceUi.bindColorSwatches(this, swatches, selectedSolidColor) { hex ->
+            selectedSolidColor = hex
+            persistSettings()
+        }
         audioProfileSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>?,
@@ -226,10 +214,10 @@ class SettingsFragment : Fragment {
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
-        wireFocusRow(view.findViewById(R.id.row_replaygain), rgSwitch)
-        wireFocusRow(view.findViewById(R.id.row_fs_clock), clockSwitch)
-        wireFocusRow(view.findViewById(R.id.row_fs_date), dateSwitch)
-        wireFocusRow(view.findViewById(R.id.row_offline), offlineSwitch)
+        SettingsPreferenceUi.wireFocusRow(view.findViewById(R.id.row_replaygain), rgSwitch)
+        SettingsPreferenceUi.wireFocusRow(view.findViewById(R.id.row_fs_clock), clockSwitch)
+        SettingsPreferenceUi.wireFocusRow(view.findViewById(R.id.row_fs_date), dateSwitch)
+        SettingsPreferenceUi.wireFocusRow(view.findViewById(R.id.row_offline), offlineSwitch)
 
         rgSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
         clockSwitch.setOnCheckedChangeListener { _, _ -> persistSettings() }
@@ -312,70 +300,6 @@ class SettingsFragment : Fragment {
         KeyValueStorage.setOfflineMode(offlineSwitch.isChecked)
     }
 
-    private fun wireFocusRow(row: View, switch: SwitchCompat) {
-        row.setOnClickListener { switch.toggle() }
-        row.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN &&
-                (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
-            ) {
-                switch.toggle()
-                true
-            } else {
-                false
-            }
-        }
-    }
-
-    private fun bindColorSwatches(container: LinearLayout) {
-        container.removeAllViews()
-        val density = resources.displayMetrics.density
-        val size = (44 * density).toInt()
-        val gap = (10 * density).toInt()
-        primaryColors.forEach { hex ->
-            val swatch = View(requireContext()).apply {
-                layoutParams = LinearLayout.LayoutParams(size, size).also {
-                    it.marginEnd = gap
-                }
-                isFocusable = true
-                contentDescription = hex
-                background = swatchDrawable(hex, hex.equals(selectedSolidColor, ignoreCase = true))
-                setOnClickListener {
-                    selectedSolidColor = hex
-                    bindColorSwatches(container)
-                    persistSettings()
-                }
-                setOnFocusChangeListener { _, hasFocus ->
-                    if (hasFocus) {
-                        background = swatchDrawable(hex, selected = true)
-                    } else {
-                        background = swatchDrawable(
-                            hex,
-                            hex.equals(selectedSolidColor, ignoreCase = true)
-                        )
-                    }
-                }
-            }
-            container.addView(swatch)
-        }
-    }
-
-    private fun swatchDrawable(hex: String, selected: Boolean): GradientDrawable {
-        val fill = try {
-            Color.parseColor(hex)
-        } catch (_: Exception) {
-            Color.RED
-        }
-        return GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(fill)
-            if (selected) {
-                setStroke((3 * resources.displayMetrics.density).toInt(), Color.WHITE)
-            } else {
-                setStroke((1 * resources.displayMetrics.density).toInt(), Color.parseColor("#66FFFFFF"))
-            }
-        }
-    }
-
     private fun refreshCache(cacheInfo: TextView) {
         try {
             val bytes = SubsonicClient(KeyValueStorage.getActiveAccount()).getCoverCacheSizeBytes()
@@ -385,26 +309,5 @@ class SettingsFragment : Fragment {
         }
     }
 
-    private fun audioProfileLabel(id: String): Int = when (id) {
-        AudioProfile.OFF -> R.string.audio_profile_off
-        AudioProfile.FLAT -> R.string.audio_profile_flat
-        AudioProfile.BASS -> R.string.audio_profile_bass
-        AudioProfile.TREBLE -> R.string.audio_profile_treble
-        AudioProfile.VOCAL -> R.string.audio_profile_vocal
-        AudioProfile.ROCK -> R.string.audio_profile_rock
-        AudioProfile.ELECTRONIC -> R.string.audio_profile_electronic
-        AudioProfile.CLASSICAL -> R.string.audio_profile_classical
-        AudioProfile.POP -> R.string.audio_profile_pop
-        AudioProfile.TV -> R.string.audio_profile_tv
-        AudioProfile.HEADPHONES -> R.string.audio_profile_headphones
-        AudioProfile.VINYL -> R.string.audio_profile_vinyl
-        else -> R.string.audio_profile_off
-    }
 
-    private fun vinylConditionLabel(id: String): Int = when (id) {
-        VinylCondition.BRAND_NEW -> R.string.vinyl_condition_brand_new
-        VinylCondition.SLIGHTLY_USED -> R.string.vinyl_condition_slightly_used
-        VinylCondition.HEAVILY_USED -> R.string.vinyl_condition_heavily_used
-        else -> R.string.vinyl_condition_brand_new
-    }
 }

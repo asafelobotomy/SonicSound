@@ -30,24 +30,13 @@ import { Capacitor } from "@capacitor/core";
 import Search from "./Components/Search";
 import VLC from "./Plugins/VLC";
 import Account from "./Components/Account";
-import NowPlaying from "./Components/NowPlaying";
-import AndroidTVPlugin from "./Plugins/AndroidTV";
-import TVSidebar from "./Components/TVSidebar";
-import {
-    FocusContext,
-    init,
-    useFocusable,
-} from "@noriginmedia/norigin-spatial-navigation";
-import HomeTV from "./Components/HomeTV";
+import { init } from "@noriginmedia/norigin-spatial-navigation";
 import Remote from "./Components/Remote";
 import Jukebox from "./Components/Jukebox";
 import { App as CapacitorApp } from "@capacitor/app";
-import TVJukebox from "./Components/TVJukebox";
-import { TVTopBar } from "./Components/TVTopBar";
 import Playlists from "./Components/Playlists";
 import Playlist from "./Components/Playlist";
 import EditPlaylist from "./Components/EditPlaylist";
-import TVPlaylists from "./Components/TVPlaylists";
 import Radio from "./Components/Radio";
 import Settings from "./Components/Settings";
 import Videos from "./Components/Videos";
@@ -60,12 +49,10 @@ function App() {
         useState<IMenuContext>(MenuContextDefValue);
     const [stateContext, setStateContext] =
         useState<IStateContext>(StateContextDefValue);
-    const [androidTv, setAndroidTv] = useState<boolean>(false);
-    const { focusKey } = useFocusable();
     const [tried, setTried] = useState<boolean>(false);
 
     useEffect(() => {
-        VLC.addListener("ex", (info) => {
+        VLC.addListener("EX", (info) => {
             Toast.show({ text: info.error });
         });
     }, []);
@@ -109,9 +96,6 @@ function App() {
                 // debug: true,
                 // visualDebug: true
             });
-            if (Capacitor.isPluginAvailable("AndroidTV")) {
-                setAndroidTv((await AndroidTVPlugin.get()).value);
-            }
 
             const c = await VLC.getActiveAccount();
 
@@ -143,234 +127,120 @@ function App() {
         <>
             <StateContext.Provider value={stateContextValue}>
                 <AppContext.Provider value={contextValue}>
-                    {!androidTv && (
-                        <div className="App container-fluid d-flex flex-column justify-content-between main-content-pad">
-                            <Helmet>
-                                <title>SonicSound</title>
-                            </Helmet>
-                            <MenuContext.Provider value={menuContextValue}>
-                                {context.username === "" && (
-                                    <div className="h-100 w-100 d-flex align-items-center justify-content-center">
-                                        <Loading />
-                                    </div>
-                                )}
-                                {context.username === null && <PlayTest />}
-                                {context.username !== "" &&
-                                    context.username !== null && (
-                                        <>
-                                            <Navbar
-                                                navbarCollapsed={
-                                                    navbarCollapsed
-                                                }
-                                                setNavbarCollapsed={
-                                                    setNavbarCollapsed
-                                                }
-                                            />
-                                            <Sidebar
-                                                navbarCollapsed={
-                                                    navbarCollapsed
-                                                }
-                                                setNavbarCollapsed={
-                                                    setNavbarCollapsed
-                                                }
-                                            />
-                                            <Routes>
-                                                <Route
-                                                    path="/"
-                                                    element={
-                                                        <Navigate
-                                                            to="/home"
-                                                            replace
-                                                        />
-                                                    }
-                                                />
-                                                <Route
-                                                    path="/home"
-                                                    element={<Home />}
-                                                />
-                                                <Route
-                                                    path="/artists"
-                                                    element={<Artists />}
-                                                />
-                                                <Route
-                                                    path="/artist"
-                                                    element={<Artist />}
-                                                />
-                                                <Route
-                                                    path="/album"
-                                                    element={<Album />}
-                                                />
-                                                <Route
-                                                    path="/account"
-                                                    element={<Account />}
-                                                />
-                                                <Route
-                                                    path="/albums"
-                                                    element={<Albums />}
-                                                />
-                                                <Route
-                                                    path="/playlists"
-                                                    element={<Playlists />}
-                                                />
-                                                <Route
-                                                    path="/radio"
-                                                    element={<Radio />}
-                                                />
-                                                {Features.youtubeMusicVideos && (
-                                                    <Route
-                                                        path="/videos"
-                                                        element={<Videos />}
-                                                    />
-                                                )}
-                                                <Route
-                                                    path="/settings"
-                                                    element={<Settings />}
-                                                />
-                                                <Route
-                                                    path="/playlist"
-                                                    element={<Playlist />}
-                                                />
-                                                <Route
-                                                    path="/editPlaylist"
-                                                    element={<EditPlaylist />}
-                                                />
-                                                <Route
-                                                    path="/search"
-                                                    element={<Search />}
-                                                />
-                                                <Route
-                                                    path="/remote"
-                                                    element={<Remote />}
-                                                />
-                                                <Route
-                                                    path="/jukebox"
-                                                    element={<Jukebox />}
-                                                />
-                                                <Route
-                                                    path="/qr"
-                                                    element={<Navigate to="/remote" replace />}
-                                                />
-                                            </Routes>
-                                            <AudioControl />
-                                            <CardContextMenu {...menuContext} />
-                                        </>
-                                    )}
-                            </MenuContext.Provider>
-                        </div>
-                    )}
-                    {androidTv && (
-                        <FocusContext.Provider value={focusKey}>
-                            <div className="App container-tv-100 d-flex flex-column w-100">
-                                <TVTopBar />
-                                <div className="d-flex flex-row h-100 w-100 no-overflow">
-                                    {context.username === "" && (
-                                        <div className="h-100 w-100 d-flex align-items-center justify-content-center">
-                                            <Loading />
-                                        </div>
-                                    )}
-                                    {context.username === null && <PlayTest />}
-                                    {context.username !== "" &&
-                                        context.username !== null && (
-                                            <MenuContext.Provider
-                                                value={menuContextValue}
-                                            >
-                                            <>
-                                                <TVSidebar />
-                                                <div className="container-tv d-flex flex-column justify-content-between">
-                                                    <Routes>
-                                                        <Route
-                                                            path="/"
-                                                            element={
-                                                                <Navigate
-                                                                    to="/home"
-                                                                    replace
-                                                                />
-                                                            }
-                                                        />
-                                                        <Route
-                                                            path="/home"
-                                                            element={<HomeTV />}
-                                                        />
-                                                        <Route
-                                                            path="/tvJukebox"
-                                                            element={
-                                                                <TVJukebox />
-                                                            }
-                                                        />
-                                                        <Route
-                                                            path="/playing"
-                                                            element={
-                                                                <NowPlaying />
-                                                            }
-                                                        />
-                                                        <Route
-                                                            path="/artists"
-                                                            element={
-                                                                <Artists />
-                                                            }
-                                                        />
-                                                        <Route
-                                                            path="/artist"
-                                                            element={<Artist />}
-                                                        />
-                                                        <Route
-                                                            path="/album"
-                                                            element={<Album />}
-                                                        />
-                                                        <Route
-                                                            path="/account"
-                                                            element={
-                                                                <Account />
-                                                            }
-                                                        />
-                                                        <Route
-                                                            path="/settings"
-                                                            element={
-                                                                <Settings />
-                                                            }
-                                                        />
-                                                        {Features.youtubeMusicVideos && (
-                                                            <Route
-                                                                path="/videos"
-                                                                element={
-                                                                    <Videos />
-                                                                }
-                                                            />
-                                                        )}
-                                                        <Route
-                                                            path="/radio"
-                                                            element={<Radio />}
-                                                        />
-                                                        <Route
-                                                            path="/albums"
-                                                            element={<Albums />}
-                                                        />
-                                                        <Route
-                                                            path="/search"
-                                                            element={<Search />}
-                                                        />
-                                                        <Route
-                                                            path="/tvPlaylists"
-                                                            element={<TVPlaylists />}
-                                                        />
-                                                        <Route
-                                                            path="/playlist"
-                                                            element={<Playlist />}
-                                                        />
-                                                        <Route
-                                                            path="/editPlaylist"
-                                                            element={<EditPlaylist />}
-                                                        />
-                                                    </Routes>
-                                                    <CardContextMenu {...menuContext} />
-                                                </div>
-                                            </>
-                                            </MenuContext.Provider>
-                                        )}
+                    <div className="App container-fluid d-flex flex-column justify-content-between main-content-pad">
+                        <Helmet>
+                            <title>SonicSound</title>
+                        </Helmet>
+                        <MenuContext.Provider value={menuContextValue}>
+                            {context.username === "" && (
+                                <div className="h-100 w-100 d-flex align-items-center justify-content-center">
+                                    <Loading />
                                 </div>
-                            </div>
-                        </FocusContext.Provider>
-                    )}
+                            )}
+                            {context.username === null && <PlayTest />}
+                            {context.username !== "" &&
+                                context.username !== null && (
+                                    <>
+                                        <Navbar
+                                            navbarCollapsed={navbarCollapsed}
+                                            setNavbarCollapsed={
+                                                setNavbarCollapsed
+                                            }
+                                        />
+                                        <Sidebar
+                                            navbarCollapsed={navbarCollapsed}
+                                            setNavbarCollapsed={
+                                                setNavbarCollapsed
+                                            }
+                                        />
+                                        <Routes>
+                                            <Route
+                                                path="/"
+                                                element={
+                                                    <Navigate
+                                                        to="/home"
+                                                        replace
+                                                    />
+                                                }
+                                            />
+                                            <Route
+                                                path="/home"
+                                                element={<Home />}
+                                            />
+                                            <Route
+                                                path="/artists"
+                                                element={<Artists />}
+                                            />
+                                            <Route
+                                                path="/artist"
+                                                element={<Artist />}
+                                            />
+                                            <Route
+                                                path="/album"
+                                                element={<Album />}
+                                            />
+                                            <Route
+                                                path="/account"
+                                                element={<Account />}
+                                            />
+                                            <Route
+                                                path="/albums"
+                                                element={<Albums />}
+                                            />
+                                            <Route
+                                                path="/playlists"
+                                                element={<Playlists />}
+                                            />
+                                            <Route
+                                                path="/radio"
+                                                element={<Radio />}
+                                            />
+                                            {Features.youtubeMusicVideos && (
+                                                <Route
+                                                    path="/videos"
+                                                    element={<Videos />}
+                                                />
+                                            )}
+                                            <Route
+                                                path="/settings"
+                                                element={<Settings />}
+                                            />
+                                            <Route
+                                                path="/playlist"
+                                                element={<Playlist />}
+                                            />
+                                            <Route
+                                                path="/editPlaylist"
+                                                element={<EditPlaylist />}
+                                            />
+                                            <Route
+                                                path="/search"
+                                                element={<Search />}
+                                            />
+                                            <Route
+                                                path="/remote"
+                                                element={<Remote />}
+                                            />
+                                            <Route
+                                                path="/jukebox"
+                                                element={<Jukebox />}
+                                            />
+                                            <Route
+                                                path="/qr"
+                                                element={
+                                                    <Navigate
+                                                        to="/remote"
+                                                        replace
+                                                    />
+                                                }
+                                            />
+                                        </Routes>
+                                        <AudioControl />
+                                        <CardContextMenu {...menuContext} />
+                                    </>
+                                )}
+                        </MenuContext.Provider>
+                    </div>
                 </AppContext.Provider>
             </StateContext.Provider>
         </>

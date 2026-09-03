@@ -100,7 +100,6 @@ export default function YoutubeSyncedEmbed({
             }
             playerRef.current = null;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [videoId, withAudio]);
 
     useEffect(() => {

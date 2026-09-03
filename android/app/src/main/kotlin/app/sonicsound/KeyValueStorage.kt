@@ -2,6 +2,9 @@ package app.sonicsound
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import app.sonicsound.models.Account
 import app.sonicsound.models.Album
 import app.sonicsound.models.Playlist
@@ -13,9 +16,18 @@ import com.google.gson.Gson
 
 class KeyValueStorage {
     companion object {
+        private const val TAG = "KeyValueStorage"
         private const val PREFS_NAME = "sonicSound"
+        private const val PREFS_SECURE = "sonicSound_secure"
         private const val PREFS_LEGACY = "sonicLair"
         private const val MIGRATED_KEY = "_migratedFromSonicLair"
+        private const val SENSITIVE_MIGRATED_KEY = "_sensitiveMigratedToEncrypted"
+
+        /** Keys that hold credentials / OAuth tokens — stored in EncryptedSharedPreferences. */
+        private val SENSITIVE_KEYS = setOf("activeAccount", "accounts", "settings")
+
+        @Volatile
+        private var securePrefsCached: SharedPreferences? = null
 
         private fun prefs(): SharedPreferences {
             val ctx = App.context
@@ -46,8 +58,56 @@ class KeyValueStorage {
             return current
         }
 
+        private fun securePrefs(): SharedPreferences {
+            securePrefsCached?.let { return it }
+            synchronized(this) {
+                securePrefsCached?.let { return it }
+                val created = createEncryptedPrefs()
+                migrateSensitiveIfNeeded(created)
+                securePrefsCached = created
+                return created
+            }
+        }
+
+        private fun createEncryptedPrefs(): SharedPreferences {
+            val ctx = App.context
+            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            return EncryptedSharedPreferences.create(
+                PREFS_SECURE,
+                masterKeyAlias,
+                ctx,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }
+
+        /** Move account/settings blobs from plaintext prefs into encrypted prefs once. */
+        private fun migrateSensitiveIfNeeded(secure: SharedPreferences) {
+            val plain = prefs()
+            if (plain.getBoolean(SENSITIVE_MIGRATED_KEY, false)) return
+            try {
+                val secureEditor = secure.edit()
+                for (key in SENSITIVE_KEYS) {
+                    val value = plain.getString(key, null) ?: continue
+                    if (!secure.contains(key)) {
+                        secureEditor.putString(key, value)
+                    }
+                }
+                secureEditor.apply()
+                val plainEditor = plain.edit()
+                for (key in SENSITIVE_KEYS) {
+                    plainEditor.remove(key)
+                }
+                plainEditor.putBoolean(SENSITIVE_MIGRATED_KEY, true)
+                plainEditor.apply()
+                Log.i(TAG, "Migrated sensitive prefs to EncryptedSharedPreferences")
+            } catch (e: Exception) {
+                Log.e(TAG, "Sensitive prefs migration failed", e)
+            }
+        }
+
         fun getSettings(): Settings {
-            val raw = prefs().getString("settings", "")
+            val raw = securePrefs().getString("settings", "")
             return try {
                 val parsed = Gson().fromJson(raw, Settings::class.java) ?: Settings()
                 // Normalize on read so Gson-null fields (e.g. vinylCondition) match persisted form
@@ -63,7 +123,7 @@ class KeyValueStorage {
             val normalized = AudioProfile.normalize(settings)
             // Skip no-op writes so opening Settings / spinner bind cannot thrash audio.
             if (normalized == previous) return
-            prefs().edit().putString("settings", Gson().toJson(normalized)).apply()
+            securePrefs().edit().putString("settings", Gson().toJson(normalized)).apply()
             val audioChanged =
                 AudioProfile.resolve(previous) != AudioProfile.resolve(normalized) ||
                     previous.replayGainEnabled != normalized.replayGainEnabled ||
@@ -82,29 +142,36 @@ class KeyValueStorage {
         }
 
         fun getActiveAccount(): Account {
-            val raw = prefs().getString("activeAccount", "")
+            val raw = securePrefs().getString("activeAccount", "")
             return try {
-                Gson().fromJson(raw, Account::class.java)
+                val parsed = Gson().fromJson(raw, Account::class.java)
+                    ?: Account(null, "", "", "", false)
+                // Keep SessionStore aligned when reading after cold start.
+                if (SessionStore.get().url.isEmpty() && parsed.url.isNotEmpty()) {
+                    SessionStore.set(parsed)
+                }
+                parsed
             } catch (_: Exception) {
                 Account(null, "", "", "", false)
             }
         }
 
         fun setActiveAccount(account: Account) {
-            prefs().edit().putString("activeAccount", Gson().toJson(account)).apply()
+            SessionStore.set(account)
+            securePrefs().edit().putString("activeAccount", Gson().toJson(account)).apply()
         }
 
         fun getAccounts(): List<Account> {
-            val raw = prefs().getString("accounts", "")
+            val raw = securePrefs().getString("accounts", "")
             return try {
-                Gson().fromJson(raw, Array<Account>::class.java).toList()
+                Gson().fromJson(raw, Array<Account>::class.java)?.toList() ?: emptyList()
             } catch (_: Exception) {
                 emptyList()
             }
         }
 
         fun setAccounts(accounts: List<Account>) {
-            prefs().edit().putString("accounts", Gson().toJson(accounts)).apply()
+            securePrefs().edit().putString("accounts", Gson().toJson(accounts)).apply()
         }
 
         fun getCachedSongs(): List<Song> {

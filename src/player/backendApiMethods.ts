@@ -1,4 +1,5 @@
 import { backendApi } from "./backendApi";
+import { backendRemote } from "./backendRemote";
 
-/** Methods mixed onto Backend via Object.assign(backendApi). */
-export type BackendApiMethods = typeof backendApi;
+/** Methods mixed onto Backend via explicit assignment in the constructor. */
+export type BackendApiMethods = typeof backendApi & typeof backendRemote;

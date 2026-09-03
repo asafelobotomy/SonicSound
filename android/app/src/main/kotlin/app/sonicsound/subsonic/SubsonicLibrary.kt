@@ -1,7 +1,6 @@
 package app.sonicsound.subsonic
 
 import android.net.Uri
-import app.sonicsound.BuildConfig
 import app.sonicsound.KeyValueStorage
 import app.sonicsound.models.Account
 import app.sonicsound.models.Album
@@ -17,8 +16,6 @@ import app.sonicsound.models.InternetRadioStation
 import app.sonicsound.models.InternetRadioStationsResponse
 import app.sonicsound.models.LyricsResponse
 import app.sonicsound.models.Playlist
-import app.sonicsound.models.PlaylistResponse
-import app.sonicsound.models.PlaylistsResponse
 import app.sonicsound.models.RandomSongsResponse
 import app.sonicsound.models.GenreItem
 import app.sonicsound.models.GenresResponse
@@ -32,12 +29,6 @@ import app.sonicsound.models.SimilarSongsResponse
 import app.sonicsound.models.Song
 import app.sonicsound.models.SongResponse
 import app.sonicsound.models.SubsonicResponse
-import com.getcapacitor.JSObject
-import okhttp3.Credentials.basic
-import okhttp3.FormBody
-import okhttp3.Request
-import okhttp3.RequestBody
-import okhttp3.Response
 
 /**
  * Remote Subsonic library API and Spotify artist-art helpers.
@@ -48,12 +39,19 @@ class SubsonicLibrary(
     private val accountProvider: () -> Account,
     private val paramsProvider: () -> HashMap<String, String>
 ) {
-    private var spotifyToken: String = ""
-
     private val account: Account
         get() = accountProvider()
 
     private fun params(): HashMap<String, String> = paramsProvider()
+
+    private val playlists = SubsonicPlaylists(http, paramsProvider)
+    private val artistArt = SubsonicArtistArt(
+        http = http,
+        coverCache = coverCache,
+        getArtist = { getArtist(it) },
+        getArtistInfo = { getArtistInfo(it) },
+        getSpotifyToken = { getSpotifyToken() },
+    )
 
     fun search(query: String): SearchResult {
         val p = params()
@@ -245,70 +243,16 @@ class SubsonicLibrary(
         return http.makeSubsonicRequest<SongResponse>(listOf("rest", "getSong"), p)!!.song
     }
 
-    fun getPlaylist(id: String): Playlist {
-        val p = params()
-        p["id"] = id
-        return http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "getPlaylist"), p)!!.playlist
-    }
-
-    fun getPlaylists(): List<Playlist> {
-        return http.makeSubsonicRequest<PlaylistsResponse>(
-            listOf("rest", "getPlaylists"), params()
-        )?.playlists?.playlist.orEmpty()
-    }
-
-    fun removePlaylist(id: String) {
-        val p = params()
-        p["id"] = id
-        http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "deletePlaylist"), p, true)
-    }
-
-    fun removeFromPlaylist(id: String, track: Int) {
-        val p = params()
-        p["playlistId"] = id
-        p["songIndexToRemove"] = track.toString()
-        http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "updatePlaylist"), p, true)
-    }
-
-    fun addToPlaylist(id: String, songId: String) {
-        val p = params()
-        p["playlistId"] = id
-        p["songIdToAdd"] = songId
-        http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "updatePlaylist"), p, true)
-    }
-
-    fun updatePlaylist(playlist: Playlist): Playlist {
-        val p = params()
-        p["name"] = playlist.name
-        p["comment"] = playlist.comment ?: ""
-        p["public"] = if (playlist.public) "true" else "false"
-        p["playlistId"] = playlist.id
-        http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "updatePlaylist"), p, true)
-        val songsParams = params()
-        songsParams["playlistId"] = playlist.id
-        songsParams["songId"] = playlist.entry.orEmpty().joinToString(",") { it.id }
-        return http.makeSubsonicRequest<PlaylistResponse>(
-            listOf("rest", "createPlaylist"), songsParams
-        )!!.playlist
-    }
-
-    fun renamePlaylist(id: String, name: String, comment: String?, public: Boolean) {
-        val p = params()
-        p["playlistId"] = id
-        p["name"] = name
-        p["comment"] = comment ?: ""
-        p["public"] = if (public) "true" else "false"
-        http.makeSubsonicRequest<PlaylistResponse>(listOf("rest", "updatePlaylist"), p, true)
-    }
-
-    fun createPlaylist(ids: List<String>, name: String): Playlist {
-        val songsParams = params()
-        songsParams["name"] = name
-        songsParams["songId"] = ids.joinToString(",")
-        return http.makeSubsonicRequest<PlaylistResponse>(
-            listOf("rest", "createPlaylist"), songsParams
-        )!!.playlist
-    }
+    fun getPlaylist(id: String): Playlist = playlists.getPlaylist(id)
+    fun getPlaylists(): List<Playlist> = playlists.getPlaylists()
+    fun removePlaylist(id: String) = playlists.removePlaylist(id)
+    fun removeFromPlaylist(id: String, track: Int) = playlists.removeFromPlaylist(id, track)
+    fun addToPlaylist(id: String, songId: String) = playlists.addToPlaylist(id, songId)
+    fun updatePlaylist(playlist: Playlist): Playlist = playlists.updatePlaylist(playlist)
+    fun renamePlaylist(id: String, name: String, comment: String?, public: Boolean) =
+        playlists.renamePlaylist(id, name, comment, public)
+    fun createPlaylist(ids: List<String>, name: String): Playlist =
+        playlists.createPlaylist(ids, name)
 
     fun getSongUri(song: Song?, connectivityMetered: Boolean): String? {
         if (song == null) return null
@@ -326,92 +270,19 @@ class SubsonicLibrary(
         return uriBuilder.build().toString()
     }
 
+    /**
+     * Client-credentials Spotify tokens require a secret that must not ship in the APK.
+     * Artist-art callers wrap this in runCatching; similarity stays off until a proxy exists.
+     */
     fun getSpotifyToken(): String {
-        if (spotifyToken == "") {
-            val clientId = BuildConfig.SPOTIFY_CLIENT_ID
-            val clientSecret = BuildConfig.SPOTIFY_CLIENT_SECRET
-            if (clientId.isNullOrBlank() || clientSecret.isNullOrBlank()) {
-                throw Exception("Spotify is not configured")
-            }
-            val uriBuilder = Uri.Builder()
-                .scheme("https")
-                .authority("accounts.spotify.com")
-                .appendPath("api")
-                .appendPath("token")
-            val body: RequestBody = FormBody.Builder()
-                .add("grant_type", "client_credentials")
-                .build()
-            val request: Request = Request.Builder()
-                .url(uriBuilder.build().toString())
-                .addHeader("Accept", "application/json")
-                .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                .addHeader("Authorization", basic(clientId, clientSecret))
-                .post(body)
-                .build()
-            val response = http.execute(request)
-            if (response.isSuccessful) {
-                spotifyToken = JSObject(
-                    response.body?.string() ?: "{\"access_token\": \"\"}"
-                ).getString("access_token").toString()
-            } else {
-                throw Exception(response.message)
-            }
-        }
-        return spotifyToken
+        throw Exception(
+            "Spotify similarity requires a server-side token proxy; " +
+                "client secrets are not shipped in the APK",
+        )
     }
 
-    fun getSpotifyArtistArt(name: String): String? {
-        val uriBuilder = Uri.parse("https://api.spotify.com/v1/search").buildUpon()
-        uriBuilder.appendQueryParameter("q", name)
-        uriBuilder.appendQueryParameter("type", "artist")
-        val request: Request = Request.Builder()
-            .url(uriBuilder.build().toString())
-            .get()
-            .addHeader("Accept", "application/json")
-            .addHeader("Content-Type", "application/json")
-            .addHeader("Authorization", "Bearer ${getSpotifyToken()}")
-            .build()
-        val response: Response = http.execute(request)
-        if (!response.isSuccessful) throw Exception(response.message)
-        val body = response.body?.string()
-        val realResponse =
-            JSObject(body).getJSObject("artists")?.getJSONArray("items")
-                ?: return null
-        val first = realResponse.getJSONObject(0) ?: return null
-        if (first.getString("name") == name) {
-            val images = first.getJSONArray("images")
-            if (images.length() == 0) return null
-            return images.getJSONObject(0)?.getString("url")
-        }
-        return null
-    }
-
-    fun getArtistArt(id: String): String {
-        val artist = getArtist(id)
-        val cover = artist.coverArt
-        val fromHttp = cover.takeIf { it.startsWith("http", ignoreCase = true) }
-        val fromInfo = runCatching { getArtistInfo(id).largeImageUrl }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() }
-        val fromCoverId = when {
-            cover.isNotBlank() && !cover.startsWith("http", ignoreCase = true) ->
-                coverCache.getAlbumArt(cover)
-            else -> coverCache.getAlbumArt(id)
-        }
-        val fromSpotify = runCatching { getSpotifyArtistArt(artist.name) }.getOrNull()
-        val art = fromHttp ?: fromCoverId.takeIf { it.isNotBlank() } ?: fromInfo ?: fromSpotify
-            ?: return ""
-        if (art.startsWith("http", ignoreCase = true) &&
-            !art.contains("/rest/getCoverArt")
-        ) {
-            coverCache.cacheRemoteImage(
-                art,
-                coverCache.getArtistArtsDirectory(),
-                coverCache.getLocalArtistArtUri(id)
-            )
-        }
-        return art
-    }
+    fun getSpotifyArtistArt(name: String): String? = artistArt.getSpotifyArtistArt(name)
+    fun getArtistArt(id: String): String = artistArt.getArtistArt(id)
 
     fun getLyrics(artist: String, title: String): String {
         val p = params()

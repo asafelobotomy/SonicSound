@@ -1,19 +1,13 @@
 package app.sonicsound.playback
 
-import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
-import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import app.sonicsound.KeyValueStorage
 import app.sonicsound.visualizer.PlaybackSpectrum
 import org.videolan.libvlc.MediaPlayer
-import java.nio.ByteOrder
-import kotlin.math.min
 
 /**
  * LibVLC decoded-PCM audio output via [libvlc_audio_set_callbacks].
@@ -77,17 +71,15 @@ object VlcPcmOutput {
     private var mediaSwapUntilMs = 0L
 
     private val trackLock = Any()
-    private val mainHandler = Handler(Looper.getMainLooper())
-
     init {
         try {
-            runCatching { System.loadLibrary("c++_shared") }
-            System.loadLibrary("vlc")
-            runCatching { System.loadLibrary("vlcjni") }
-            System.loadLibrary("vlc_pcm_tap")
-            ready = nativeInit()
-            if (!ready) Log.w(TAG, "nativeInit failed — falling back to LibVLC aout")
-            else Log.i(TAG, "PCM tap ready")
+            if (!VlcPcmNativeTap.loadLibraries()) {
+                ready = false
+            } else {
+                ready = nativeInit()
+                if (!ready) Log.w(TAG, "nativeInit failed — falling back to LibVLC aout")
+                else Log.i(TAG, "PCM tap ready")
+            }
         } catch (e: Throwable) {
             Log.w(TAG, "vlc_pcm_tap unavailable", e)
             ready = false
@@ -137,7 +129,7 @@ object VlcPcmOutput {
 
     fun attach(player: MediaPlayer): Boolean {
         if (!ready) return false
-        val ptr = playerNativePtr(player)
+        val ptr = VlcPcmNativeTap.playerNativePtr(player)
         if (ptr == 0L) {
             Log.w(TAG, "MediaPlayer native instance is 0")
             tapAttached = false
@@ -156,7 +148,7 @@ object VlcPcmOutput {
      */
     fun detach(player: MediaPlayer?, wipeSpectrum: Boolean = true) {
         if (!ready) return
-        nativeDetach(playerNativePtr(player))
+        nativeDetach(VlcPcmNativeTap.playerNativePtr(player))
         tapAttached = false
         synchronized(trackLock) {
             aoutDepth = 0
@@ -186,57 +178,25 @@ object VlcPcmOutput {
      * Ensure AudioTrack is live when LibVLC reports Playing.
      * Optionally re-attaches if PCM stays silent (Settings recreate race).
      */
+    private val heal = VlcPcmHeal(
+        tag = TAG,
+        trackLock = trackLock,
+        isPcmFresh = { isPcmFresh() },
+        getPlayCallbacks = { playCallbacks },
+        getLastPcmUptimeMs = { lastPcmUptimeMs },
+        getTrack = { track },
+        openTrack = { rate, ch -> openTrackLocked(rate, ch) },
+        playTrack = { runCatching { track?.play() } },
+        attach = { attach(it) },
+        noteMediaSwap = { noteMediaSwap() },
+        syncVinyl = { active, rate -> syncVinylProcessor(tapActive = active, sampleRateHint = rate) },
+        currentSampleRate = { currentSampleRate() },
+        getSampleRate = { sampleRate },
+        getChannels = { channels },
+    )
+
     fun onEnginePlaying(player: MediaPlayer? = null) {
-        synchronized(trackLock) {
-            val t = track
-            if (t == null) {
-                if (openTrackLocked(sampleRate, channels)) {
-                    Log.w(TAG, "onEnginePlaying healed null AudioTrack")
-                }
-            } else if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                runCatching { t.play() }
-            }
-        }
-        if (player == null || !ready) return
-        val baseline = playCallbacks
-        val baselineTime = lastPcmUptimeMs
-        mainHandler.removeCallbacks(pcmHealRunnable)
-        pcmHealPlayer = player
-        pcmHealBaseline = baseline
-        pcmHealBaselineTime = baselineTime
-        mainHandler.postDelayed(pcmHealRunnable, 900L)
-    }
-
-    private var pcmHealPlayer: MediaPlayer? = null
-    private var pcmHealBaseline = 0
-    private var pcmHealBaselineTime = 0L
-    private val pcmHealRunnable = Runnable {
-        val player = pcmHealPlayer ?: return@Runnable
-        if (isPcmFresh()) return@Runnable
-        if (playCallbacks != pcmHealBaseline && lastPcmUptimeMs != pcmHealBaselineTime) return@Runnable
-        Log.w(TAG, "PCM silent after Playing — re-attaching tap")
-        noteMediaSwap()
-        val attached = attach(player)
-        synchronized(trackLock) {
-            if (track == null) openTrackLocked(sampleRate, channels)
-            else runCatching { track?.play() }
-        }
-        // Heal can restore the tap after create-time attach failure / recreate race.
-        syncVinylProcessor(tapActive = attached, sampleRateHint = currentSampleRate())
-    }
-
-    private fun playerNativePtr(player: MediaPlayer?): Long {
-        if (player == null) return 0L
-        return runCatching {
-            val m = player.javaClass.methods.firstOrNull { it.name == "getInstance" && it.parameterCount == 0 }
-                ?: player.javaClass.superclass?.methods?.firstOrNull {
-                    it.name == "getInstance" && it.parameterCount == 0
-                }
-            (m?.invoke(player) as? Long) ?: 0L
-        }.getOrElse {
-            Log.w(TAG, "getInstance reflection failed", it)
-            0L
-        }
+        heal.onEnginePlaying(player, ready)
     }
 
     @JvmStatic
@@ -275,74 +235,26 @@ object VlcPcmOutput {
 
     @JvmStatic
     fun nativePlay(pcm: ByteArray, bytes: Int, ch: Int, frames: Int) {
-        val len = min(bytes, pcm.size)
-        if (len <= 0) return
-        val playCh = ch.coerceAtLeast(1)
-        val playFrames = frames.coerceAtLeast(1)
-        val rate = sampleRate
-
-        // Vinyl FX on full-channel buffer before downmix (0.2.14: spectrum stays off trackLock).
-        val processed = if (VinylProcessor.isEnabled()) {
-            VinylProcessor.processInPlace(pcm, len, playCh, playFrames, rate)
-            pcm
-        } else {
-            pcm
-        }
-
-        // Keep AudioTrack.write off the spectrum lock — FFT runs on analyzer thread.
-        synchronized(trackLock) {
-            var t = track
-            if (t == null) {
-                Log.w(TAG, "PCM play with null AudioTrack — healing ${sampleRate}Hz/${playCh}ch")
-                if (!openTrackLocked(sampleRate.coerceAtLeast(8000), playCh.coerceIn(1, 8))) {
-                    lastPcmUptimeMs = SystemClock.uptimeMillis()
-                    // Fall through to spectrum ingest below.
-                    t = null
-                } else {
-                    t = track
-                }
-            }
-            if (t != null) {
-                if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                    runCatching { t.play() }
-                }
-                val writePcm: ByteArray
-                val writeLen: Int
-                if (playCh == outputChannels || outputChannels < 1) {
-                    writePcm = processed
-                    writeLen = len
-                } else {
-                    val mixed = downmixToOutput(processed, len, playCh, playFrames, outputChannels)
-                    writePcm = mixed.first
-                    writeLen = mixed.second
-                }
-                var offset = 0
-                while (offset < writeLen) {
-                    val written = t.write(writePcm, offset, writeLen - offset)
-                    if (written <= 0) break
-                    offset += written
-                }
-            }
-            lastPcmUptimeMs = SystemClock.uptimeMillis()
-            playCallbacks++
-        }
-
-        PlaybackSpectrum.onPcmS16(
-            processed, len, playCh, playFrames, ByteOrder.nativeOrder(), rate,
+        VlcPcmPlay.handle(
+            tag = TAG,
+            trackLock = trackLock,
+            pcm = pcm,
+            bytes = bytes,
+            ch = ch,
+            frames = frames,
+            sampleRate = sampleRate,
+            getTrack = { track },
+            openTrack = { rate, chn -> openTrackLocked(rate, chn) },
+            getOutputChannels = { outputChannels },
+            downmix = { p, b, ic, f, oc -> downmixToOutput(p, b, ic, f, oc) },
+            onWritten = {
+                lastPcmUptimeMs = SystemClock.uptimeMillis()
+                playCallbacks++
+                playCallbacks
+            },
         )
-
-        val n = playCallbacks
-        if (n == 1 || n == 50 || n == 200) {
-            Log.i(
-                TAG,
-                "PCM play#$n bytes=$len ch=$playCh outCh=$outputChannels frames=$playFrames " +
-                    "peak=${"%.4f".format(PlaybackSpectrum.lastPcmPeak)} " +
-                    "energy=${"%.3f".format(PlaybackSpectrum.energy())} " +
-                    "bass=${"%.3f".format(PlaybackSpectrum.bass())} " +
-                    "L/R=${"%.2f".format(PlaybackSpectrum.left())}/${"%.2f".format(PlaybackSpectrum.right())}",
-            )
-        }
     }
+
 
     @JvmStatic
     fun nativePause() {
@@ -415,20 +327,7 @@ object VlcPcmOutput {
     fun outputLatencyMs(): Int {
         synchronized(trackLock) {
             val t = track ?: return 0
-            val rate = sampleRate.coerceAtLeast(1)
-            val fromApi = runCatching {
-                // getLatency() is hidden/deprecated on some SDKs — reflect safely.
-                val m = AudioTrack::class.java.methods.firstOrNull {
-                    it.name == "getLatency" && it.parameterCount == 0
-                }
-                (m?.invoke(t) as? Int) ?: 0
-            }.getOrDefault(0).coerceAtLeast(0)
-            val bufMs = ((t.bufferSizeInFrames.toLong() * 1000L) / rate).toInt()
-            return when {
-                fromApi > 0 -> fromApi.coerceIn(0, 500)
-                bufMs > 0 -> (bufMs / 2).coerceIn(0, 500)
-                else -> 0
-            }
+            return VlcPcmAudioTrack.estimateLatencyMs(t, sampleRate)
         }
     }
 
@@ -436,94 +335,21 @@ object VlcPcmOutput {
         releaseTrackLocked()
         sampleRate = rate.coerceAtLeast(8000)
         channels = ch.coerceIn(1, 8)
-        val masks = channelMaskCandidates(channels)
-        var lastError: Exception? = null
-        for (channelMask in masks) {
-            val minBuf = AudioTrack.getMinBufferSize(
-                sampleRate,
-                channelMask,
-                AudioFormat.ENCODING_PCM_16BIT,
-            )
-            if (minBuf <= 0) continue
-            val bufSize = minBuf * 2
-            try {
-                val builder = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build(),
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setSampleRate(sampleRate)
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setChannelMask(channelMask)
-                            .build(),
-                    )
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .setBufferSizeInBytes(bufSize)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                }
-                val t = builder.build()
-                t.play()
-                applyGainLocked(t)
-                track = t
-                outputChannels = when (channelMask) {
-                    AudioFormat.CHANNEL_OUT_MONO -> 1
-                    AudioFormat.CHANNEL_OUT_STEREO -> 2
-                    AudioFormat.CHANNEL_OUT_QUAD -> 4
-                    AudioFormat.CHANNEL_OUT_5POINT1 -> 6
-                    else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                        channelMask == AudioFormat.CHANNEL_OUT_7POINT1_SURROUND
-                    ) {
-                        8
-                    } else {
-                        channels.coerceIn(1, 8)
-                    }
-                }
-                Log.i(
-                    TAG,
-                    "AudioTrack open ${sampleRate}Hz mask=0x${channelMask.toString(16)} " +
-                        "inCh=$channels outCh=$outputChannels buf=${bufSize}B latency~${outputLatencyMs()}ms",
-                )
-                return true
-            } catch (e: Exception) {
-                lastError = e
-            }
+        val opened = VlcPcmAudioTrack.open(
+            sampleRate = sampleRate,
+            channels = channels,
+            applyGain = { applyGainLocked(it) },
+            latencyMs = { t, rateHz -> VlcPcmAudioTrack.estimateLatencyMs(t, rateHz) },
+        )
+        if (opened == null) {
+            track = null
+            return false
         }
-        Log.e(TAG, "AudioTrack setup failed for $sampleRate Hz / $channels ch", lastError)
-        track = null
-        return false
+        track = opened.track
+        outputChannels = opened.outputChannels
+        return true
     }
 
-    /** Prefer true multi-channel out; fall back toward stereo/mono if the device rejects it. */
-    private fun channelMaskCandidates(ch: Int): List<Int> {
-        val primary = when (ch) {
-            1 -> AudioFormat.CHANNEL_OUT_MONO
-            2 -> AudioFormat.CHANNEL_OUT_STEREO
-            4 -> AudioFormat.CHANNEL_OUT_QUAD
-            6 -> AudioFormat.CHANNEL_OUT_5POINT1
-            8 -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                AudioFormat.CHANNEL_OUT_7POINT1_SURROUND
-            } else {
-                AudioFormat.CHANNEL_OUT_5POINT1
-            }
-            else -> if (ch > 2) AudioFormat.CHANNEL_OUT_5POINT1 else AudioFormat.CHANNEL_OUT_STEREO
-        }
-        return listOf(
-            primary,
-            AudioFormat.CHANNEL_OUT_STEREO,
-            AudioFormat.CHANNEL_OUT_MONO,
-        ).distinct()
-    }
-
-    /**
-     * Downmix multi-channel PCM to the AudioTrack layout when the device cannot
-     * open a matching surround track. Spectrum analysis still uses the original buffer.
-     * Reuses [downmixScratch] to avoid GC on the realtime audio path.
-     */
     private fun downmixToOutput(
         pcm: ByteArray,
         bytes: Int,
@@ -531,71 +357,10 @@ object VlcPcmOutput {
         frames: Int,
         outCh: Int,
     ): Pair<ByteArray, Int> {
-        val inChannels = inCh.coerceIn(1, 8)
-        val outChannels = when (outCh) {
-            1 -> 1
-            else -> 2 // Only mono/stereo fallbacks are opened; never write a partial 5.1 frame.
-        }
-        val frameCount = (bytes / (2 * inChannels)).coerceAtMost(frames).coerceAtLeast(0)
-        val need = frameCount * outChannels * 2
-        if (downmixScratch.size < need) {
-            downmixScratch = ByteArray(need.coerceAtLeast(4096))
-        }
-        val out = downmixScratch
-        val little = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
-        fun read(i: Int): Int {
-            if (i + 1 >= bytes) return 0
-            return if (little) {
-                ((pcm[i].toInt() and 0xFF) or (pcm[i + 1].toInt() shl 8)).toShort().toInt()
-            } else {
-                ((pcm[i + 1].toInt() and 0xFF) or (pcm[i].toInt() shl 8)).toShort().toInt()
-            }
-        }
-        fun write(o: Int, sample: Int) {
-            val s = sample.coerceIn(-32768, 32767)
-            if (little) {
-                out[o] = (s and 0xFF).toByte()
-                out[o + 1] = ((s shr 8) and 0xFF).toByte()
-            } else {
-                out[o] = ((s shr 8) and 0xFF).toByte()
-                out[o + 1] = (s and 0xFF).toByte()
-            }
-        }
-        for (f in 0 until frameCount) {
-            val base = f * inChannels * 2
-            val c0 = read(base).toFloat()
-            val c1 = if (inChannels > 1) read(base + 2).toFloat() else c0
-            val c2 = if (inChannels > 2) read(base + 4).toFloat() else 0f
-            val c3 = if (inChannels > 3) read(base + 6).toFloat() else 0f
-            val c4 = if (inChannels > 4) read(base + 8).toFloat() else 0f
-            val c5 = if (inChannels > 5) read(base + 10).toFloat() else 0f
-            val c6 = if (inChannels > 6) read(base + 12).toFloat() else 0f
-            val c7 = if (inChannels > 7) read(base + 14).toFloat() else 0f
-            if (outChannels == 1) {
-                val m = when {
-                    inChannels >= 6 -> (c0 + c1 + c2 * 0.7f + c4 * 0.5f + c5 * 0.5f) / 3.4f
-                    inChannels >= 2 -> (c0 + c1) * 0.5f
-                    else -> c0
-                }
-                write(f * 2, m.toInt())
-            } else {
-                val l = when {
-                    inChannels >= 8 -> c0 + c2 * 0.7f + c4 * 0.5f + c6 * 0.5f + c3 * 0.15f
-                    inChannels >= 6 -> c0 + c2 * 0.7f + c4 * 0.5f + c3 * 0.15f
-                    inChannels == 4 -> c0 + c2 * 0.5f
-                    else -> c0
-                }
-                val r = when {
-                    inChannels >= 8 -> c1 + c2 * 0.7f + c5 * 0.5f + c7 * 0.5f + c3 * 0.15f
-                    inChannels >= 6 -> c1 + c2 * 0.7f + c5 * 0.5f + c3 * 0.15f
-                    inChannels == 4 -> c1 + c3 * 0.5f
-                    inChannels >= 2 -> c1
-                    else -> c0
-                }
-                write(f * 4, l.toInt())
-                write(f * 4 + 2, r.toInt())
-            }
-        }
+        val (out, need, scratch) = VlcPcmAudioTrack.downmixToOutput(
+            downmixScratch, pcm, bytes, inCh, frames, outCh
+        )
+        downmixScratch = scratch
         return out to need
     }
 

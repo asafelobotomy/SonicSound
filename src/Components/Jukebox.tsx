@@ -1,12 +1,10 @@
 import { Toast } from "@capacitor/toast";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import VLC from "../Plugins/VLC";
 import { buildCollectionJson, JukeboxTab, type ICollectionPayload } from "../models/jukeboxCollection";
 
 export default function Jukebox() {
-    const navigate = useNavigate();
     const [tab, setTab] = useState<JukeboxTab>("random");
     const [genres, setGenres] = useState<{ value: string }[]>([]);
     const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
@@ -55,11 +53,9 @@ export default function Jukebox() {
             });
             if (ret.status === "error") {
                 Toast.show({ text: ret.error });
-            } else {
-                navigate("/playing");
             }
         },
-        [navigate, playOnTv, remoteConnected]
+        [playOnTv, remoteConnected]
     );
 
     const decades = () => {

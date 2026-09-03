@@ -9,6 +9,7 @@ import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
 import android.util.Log
 import app.sonicsound.App
+import app.sonicsound.SessionStore
 import app.sonicsound.models.Account
 import app.sonicsound.models.Album
 import app.sonicsound.models.AlbumWithSongs
@@ -21,11 +22,11 @@ import app.sonicsound.room.database.SonicSoundDatabase
 
 /**
  * Public Subsonic client facade. Callers should import [app.sonicsound.subsonic.SubsonicClient].
+ * Active credentials live in [SessionStore] (not a companion global).
  */
 @SuppressLint("NewApi")
-class SubsonicClient(var initialAccount: Account) {
+class SubsonicClient(initialAccount: Account) {
     companion object {
-        var account: Account = Account(null, "", "", "", false)
         var downloadQueue: MutableList<Song>
             get() = SubsonicDownloads.downloadQueue
             set(value) { SubsonicDownloads.downloadQueue = value }
@@ -40,26 +41,28 @@ class SubsonicClient(var initialAccount: Account) {
     private val connectivityManager: ConnectivityManager =
         App.context.getSystemService(ConnectivityManager::class.java)
 
+    private fun account(): Account = SessionStore.get()
+
     @PublishedApi
-    internal val http = SubsonicHttp { account }
+    internal val http = SubsonicHttp { account() }
     private val coverCache = SubsonicCoverCache(
-        accountProvider = { account },
-        paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() }
+        accountProvider = { account() },
+        paramsProvider = { SubsonicAuth.getBasicParams(account()).asMap() }
     )
     private val library = SubsonicLibrary(
         http = http,
         coverCache = coverCache,
-        accountProvider = { account },
-        paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() }
+        accountProvider = { account() },
+        paramsProvider = { SubsonicAuth.getBasicParams(account()).asMap() }
     )
     private val stars = SubsonicStars(
         http = http,
-        paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() }
+        paramsProvider = { SubsonicAuth.getBasicParams(account()).asMap() }
     )
     private val downloads = SubsonicDownloads(
         http = http,
-        accountProvider = { account },
-        paramsProvider = { SubsonicAuth.getBasicParams(account).asMap() },
+        accountProvider = { account() },
+        paramsProvider = { SubsonicAuth.getBasicParams(account()).asMap() },
         albumFetcher = { id -> library.getAlbum(id) },
         artistFetcher = { id -> library.getArtist(id) }
     )
@@ -68,7 +71,7 @@ class SubsonicClient(var initialAccount: Account) {
     val db: SonicSoundDatabase get() = downloads.db
 
     init {
-        account = initialAccount
+        SessionStore.set(initialAccount)
     }
 
     fun getSongsAsMediaItems(songs: List<Song>): List<MediaBrowserCompat.MediaItem> {
@@ -211,11 +214,12 @@ class SubsonicClient(var initialAccount: Account) {
         library.createPlaylist(ids, name)
 
     fun login(username: String, password: String, url: String, usePlaintext: Boolean): Account {
-        account = SubsonicAuth.login(client, username, password, url, usePlaintext)
-        return account
+        val loggedIn = SubsonicAuth.login(client, username, password, url, usePlaintext)
+        SessionStore.set(loggedIn)
+        return loggedIn
     }
 
-    fun ping(): Boolean = SubsonicAuth.ping(client, account)
+    fun ping(): Boolean = SubsonicAuth.ping(client, account())
 
     fun downloadPlaylist(playlist: List<Song>, force: Boolean) =
         downloads.downloadPlaylist(playlist, force)

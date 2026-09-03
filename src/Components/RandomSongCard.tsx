@@ -7,23 +7,16 @@ import VLC from "../Plugins/VLC";
 import Loading from "./Loading";
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
 import classNames from "classnames";
-import AndroidTVPlugin from "../Plugins/AndroidTV";
-import { useNavigate } from "react-router-dom";
 
 
 export default function RandomSongCard({ item, parentRef }: { item: IAlbumSongResponse, parentRef?: React.RefObject<any> }) {
     const [coverArt, setCoverArt] = useState<string>("");
-    const [androidTv, setAndroidTv] = useState<boolean>(false);
-    const navigate = useNavigate();
     const play = useCallback(async () => {
         const ret = await VLC.playRadio({ song: item.id });
         if (ret.status === "error") {
             await Toast.show({ text: ret.error });
         }
-        if (androidTv && ret.status === "ok") {
-            navigate("/playing");
-        }
-    }, [item.id, androidTv, navigate]);
+    }, [item.id]);
     const { focused, ref } = useFocusable({ onEnterPress: play });
 
     useEffect(() => {
@@ -38,7 +31,6 @@ export default function RandomSongCard({ item, parentRef }: { item: IAlbumSongRe
             if (s.status === "ok") {
                 setCoverArt(s.value!);
             }
-            setAndroidTv((await AndroidTVPlugin.get()).value);
         }
         func();
     }, [item]);

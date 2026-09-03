@@ -28,6 +28,7 @@ import app.sonicsound.fragments.SearchFragment
 import app.sonicsound.fragments.VideosFragment
 import app.sonicsound.extensions.requestPrimaryFocus
 import app.sonicsound.models.Playlist
+import app.sonicsound.playback.PlaybackFacade
 import app.sonicsound.services.MusicService
 import app.sonicsound.update.AppUpdateUi
 import kotlinx.coroutines.CoroutineScope
@@ -115,44 +116,32 @@ class TvActivity : AppCompatActivity() {
             if (mBound) {
                 CoroutineScope(Dispatchers.IO).launch { binder!!.playAlbum(id, track) }
             } else {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_ALBUM
-                intent.putExtra("id", id)
-                intent.putExtra("track", track)
-                App.context.startService(intent)
+                PlaybackFacade.playAlbum(null, false, PlaybackFacade::defaultStartService, id, track)
             }
             showPlaying()
         }
 
         fun shuffle() {
-            if (mBound) binder!!.shuffle()
+            PlaybackFacade.shuffle(binder, mBound)
         }
 
         fun cycleRepeat() {
-            if (mBound) binder!!.cycleRepeat()
+            PlaybackFacade.cycleRepeat(binder, mBound)
         }
 
         fun playRadio(id: String) {
             if (mBound) {
                 CoroutineScope(Dispatchers.IO).launch { binder!!.playRadio(id) }
             } else {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_RADIO
-                intent.putExtra("id", id)
-                App.context.startService(intent)
+                PlaybackFacade.playRadio(null, false, PlaybackFacade::defaultStartService, id)
             }
             showPlaying()
         }
 
         fun playJukeboxCollection(json: String) {
-            if (mBound) {
-                binder!!.playJukeboxCollection(json)
-            } else {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_JUKEBOX
-                intent.putExtra("collection", json)
-                App.context.startService(intent)
-            }
+            PlaybackFacade.playJukeboxCollection(
+                binder, mBound, PlaybackFacade::defaultStartService, json
+            )
             showPlaying()
         }
 
@@ -169,11 +158,7 @@ class TvActivity : AppCompatActivity() {
             if (mBound) {
                 CoroutineScope(Dispatchers.IO).launch { binder!!.playPlaylist(id, track) }
             } else {
-                val intent = Intent(App.context, MusicService::class.java)
-                intent.action = Constants.SERVICE_PLAY_PLAYLIST
-                intent.putExtra("id", id)
-                intent.putExtra("track", track)
-                App.context.startService(intent)
+                PlaybackFacade.playPlaylist(null, false, PlaybackFacade::defaultStartService, id, track)
             }
             showPlaying()
         }
@@ -184,31 +169,31 @@ class TvActivity : AppCompatActivity() {
         }
 
         fun seek(position: Float) {
-            if (mBound) binder!!.seek(position)
+            PlaybackFacade.seek(binder, mBound, position)
         }
 
         fun next() {
-            if (mBound) binder!!.next()
+            PlaybackFacade.next(binder, mBound, PlaybackFacade::defaultStartService)
         }
 
         fun prev() {
-            if (mBound) binder!!.prev()
+            PlaybackFacade.prev(binder, mBound, PlaybackFacade::defaultStartService)
         }
 
         fun skipTo(track: Int) {
-            if (mBound) binder!!.skipTo(track)
+            PlaybackFacade.skipTo(binder, mBound, track)
         }
 
         fun pauseServer() {
-            if (mBound) binder!!.pause()
+            PlaybackFacade.pause(binder, mBound) { /* bound-only */ }
         }
 
         fun resumeServer() {
-            if (mBound) binder!!.play()
+            PlaybackFacade.play(binder, mBound) { /* bound-only */ }
         }
 
         fun setServerVolume(volume: Int) {
-            if (mBound) binder!!.setVolume(volume)
+            PlaybackFacade.setVolume(binder, mBound, volume)
         }
 
         fun showArtist(id: String, name: String) {

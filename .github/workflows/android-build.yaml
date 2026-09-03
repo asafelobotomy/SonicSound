@@ -28,13 +28,27 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint:loc
+      - run: npm run lint:features
       - run: npm run lint
       - run: npm test
       - run: npm run build
 
+  android-unit-tests:
+    name: Android unit tests
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Unit tests
+        run: cd android && ./gradlew testDebugUnitTest --no-daemon
+
   android-debug:
     name: Android debug APK
-    needs: web
+    needs: [web, android-unit-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +73,7 @@ jobs:
 
   android-unsigned-release:
     name: Unsigned release APK (F-Droid style)
-    needs: web
+    needs: [web, android-unit-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +102,7 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.publish_release }}
-    needs: [web, android-debug, android-unsigned-release]
+    needs: [web, android-debug, android-unsigned-release, android-unit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write

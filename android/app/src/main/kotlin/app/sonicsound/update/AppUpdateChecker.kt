@@ -3,6 +3,7 @@ package app.sonicsound.update
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -15,13 +16,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Checks GitHub Releases for a newer SonicSound APK and installs via FileProvider.
  *
- * Prefers `*-debug.apk` so sideloaded Shield debug builds can update in place.
+ * Prefers non-debug APK assets when both exist; verifies signing certificates
+ * match the running app before launching the installer.
  */
 object AppUpdateChecker {
     private const val TAG = "AppUpdateChecker"
@@ -150,8 +153,15 @@ object AppUpdateChecker {
     /**
      * Launch the system package installer. Returns false if unknown-sources
      * permission is required (caller should open settings and retry later).
+     * Throws if the APK signing certificates do not match the running app.
      */
     fun installApk(activity: Activity, apk: File): Boolean {
+        if (!apkSignaturesMatchApp(activity, apk)) {
+            Log.e(TAG, "APK signature mismatch; refusing install")
+            throw IllegalStateException(
+                "Update APK signature does not match the installed app",
+            )
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!activity.packageManager.canRequestPackageInstalls()) {
                 setPendingApk(apk.absolutePath)
@@ -230,6 +240,24 @@ object AppUpdateChecker {
         return 0
     }
 
+    /** True when the APK's signing certs match the running app's signingInfo. */
+    fun apkSignaturesMatchApp(context: Context, apk: File): Boolean {
+        val pm = context.packageManager
+        val apkInfo = packageArchiveInfo(pm, apk.absolutePath) ?: return false
+        val appInfo = try {
+            packageInfo(pm, context.packageName)
+        } catch (_: PackageManager.NameNotFoundException) {
+            return false
+        }
+        val apkCerts = signingCertSha256(apkInfo)
+        val appCerts = signingCertSha256(appInfo)
+        if (apkCerts.isEmpty() || appCerts.isEmpty()) {
+            Log.w(TAG, "Missing signing certs (apk=${apkCerts.size} app=${appCerts.size})")
+            return false
+        }
+        return apkCerts == appCerts
+    }
+
     private fun wasRecentlyNotified(tag: String): Boolean {
         val p = prefs()
         val lastTag = p.getString(KEY_LAST_TAG, null) ?: return false
@@ -276,13 +304,59 @@ object AppUpdateChecker {
             }
         }
         if (list.isEmpty()) return null
-        val debug = list.firstOrNull { it.name.contains("debug", ignoreCase = true) }
-        if (debug != null) return debug.url to debug.name
-        val release = list.firstOrNull { it.name.contains("release", ignoreCase = true) }
+        fun isDebug(name: String) = name.contains("debug", ignoreCase = true)
+        // Prefer release / non-debug assets; fall back to debug only if nothing else.
+        val release = list.firstOrNull {
+            it.name.contains("release", ignoreCase = true) && !isDebug(it.name)
+        }
         if (release != null) return release.url to release.name
+        val nonDebug = list.firstOrNull { !isDebug(it.name) }
+        if (nonDebug != null) return nonDebug.url to nonDebug.name
+        val debug = list.firstOrNull { isDebug(it.name) }
+        if (debug != null) return debug.url to debug.name
         val first = list.first()
         return first.url to first.name
     }
+
+    private fun packageArchiveInfo(pm: PackageManager, path: String): PackageInfo? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageArchiveInfo(path, PackageManager.GET_SIGNING_CERTIFICATES)
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageArchiveInfo(path, PackageManager.GET_SIGNATURES)
+        }
+    }
+
+    private fun packageInfo(pm: PackageManager, packageName: String): PackageInfo {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
+        }
+    }
+
+    private fun signingCertSha256(info: PackageInfo): Set<String> {
+        val digester = MessageDigest.getInstance("SHA-256")
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = info.signingInfo ?: return emptySet()
+            val sigs = if (signingInfo.hasMultipleSigners()) {
+                signingInfo.apkContentsSigners
+            } else {
+                signingInfo.signingCertificateHistory
+            }
+            sigs.map { bytesToHex(digester.digest(it.toByteArray())) }.toSet()
+        } else {
+            @Suppress("DEPRECATION")
+            info.signatures
+                ?.map { bytesToHex(digester.digest(it.toByteArray())) }
+                ?.toSet()
+                ?: emptySet()
+        }
+    }
+
+    private fun bytesToHex(bytes: ByteArray): String =
+        bytes.joinToString("") { b -> "%02x".format(b) }
 
     private fun normalizeVersion(raw: String): String =
         raw.trim().removePrefix("v").removePrefix("V")

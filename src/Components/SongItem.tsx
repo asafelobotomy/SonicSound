@@ -12,9 +12,7 @@ import VLC from "../Plugins/VLC";
 import { Toast } from "@capacitor/toast";
 import { PluginListenerHandle } from "@capacitor/core";
 import { useAddToPlaylist } from "../Hooks/useAddToPlaylist";
-import AndroidTVPlugin from "../Plugins/AndroidTV";
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation";
-import TVActionButton from "./TVActionButton";
 
 export default function SongItem({
     item,
@@ -28,7 +26,6 @@ export default function SongItem({
     const vlcListener = useRef<PluginListenerHandle>();
     const [downloadProgress, setDownloadProgress] = useState<number>(0);
     const [cached, setCached] = useState<boolean>(false);
-    const [androidTv, setAndroidTv] = useState(false);
 
     const playRadio = useCallback(async () => {
         const s = await VLC.playRadio({ song: item.id });
@@ -78,13 +75,9 @@ export default function SongItem({
         [addToPlaylist, item.id, playRadio, setMenuContext]
     );
 
-    const { ref, focused } = useFocusable({
+    const { ref, focused: _focused } = useFocusable({
         onEnterPress: play,
     });
-
-    useEffect(() => {
-        AndroidTVPlugin.get().then((r) => setAndroidTv(r.value));
-    }, []);
 
     useEffect(() => {
         const f = async () => {
@@ -127,8 +120,7 @@ export default function SongItem({
             className={classNames(
                 "list-group-item",
                 currentTrack.id === item.id && "highlight",
-                "not-selectable",
-                androidTv && focused && "album-item-focused"
+                "not-selectable"
             )}
             onClick={() => play()}
         >
@@ -141,14 +133,6 @@ export default function SongItem({
                     {item.title}
                 </div>
                 <div className="col-auto">{SecondsToHHSS(item.duration)}</div>
-                {androidTv && (
-                    <div className="col-auto">
-                        <TVActionButton
-                            content="+"
-                            func={() => addToPlaylist(item.id)}
-                        />
-                    </div>
-                )}
                 {!cached && downloadProgress > 0 && (
                     <div className="col-auto">
                         <FontAwesomeIcon icon={faArrowDown} /> {downloadProgress}

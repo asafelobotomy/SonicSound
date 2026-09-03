@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   SonicSound connects to self-hosted Subsonic/Navidrome servers.
-  Cleartext HTTP is permitted for LAN servers that do not offer TLS.
-  Prefer HTTPS when your server supports it (no app setting required —
-  use an https:// account URL).
+
+  Android Network Security Config cannot express private LAN CIDRs (e.g. 192.168/16),
+  so cleartext remains permitted app-wide for LAN HTTP. Prefer an https:// account URL
+  when your server supports TLS — no app setting required.
+
+  Localhost / .local are listed explicitly for clarity; they do not cover LAN IPs.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
@@ -11,4 +14,9 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="true">local</domain>
+    </domain-config>
 </network-security-config>

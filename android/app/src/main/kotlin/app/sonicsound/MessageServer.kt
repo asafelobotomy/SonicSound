@@ -14,12 +14,10 @@ import app.sonicsound.App.Companion.context
 import app.sonicsound.models.Account
 import app.sonicsound.models.RemoteConnectRequest
 import app.sonicsound.remote.RemoteAuth
-import app.sonicsound.models.SetPlaylistAndPlayRequest
 import app.sonicsound.models.WebSocketCommand
 import app.sonicsound.models.WebSocketMessage
 import app.sonicsound.services.MusicService
 import app.sonicsound.services.MusicService.LocalBinder
-import java.lang.Integer.parseInt
 import java.net.InetSocketAddress
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -57,11 +55,25 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
 
     private val clients: MutableList<WebSocket> = mutableListOf()
     private val pendingAuth: ConcurrentHashMap<WebSocket, String> = ConcurrentHashMap()
+    private val authenticated: MutableSet<WebSocket> = ConcurrentHashMap.newKeySet()
 
     private val gson: Gson = Gson()
 
     private fun sendTyped(conn: WebSocket, type: String, data: String, status: String = "ok") {
         conn.send(gson.toJson(WebSocketMessage(data, type, status)))
+    }
+
+    private fun sendCurrentTrackIfPlaying(conn: WebSocket) {
+        if (!mBound) return
+        val currentTrack = binder!!.getCurrentState().currentTrack
+        if (currentTrack.id.isNotEmpty()) {
+            val currentTrackJson = gson.toJson(currentTrack)
+            val webSocketNotification =
+                WebSocketNotification("currentTrack", "{\"currentTrack\": $currentTrackJson}")
+            val jsonNotification = gson.toJson(webSocketNotification)
+            val webSocketMessage = WebSocketMessage(jsonNotification, "notification", "ok")
+            conn.send(gson.toJson(webSocketMessage))
+        }
     }
 
     private fun handleRemoteConnect(conn: WebSocket, data: String) {
@@ -111,7 +123,9 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
             return
         }
         pendingAuth.remove(conn)
+        authenticated.add(conn)
         sendTyped(conn, "acceptedConnection", "")
+        sendCurrentTrackIfPlaying(conn)
         Globals.NotifyObservers("WS", "true")
     }
 
@@ -123,21 +137,13 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
         clients.add(conn)
         Globals.NotifyObservers("WS", "true")
-        if (mBound && binder!!.getCurrentState().currentTrack.id !== "") {
-            val currentTrackJson = gson.toJson(binder!!.getCurrentState().currentTrack)
-            val webSocketNotification =
-                WebSocketNotification("currentTrack", "{\"currentTrack\": $currentTrackJson}")
-            val jsonNotification = gson.toJson(webSocketNotification)
-            val webSocketMessage = WebSocketMessage(jsonNotification, "notification", "ok")
-            val jsonMessage = gson.toJson(webSocketMessage)
-            // Send the notification to everyone connected
-            conn.send(jsonMessage)
-        }
+        // Do not push currentTrack until the client authenticates.
     }
 
     override fun onClose(conn: WebSocket, code: Int, reason: String?, remote: Boolean) {
         clients.remove(conn)
         pendingAuth.remove(conn)
+        authenticated.remove(conn)
         if (clients.size == 0) {
             Globals.NotifyObservers("WS", "false")
         }
@@ -148,6 +154,15 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
             val m = gson.fromJson(message, WebSocketMessage::class.java)
             when (m.type) {
                 "login" -> {
+                    if (!isPairingActive()) {
+                        conn.send(
+                            constructMessage(
+                                "Pairing is not active. Open login on the TV to pair.",
+                                "error",
+                            )
+                        )
+                        return
+                    }
                     Globals.NotifyObservers("WSLOGIN", m.data)
                     return
                 }
@@ -160,146 +175,19 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
                     return
                 }
                 "command" -> {
-                    val command = gson.fromJson(m.data, WebSocketCommand::class.java)
-                    when (command.command) {
-                        "play" -> if (mBound) binder!!.play()
-                        "pause" -> if (mBound) binder!!.pause()
-                        "next" -> if (mBound) binder!!.next()
-                        "prev" -> if (mBound) binder!!.prev()
-                        "skipTo" -> {
-                            // This is still not used, but will someday.
-                            val track: Int
-                            try {
-                                track = parseInt(command.data)
-                            } catch (e: Exception) {
-                                conn.send(
-                                    constructMessage(
-                                        "The parameter track is empty or malformed",
-                                        "error"
-                                    )
-                                )
-                                return
-                            }
-                            if (mBound) {
-                                binder!!.skipTo(track)
-                            }
-
-                        }
-                        "playAlbum" -> {
-                            val id = command.data.substringBefore('|')
-                            val track = parseInt(command.data.substringAfter('|'))
-                            if (id.isBlank()) {
-                                conn.send(constructMessage("The parameter id is empty", "error"))
-                                return
-                            }
-                            if (mBound) {
-                                binder!!.playAlbum(id, track)
-                            } else {
-                                val intent = Intent(context, MusicService::class.java)
-                                intent.action = Constants.SERVICE_PLAY_ALBUM
-                                intent.putExtra("id", id)
-                                intent.putExtra("track", track)
-                                context.startService(intent)
-                            }
-                        }
-                        "playPlaylist" -> {
-                            val id = command.data.substringBefore('|')
-                            val track = parseInt(command.data.substringAfter('|'))
-                            if (id.isBlank()) {
-                                conn.send(constructMessage("The parameter id is empty", "error"))
-                                return
-                            }
-                            if (mBound) {
-                                binder!!.playPlaylist(id, track)
-                            } else {
-                                val intent = Intent(context, MusicService::class.java)
-                                intent.action = Constants.SERVICE_PLAY_PLAYLIST
-                                intent.putExtra("id", id)
-                                intent.putExtra("track", track)
-                                context.startService(intent)
-                            }
-                        }
-                        "playRadio" -> {
-                            if (command.data.isBlank()) {
-                                conn.send(constructMessage("The parameter id is empty", "error"))
-                                return
-                            }
-                            if (mBound) {
-                                binder!!.playRadio(command.data)
-                            } else {
-                                val intent = Intent(context, MusicService::class.java)
-                                intent.action = Constants.SERVICE_PLAY_RADIO
-                                intent.putExtra("id", command.data)
-                                context.startService(intent)
-                            }
-                        }
-                        "setPlaylistAndPlay" -> {
-                            if (command.data.isBlank()) {
-                                conn.send(constructMessage("The parameters id is empty", "error"))
-                                return
-                            }
-                            val request: SetPlaylistAndPlayRequest
-                            try {
-                                request = gson.fromJson(
-                                    command.data,
-                                    SetPlaylistAndPlayRequest::class.java
-                                )
-                                if (request.track >= request.playlist.entry.orEmpty().size) {
-                                    throw Exception("The track parameter was out of bounds")
-                                }
-                            } catch (e: Exception) {
-                                Globals.NotifyObservers("EX", e.message)
-                                return
-                            }
-
-                            if (mBound) {
-                                binder!!.setPlaylistAndPlay(
-                                    request.playlist,
-                                    request.track,
-                                    request.seek,
-                                    request.playing
-                                )
-                            }
-                        }
-                        "playJukeboxCollection" -> {
-                            if (command.data.isBlank()) {
-                                conn.send(constructMessage("Collection payload is empty", "error"))
-                                return
-                            }
-                            if (mBound) {
-                                binder!!.playJukeboxCollection(command.data)
-                            }
-                        }
-                        "shufflePlaylist"->{
-                            if(mBound){
-                                binder!!.shuffle()
-                            }
-                        }
-                        "cycleRepeat" -> {
-                            if (mBound) {
-                                binder!!.cycleRepeat()
-                            }
-                        }
-                        "seek" -> {
-                            if (command.data.isBlank()) {
-                                conn.send(constructMessage("The parameter time is empty", "error"))
-                                return
-                            }
-                            val time = command.data.toFloatOrNull()
-                            if (time == null) {
-                                conn.send(
-                                    constructMessage(
-                                        "The parameter time is malformed",
-                                        "error"
-                                    )
-                                )
-                                return
-                            }
-                            if (mBound) {
-                                binder!!.seek(time)
-                            }
-                        }
+                    if (!authenticated.contains(conn)) {
+                        conn.send(constructMessage("Not authenticated", "error"))
+                        return
                     }
+                    val command = gson.fromJson(m.data, WebSocketCommand::class.java)
+                    MessageServerCommands.handle(
+                        command = command,
+                        conn = conn,
+                        binder = binder,
+                        mBound = mBound,
+                        gson = gson,
+                        constructMessage = { text, status -> constructMessage(text, status) },
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -342,9 +230,28 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
             val jsonNotification = gson.toJson(webSocketNotification)
             val webSocketMessage = WebSocketMessage(jsonNotification, "notification", "ok")
             val jsonMessage = gson.toJson(webSocketMessage)
-            // Send the notification to everyone connected
-            broadcast(jsonMessage)
+            // Only push playback state to authenticated remotes.
+            for (conn in authenticated) {
+                if (conn.isOpen) {
+                    conn.send(jsonMessage)
+                }
+            }
         }
     }
-}
 
+    companion object {
+        @Volatile
+        var pairingEnabledUntilMs: Long = 0
+
+        fun enablePairing(durationMs: Long = 120_000) {
+            pairingEnabledUntilMs = System.currentTimeMillis() + durationMs
+        }
+
+        fun disablePairing() {
+            pairingEnabledUntilMs = 0
+        }
+
+        fun isPairingActive(): Boolean =
+            System.currentTimeMillis() < pairingEnabledUntilMs
+    }
+}

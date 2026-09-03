@@ -2,15 +2,12 @@ package app.sonicsound.services
 
 import android.app.Service
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.ConnectivityManager
-import android.net.Uri
 import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import com.bumptech.glide.Glide
 import com.getcapacitor.JSObject
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -19,6 +16,8 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.MediaPlayer
 import app.sonicsound.App
+import app.sonicsound.AppEvent
+import app.sonicsound.AppEvents
 import app.sonicsound.Constants
 import app.sonicsound.CurrentState
 import app.sonicsound.Globals
@@ -37,10 +36,7 @@ import app.sonicsound.playback.PlaybackCommander
 import app.sonicsound.playback.PlaybackNotification
 import app.sonicsound.playback.VlcEngine
 import app.sonicsound.playback.VlcPcmOutput
-import app.sonicsound.playback.VinylProcessor
 import app.sonicsound.subsonic.SubsonicClient
-import app.sonicsound.visualizer.TrackCharacterPrefetch
-import java.util.concurrent.ExecutionException
 
 class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
     private val subsonicClient: SubsonicClient = SubsonicClient(getActiveAccount())
@@ -50,11 +46,11 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
 
     private val queue = PlayQueue()
     private val jukeboxEngine = JukeboxEngine(subsonicClient)
-    private var refillInProgress = false
     private val session = MediaSessionController()
     private lateinit var notification: PlaybackNotification
     private lateinit var engine: VlcEngine
     private lateinit var commander: PlaybackCommander
+    private lateinit var playback: MusicServicePlayback
     private val binder = LocalBinder()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val playbackLock = Any()
@@ -76,6 +72,13 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         notification.buildActions()
         engine = VlcEngine(subsonicClient) { pause() }
         engine.create(this)
+        playback = MusicServicePlayback(
+            subsonicClient, queue, jukeboxEngine, session, gson,
+            engine = { engine },
+            notification = { notification },
+            notifyListeners = { a, v -> notifyListeners(a, v) },
+            notifyError = { notifyError(it) },
+        )
         commander = PlaybackCommander(
             subsonicClient, connectivityManager, queue,
             engineProvider = { engine },
@@ -89,7 +92,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 stopSelf()
                 notification.cancel()
             },
-            playSearch = { q, t -> playSearch(q, t) }
+            playSearch = { q, t -> playSearch(q, t) },
         )
     }
 
@@ -108,6 +111,10 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
 
     private fun notifyListeners(action: String, value: JSObject?) {
         Globals.NotifyObservers("MS$action", value?.toString())
+    }
+
+    private fun notifyError(message: String?) {
+        AppEvents.emit(AppEvent.Error(message))
     }
 
     private fun playSearch(query: String, type: SearchType = SearchType.SONG) {
@@ -145,7 +152,6 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         when (action) {
             null -> return
             "AUDIO_SETTINGS" -> {
-                // Settings may arrive off the main thread (Capacitor / YouTube OAuth).
                 if (Looper.myLooper() == Looper.getMainLooper()) {
                     syncAudioSettings()
                 } else {
@@ -170,7 +176,6 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 ignoringEvents = true
                 pendingSeek = if (pos > 0.001f) pos else null
                 try {
-                    // Soft detach keeps spectrum continuity; longer grace for setup/play.
                     VlcPcmOutput.noteEngineRecreate()
                     engine.release(wipeSpectrum = false)
                     engine = VlcEngine(subsonicClient) { pause() }
@@ -180,13 +185,12 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                         if (playing) playLocked()
                     }
                 } catch (e: Exception) {
-                    Globals.NotifyObservers("EX", e.message)
+                    notifyError(e.message)
                 } finally {
                     ignoringEvents = false
                 }
                 return
             }
-            // Profile / EQ / vinyl — never tear down the PCM tap for Settings visits.
             engine.applyAudioProfile(AudioProfile.resolve(settings))
         }
     }
@@ -198,106 +202,32 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 engine.loadMedia(queue.currentTrack!!)
                 playLocked()
             } catch (e: Exception) {
-                Globals.NotifyObservers("EX", e.message)
+                notifyError(e.message)
             }
         }
     }
 
     private fun pause() = synchronized(playbackLock) { engine.pause() }
-
     @Suppress("BlockingMethodInNonBlockingContext")
     private fun play() = synchronized(playbackLock) { playLocked() }
-
-    private fun playLocked() {
-        val currentTrack = queue.currentTrack ?: return
-        engine.requestAudioFocus(this)
-        engine.play()
-        prefetchNextTrackCharacter()
-        CoroutineScope(IO).launch {
-            session.putAlbumAndDuration(currentTrack)
-            val albumArtUri = Uri.parse(subsonicClient.getAlbumArt(currentTrack.albumId))
-            var albumArtBitmap: Bitmap? = null
-            try {
-                val loaded = Glide.with(App.context).asBitmap().load(albumArtUri).submit().get()
-                // Own a software copy — Glide may recycle the original under pressure.
-                albumArtBitmap = loaded.copy(Bitmap.Config.ARGB_8888, false) ?: loaded
-            } catch (e: ExecutionException) {
-                Globals.NotifyObservers("EX", e.message)
-            } catch (e: InterruptedException) {
-                Globals.NotifyObservers("EX", e.message)
-            }
-            session.updateMediaMetadata(currentTrack, albumArtBitmap)
-            notification.update(currentTrack, albumArtBitmap)
-        }
-    }
-
-    /** Decode ~3s of the upcoming track off-path so BPM/dynamics are ready on skip. */
-    private fun prefetchNextTrackCharacter() {
-        val next = queue.peekNext() ?: return
-        CoroutineScope(IO).launch {
-            runCatching {
-                val local = java.io.File(subsonicClient.getLocalSongUri(next.id))
-                val uri = when {
-                    local.exists() && local.length() > 1024L -> "file://${local.path}"
-                    KeyValueStorage.getOfflineMode() -> null
-                    else -> subsonicClient.getSongUri(next)
-                } ?: return@launch
-                TrackCharacterPrefetch.prefetch(App.context, next.id, uri)
-            }
-        }
-    }
+    private fun playLocked() = playback.playLocked(this)
 
     private fun next() {
         synchronized(playbackLock) {
             if (queue.next() != null) {
-                advancePlaybackLocked()
-                maybeRefillCollection()
+                playback.advancePlaybackLocked { playLocked() }
+                playback.maybeRefillCollection()
                 return
             }
         }
         val collection = queue.collection ?: return
         CoroutineScope(IO).launch {
-            if (refillQueue(collection)) {
+            if (playback.refillQueue(collection)) {
                 synchronized(playbackLock) {
-                    if (queue.next() != null) advancePlaybackLocked()
+                    if (queue.next() != null) playback.advancePlaybackLocked { playLocked() }
                 }
             }
         }
-    }
-
-    private suspend fun refillQueue(collection: JukeboxCollection): Boolean {
-        if (refillInProgress) return false
-        refillInProgress = true
-        try {
-            val more = jukeboxEngine.fetchBatch(collection)
-            if (more.isEmpty()) return false
-            queue.appendEntries(more)
-            notifyListeners("playlistUpdated", null)
-            return true
-        } catch (e: Exception) {
-            Globals.NotifyObservers("EX", e.message)
-            return false
-        } finally {
-            refillInProgress = false
-        }
-    }
-
-    private fun advancePlaybackLocked() {
-        try {
-            engine.loadMedia(queue.currentTrack!!)
-            playLocked()
-            queue.collection?.let { col ->
-                queue.currentTrack?.id?.let { jukeboxEngine.onTrackPlayed(it, col) }
-            }
-        } catch (e: Exception) {
-            Globals.NotifyObservers("EX", e.message)
-        }
-    }
-
-    private fun maybeRefillCollection() {
-        val collection = queue.collection ?: return
-        if (queue.remainingCount() > 10 || refillInProgress) return
-        CoroutineScope(IO).launch { refillQueue(collection) }
     }
 
     fun playJukeboxCollection(json: String) {
@@ -311,7 +241,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 }
                 val songs = jukeboxEngine.fetchBatch(collection)
                 if (songs.isEmpty()) {
-                    Globals.NotifyObservers("EX", "No songs found for this Collection")
+                    notifyError("No songs found for this Collection")
                     return@launch
                 }
                 val playlist = jukeboxEngine.buildPlaylist(collection, songs)
@@ -322,7 +252,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                 }
                 notifyListeners("playlistUpdated", null)
             } catch (e: Exception) {
-                Globals.NotifyObservers("EX", e.message)
+                notifyError(e.message)
             }
         }
     }
@@ -334,7 +264,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
                     engine.loadMedia(queue.currentTrack!!)
                     playLocked()
                 } catch (e: Exception) {
-                    Globals.NotifyObservers("EX", e.message)
+                    notifyError(e.message)
                 }
             }
         }
@@ -342,9 +272,7 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
 
     private fun setPlaylistAndPlay(playlist: Playlist, track: Int, seek: Float, playing: Boolean) {
         synchronized(playbackLock) {
-            if (engine.isPlaying) {
-                engine.pause()
-            }
+            if (engine.isPlaying) engine.pause()
             queue.playlist = playlist
             queue.currentTrack = playlist.entry.orEmpty()[track]
             engine.loadMedia(queue.currentTrack!!)
@@ -353,62 +281,15 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         }
     }
 
-    private fun positionMs(): Long {
-        val track = queue.currentTrack ?: return 0L
-        return (engine.position * track.duration * 1000).toLong()
-    }
-
-    private fun durationMs(): Long {
-        val track = queue.currentTrack ?: return 0L
-        return (track.duration * 1000L).coerceAtLeast(0L)
-    }
-
-    private fun publishVinylClock() {
-        VinylProcessor.publishClock(positionMs(), durationMs())
-    }
-
     override fun onEvent(event: MediaPlayer.Event) {
         if (ignoringEvents) return
-        val track = queue.currentTrack
-        when (event.type) {
-            MediaPlayer.Event.TimeChanged -> {
-                publishVinylClock()
-                session.setPlayingState(positionMs(), 0f)
-                notifyListeners("progress", JSObject("{\"time\": ${engine.position}}"))
-            }
-            MediaPlayer.Event.EndReached -> {
-                try {
-                    next()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                session.setPausedState((track?.duration ?: 0) * 1000L)
-                track?.let { notification.update(it, null, true) }
-            }
-            MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> {
-                publishVinylClock()
-                notifyListeners("paused", null)
-                session.setPausedState(positionMs())
-                track?.let { notification.update(it, null, true) }
-            }
-            MediaPlayer.Event.Playing -> {
-                pendingSeek?.let { seekPos ->
-                    pendingSeek = null
-                    engine.seek(seekPos)
-                }
-                VlcPcmOutput.onEnginePlaying(engine.mediaPlayer)
-                publishVinylClock()
-                notifyListeners("play", null)
-                if (track != null) {
-                    notifyListeners(
-                        "currentTrack",
-                        JSObject("{\"currentTrack\": ${gson.toJson(track)}}")
-                    )
-                    session.setPlayingState(positionMs(), 1f)
-                    notification.update(track, null, false)
-                }
-            }
-        }
+        pendingSeek = playback.onPlayerEvent(
+            event = event,
+            pendingSeek = pendingSeek,
+            clearPendingSeek = { pendingSeek = null },
+            setPendingSeek = { pendingSeek = it },
+            next = { next() },
+        )
     }
 
     inner class LocalBinder : Binder() {
@@ -439,16 +320,13 @@ class MusicService : Service(), IBroadcastObserver, MediaPlayer.EventListener {
         }
 
         fun seek(position: Float) = synchronized(playbackLock) { engine.seek(position) }
-
         fun seekToMs(positionMs: Long) {
             val duration = queue.currentTrack?.duration ?: return
             synchronized(playbackLock) { engine.seekToMs(positionMs, duration) }
         }
 
         fun setVolume(volume: Int) = synchronized(playbackLock) { engine.setVolume(volume) }
-        fun playRadio(id: String) = CoroutineScope(IO).launch {
-            commander.playRadio(id)
-        }
+        fun playRadio(id: String) = CoroutineScope(IO).launch { commander.playRadio(id) }
         fun playInternetRadio(streamUrl: String, name: String) = CoroutineScope(IO).launch {
             commander.playInternetRadio(streamUrl, name)
         }

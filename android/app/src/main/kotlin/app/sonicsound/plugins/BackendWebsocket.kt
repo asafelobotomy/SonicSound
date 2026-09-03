@@ -47,6 +47,7 @@ class BackendWebsocket(
     var reconnect: Boolean = false
 
     private var pendingNonce: String? = null
+    private var pendingConnectCall: PluginCall? = null
     private var remoteMode: Boolean = false
     private var discoveryActive: Boolean = false
     private val discoveredRemotes = ConcurrentHashMap<String, RemoteDevice>()
@@ -101,11 +102,25 @@ class BackendWebsocket(
     fun connectRemote(call: PluginCall) {
         try {
             val ip = call.getString("ip") ?: throw ParameterException("ip")
+            rejectPendingConnect("Connection superseded")
+            pendingConnectCall = call
             connectRemoteInternal(ip, call.getString("deviceName"))
-            call.resolve(responses.ok(""))
         } catch (e: Exception) {
+            pendingConnectCall = null
             call.resolve(responses.error(e.message))
         }
+    }
+
+    private fun resolvePendingConnect() {
+        val call = pendingConnectCall ?: return
+        pendingConnectCall = null
+        call.resolve(responses.ok(""))
+    }
+
+    private fun rejectPendingConnect(message: String) {
+        val call = pendingConnectCall ?: return
+        pendingConnectCall = null
+        call.resolve(responses.error(message))
     }
 
     fun qrLogin(call: PluginCall) {
@@ -179,6 +194,7 @@ class BackendWebsocket(
         reconnect = false
         remoteMode = false
         pendingNonce = null
+        rejectPendingConnect("Disconnected")
         setWebsocketConnectionStatus(false)
         mWebSocket?.close(1000, "")
     }
@@ -233,7 +249,9 @@ class BackendWebsocket(
     private fun emitRemoteDevicesUpdated() {
         val account = getActiveAccount()
         val fingerprint = RemoteAuth.accountFingerprint(account.url, account.username)
-        val matched = discoveredRemotes.values.filter { it.accountFingerprint == fingerprint || it.accountFingerprint.isEmpty() }
+        val matched = discoveredRemotes.values.filter {
+            it.accountFingerprint.isNotEmpty() && it.accountFingerprint == fingerprint
+        }
         val arr = JSArray()
         matched.forEach { device ->
             val obj = JSObject()
@@ -317,7 +335,12 @@ class BackendWebsocket(
                             notifyListeners(notification.action, null)
                         }
                     }
-                    "message" -> Globals.NotifyObservers("EX", message.data)
+                    "message" -> {
+                        Globals.NotifyObservers("EX", message.data)
+                        if (message.status == "error" && pendingConnectCall != null) {
+                            rejectPendingConnect(message.data.ifBlank { "Remote authentication failed" })
+                        }
+                    }
                     "authChallenge" -> {
                         pendingNonce = message.data
                         val account = getActiveAccount()
@@ -325,6 +348,7 @@ class BackendWebsocket(
                     }
                     "acceptedConnection" -> {
                         Globals.NotifyObservers("EX", "Remote connected")
+                        resolvePendingConnect()
                         syncPlaylistToTvIfNeeded()
                     }
                 }
@@ -348,6 +372,9 @@ class BackendWebsocket(
             reconnectAttempt++
             mWebSocket = null
             setWebsocketConnectionStatus(false)
+            if (pendingConnectCall != null) {
+                rejectPendingConnect("Connection failed")
+            }
         }
 
         private fun scheduleReconnect() {

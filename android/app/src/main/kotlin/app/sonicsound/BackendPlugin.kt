@@ -28,6 +28,13 @@ import org.json.JSONException
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * Capacitor plugin registered as "VLC" for compatibility with the web IBackendPlugin.
+ *
+ * Domain split is done at the helper level ([BackendAccounts], [BackendLibrary],
+ * [BackendPlayback], [BackendWebsocket], [BackendSpotify]) — full Capacitor plugin
+ * renames are intentionally deferred to avoid breaking sync/registration.
+ */
 @CapacitorPlugin(name = "VLC")
 class BackendPlugin : Plugin(), IBroadcastObserver {
     private var registered = false
@@ -101,8 +108,8 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
         }
         if (mBound) {
             val state = binder!!.getCurrentState()
-            notifyListeners("progress", JSObject("{\"time\": ${state.playtime}}"))
-            notifyListeners(if (state.playing) "play" else "pause", null)
+            AppEvents.emit(AppEvent.Progress(state.playtime))
+            AppEvents.emit(if (state.playing) AppEvent.PlaybackPlay else AppEvent.PlaybackPaused)
             notifyListeners(
                 "currentTrack",
                 JSObject("{\"currentTrack\": ${gson!!.toJson(state.currentTrack)}}")
@@ -128,6 +135,7 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
 
     @PluginMethod fun login(call: PluginCall) = accounts.login(call)
     @PluginMethod fun logout(call: PluginCall) = accounts.logout(call)
+    @PluginMethod fun deleteAccount(call: PluginCall) = accounts.deleteAccount(call)
     @PluginMethod fun getCameraPermissionStatus(call: PluginCall) =
         accounts.getCameraPermissionStatus(call)
     @PluginMethod fun getCameraPermission(call: PluginCall) = accounts.getCameraPermission(call)

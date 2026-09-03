@@ -3,6 +3,8 @@ package app.sonicsound
 class Constants {
     companion object {
         const val SERVICE_PLAY_PAUSE = "PLAY_PAUSE"
+        const val SERVICE_PLAY = "PLAY"
+        const val SERVICE_PAUSE = "PAUSE"
         const val SERVICE_NEXT = "NEXT"
         const val SERVICE_PREV = "PREV"
         const val SERVICE_PLAY_ALBUM = "PLAY_ALBUM"

@@ -1,16 +1,13 @@
 package app.sonicsound.plugins
 
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import app.sonicsound.App
 import app.sonicsound.KeyValueStorage.Companion.getAccounts
 import app.sonicsound.KeyValueStorage.Companion.getActiveAccount
 import app.sonicsound.KeyValueStorage.Companion.getOfflineMode
 import app.sonicsound.KeyValueStorage.Companion.getSettings
+import app.sonicsound.KeyValueStorage.Companion.setAccounts
 import app.sonicsound.KeyValueStorage.Companion.setActiveAccount
 import app.sonicsound.KeyValueStorage.Companion.setOfflineMode
 import app.sonicsound.KeyValueStorage.Companion.setSettings
-import app.sonicsound.MainActivity
 import app.sonicsound.models.Account
 import app.sonicsound.models.ParameterException
 import app.sonicsound.models.Settings
@@ -32,7 +29,7 @@ class BackendAccounts(
         try {
             val account = clientProvider()!!.login(username, password, url, usePlaintext)
             setActiveAccount(account)
-            call.resolve(responses.ok(account))
+            call.resolve(responses.ok(account.withoutPassword()))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }
@@ -48,31 +45,27 @@ class BackendAccounts(
         }
     }
 
-    fun getCameraPermissionStatus(call: PluginCall) {
-        if (ContextCompat.checkSelfPermission(
-                App.context,
-                "android.permission.CAMERA"
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+    fun deleteAccount(call: PluginCall) {
+        try {
+            val url = call.getString("url") ?: throw ParameterException("url")
+            val remaining = getAccounts().filterNot { it.url == url }
+            setAccounts(remaining)
+            val active = getActiveAccount()
+            if (active.url == url) {
+                setActiveAccount(Account(null, "", "", "", false))
+            }
             call.resolve(responses.ok(""))
-        } else {
-            call.resolve(
-                responses.error(
-                    "Please provide permission to use the camera. This is needed for the QR scanner to work."
-                )
-            )
+        } catch (e: Exception) {
+            call.resolve(responses.error(e.message))
         }
     }
 
+    fun getCameraPermissionStatus(call: PluginCall) {
+        call.resolve(responses.error("Camera disabled"))
+    }
+
     fun getCameraPermission(call: PluginCall) {
-        if (ContextCompat.checkSelfPermission(
-                App.context,
-                "android.permission.CAMERA"
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            MainActivity.requestPermissionLauncher?.launch("android.permission.CAMERA")
-        }
-        call.resolve(responses.ok(""))
+        call.resolve(responses.error("Camera disabled"))
     }
 
     fun getOfflineMode(call: PluginCall) {
@@ -95,7 +88,7 @@ class BackendAccounts(
 
     fun getActiveAccount(call: PluginCall) {
         try {
-            call.resolve(responses.ok(getActiveAccount()))
+            call.resolve(responses.ok(getActiveAccount().withoutPassword()))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }
@@ -116,19 +109,24 @@ class BackendAccounts(
                 call.getBoolean("youtubeVideosEnabled") ?: current.youtubeVideosEnabled
             val youtubeAllowAnyChannel =
                 call.getBoolean("youtubeAllowAnyChannel") ?: current.youtubeAllowAnyChannel
+            // Blank from JS means "keep native" — getSettings redacts secrets, so a round-trip
+            // must not wipe OAuth credentials stored only on the native side.
             val youtubeOauthClientId =
-                call.getString("youtubeOauthClientId") ?: current.youtubeOauthClientId
+                nonBlankOr(call.getString("youtubeOauthClientId"), current.youtubeOauthClientId)
             val youtubeOauthClientSecret =
-                call.getString("youtubeOauthClientSecret") ?: current.youtubeOauthClientSecret
+                nonBlankOr(
+                    call.getString("youtubeOauthClientSecret"),
+                    current.youtubeOauthClientSecret,
+                )
             val youtubeAccessToken =
                 if (call.hasOption("youtubeAccessToken")) {
-                    call.getString("youtubeAccessToken").orEmpty()
+                    nonBlankOr(call.getString("youtubeAccessToken"), current.youtubeAccessToken)
                 } else {
                     current.youtubeAccessToken
                 }
             val youtubeRefreshToken =
                 if (call.hasOption("youtubeRefreshToken")) {
-                    call.getString("youtubeRefreshToken").orEmpty()
+                    nonBlankOr(call.getString("youtubeRefreshToken"), current.youtubeRefreshToken)
                 } else {
                     current.youtubeRefreshToken
                 }
@@ -174,7 +172,7 @@ class BackendAccounts(
 
     fun getSettings(call: PluginCall) {
         try {
-            call.resolve(responses.ok(getSettings()))
+            call.resolve(responses.ok(getSettings().withoutSecrets()))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }
@@ -182,9 +180,22 @@ class BackendAccounts(
 
     fun getAccounts(call: PluginCall) {
         try {
-            call.resolve(responses.okArray(getAccounts()))
+            call.resolve(responses.okArray(getAccounts().map { it.withoutPassword() }))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }
     }
+
+    private fun Account.withoutPassword(): Account =
+        Account(username, "", url, type, usePlaintext)
+
+    private fun Settings.withoutSecrets(): Settings =
+        copy(
+            youtubeOauthClientSecret = "",
+            youtubeAccessToken = "",
+            youtubeRefreshToken = "",
+        )
+
+    private fun nonBlankOr(incoming: String?, fallback: String): String =
+        incoming?.takeIf { it.isNotBlank() } ?: fallback
 }

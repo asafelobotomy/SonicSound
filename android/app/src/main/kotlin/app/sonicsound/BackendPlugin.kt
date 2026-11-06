@@ -190,6 +190,8 @@ class BackendPlugin : Plugin(), IBroadcastObserver {
     @PluginMethod fun stopRemoteDiscovery(call: PluginCall) = websocket.stopRemoteDiscovery(call)
     @PluginMethod fun getDiscoveredRemotes(call: PluginCall) = websocket.getDiscoveredRemotes(call)
     @PluginMethod fun connectRemote(call: PluginCall) = websocket.connectRemote(call)
+    @PluginMethod fun quickConnectTv(call: PluginCall) = websocket.quickConnect.quickConnectTv(call)
+    @PluginMethod fun getQuickConnectTvs(call: PluginCall) = websocket.quickConnect.getQuickConnectTvs(call)
     @PluginMethod fun getCurrentPlaylist(call: PluginCall) = playback.getCurrentPlaylist(call)
     @PluginMethod fun getPlaylists(call: PluginCall) = library.getPlaylists(call)
     @PluginMethod fun getPlaylist(call: PluginCall) = library.getPlaylist(call)

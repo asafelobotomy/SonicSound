@@ -84,7 +84,9 @@ object SubsonicLanDiscovery {
             val body = connection.inputStream.bufferedReader().use { it.readText() }
             val root = JSONObject(body)
             val response = root.optJSONObject("subsonic-response") ?: return false
-            response.optString("status") == "ok"
+            // Unauthenticated ping on Navidrome answers status "failed" (error 10, missing 'u');
+            // any well-formed subsonic-response still identifies a server.
+            response.has("status")
         } catch (_: Exception) {
             false
         } finally {

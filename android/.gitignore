@@ -95,3 +95,6 @@ capacitor-cordova-android-plugins
 
 # Copied web assets
 app/src/main/assets/public
+
+# Built Quick Connect page bundle (npm run build:quickconnect)
+app/src/main/assets/quickconnect/qc.js

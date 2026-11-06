@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>SonicSound Quick Connect</title>
+<style>
+  :root { color-scheme: dark; --bg: #282c34; --panel: #323843; --fg: #fff; --muted: #aab2bf; --accent: #7fd1c3; --err: #ff8a80; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; display: flex; justify-content: center; padding: 24px 16px; }
+  main { width: 100%; max-width: 420px; }
+  h1 { font-weight: 300; font-size: 28px; margin: 0 0 4px; text-align: center; }
+  p.lead { color: var(--muted); text-align: center; margin: 0 0 24px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=password], input[type=url] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #4a5160; background: var(--panel); color: var(--fg); font-size: 16px; }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  #qc-code { font-size: 24px; letter-spacing: 6px; text-align: center; }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; color: var(--muted); font-size: 14px; }
+  .check input { margin-top: 3px; }
+  button { width: 100%; margin-top: 24px; padding: 14px; border: 0; border-radius: 8px; background: var(--accent); color: #12302b; font-size: 17px; font-weight: 600; }
+  button:disabled { opacity: .5; }
+  .status { min-height: 1.4em; margin-top: 16px; text-align: center; }
+  .status.ok { color: var(--accent); } .status.error { color: var(--err); } .status.info { color: var(--muted); }
+  .note { margin-top: 28px; font-size: 13px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SonicSound</h1>
+  <p class="lead">Sign your TV in to Navidrome / Subsonic</p>
+  <form id="qc-form" autocomplete="on">
+    <label for="qc-code">Code shown on the TV</label>
+    <input id="qc-code" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+    <label for="qc-url">Server URL</label>
+    <input id="qc-url" type="url" placeholder="http://192.168.1.10:4533" autocomplete="url" required>
+    <label for="qc-user">Username</label>
+    <input id="qc-user" type="text" autocomplete="username" autocapitalize="off" required>
+    <label for="qc-pass">Password</label>
+    <input id="qc-pass" type="password" autocomplete="current-password" required>
+    <div class="check">
+      <input id="qc-plain" type="checkbox">
+      <label for="qc-plain" style="margin:0">Use plaintext password (needed for some servers)</label>
+    </div>
+    <button id="qc-submit" type="submit">Sign in on TV</button>
+    <p id="qc-status" class="status" role="status"></p>
+  </form>
+  <p class="note">Your password is encrypted on this phone and can only be read by the TV showing this code.</p>
+</main>
+<script src="qc.js"></script>
+</body>
+</html>

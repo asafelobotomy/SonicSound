@@ -159,6 +159,9 @@ export interface IBackendPlugin extends Plugin {
     startRemoteDiscovery(): Promise<IBackendResponse<string>>;
     stopRemoteDiscovery(): Promise<IBackendResponse<string>>;
     getDiscoveredRemotes(): Promise<IBackendResponse<{ ip: string; deviceName: string; serverUrl?: string; wsPort?: number }[]>>;
+    /** Quick Connect: sign a TV showing [code] in with this phone's account (Android only). */
+    quickConnectTv(options: { ip: string; code: string; wsPort?: number }): Promise<IBackendResponse<string>>;
+    getQuickConnectTvs(): Promise<IBackendResponse<{ ip: string; deviceName: string; wsPort?: number }[]>>;
     playJukeboxCollection(options: { collection: string; remote?: boolean }): Promise<IBackendResponse<string>>;
     getGenres(): Promise<IBackendResponse<{ value: string; songCount?: number }[]>>;
     getServerCapabilities(): Promise<IBackendResponse<{ playbackReport: boolean; sonicSimilarity: boolean; playQueue: boolean }>>;

@@ -2,6 +2,7 @@ package app.sonicsound
 
 import android.os.Build
 import android.util.Log
+import app.sonicsound.remote.QuickConnect
 import app.sonicsound.remote.RemoteAuth
 import app.sonicsound.remote.RemoteBeacon
 import app.sonicsound.remote.RemoteDevice
@@ -63,6 +64,7 @@ class UDPServer(
                 serverUrl = account.url,
                 accountFingerprint = RemoteAuth.accountFingerprint(account.url, account.username),
                 deviceName = deviceName,
+                quickConnect = QuickConnect.isActive(),
             )
         )
     }
@@ -88,6 +90,7 @@ class UDPServer(
             serverUrl = beacon.serverUrl,
             accountFingerprint = beacon.accountFingerprint,
             wsPort = beacon.wsPort,
+            quickConnect = beacon.quickConnect,
         )
         Globals.NotifyObservers("REMOTE_DEVICE", gson.toJson(device))
     }

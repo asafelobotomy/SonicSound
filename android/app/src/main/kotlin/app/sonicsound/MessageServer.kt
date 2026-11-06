@@ -58,6 +58,7 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
     private val authenticated: MutableSet<WebSocket> = ConcurrentHashMap.newKeySet()
 
     private val gson: Gson = Gson()
+    private val quickConnect = MessageServerQuickConnect(gson)
 
     private fun sendTyped(conn: WebSocket, type: String, data: String, status: String = "ok") {
         conn.send(gson.toJson(WebSocketMessage(data, type, status)))
@@ -154,16 +155,21 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
             val m = gson.fromJson(message, WebSocketMessage::class.java)
             when (m.type) {
                 "login" -> {
-                    if (!isPairingActive()) {
-                        conn.send(
-                            constructMessage(
-                                "Pairing is not active. Open login on the TV to pair.",
-                                "error",
-                            )
+                    // Plaintext account login was replaced by encrypted Quick Connect.
+                    conn.send(
+                        constructMessage(
+                            "Update SonicSound on your phone and use Quick Connect.",
+                            "error",
                         )
-                        return
-                    }
-                    Globals.NotifyObservers("WSLOGIN", m.data)
+                    )
+                    return
+                }
+                "qcHello" -> {
+                    quickConnect.hello(conn)
+                    return
+                }
+                "qcLogin" -> {
+                    quickConnect.login(conn, m.data)
                     return
                 }
                 "remote", "jukebox" -> {
@@ -219,6 +225,7 @@ class MessageServer(port: Int) : WebSocketServer(InetSocketAddress(port)), IBroa
     }
 
     override fun update(action: String?, value: String?) {
+        quickConnect.onObserverUpdate(action, value)
         if (action == "SLCANCEL") {
             if (mBound) {
                 context.unbindService(connection)

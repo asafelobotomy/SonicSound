@@ -52,6 +52,9 @@ class BackendWebsocket(
     private var discoveryActive: Boolean = false
     private val discoveredRemotes = ConcurrentHashMap<String, RemoteDevice>()
     private var reconnectAttempt: Int = 0
+    val quickConnect by lazy {
+        BackendQuickConnect(responses, QuickConnectClient(client, gson)) { discoveredRemotes.values }
+    }
 
     fun getWebsocketStatus(call: PluginCall) {
         call.resolve(responses.ok(webSocketConnected))
@@ -136,28 +139,16 @@ class BackendWebsocket(
                 call.resolve(responses.error("The QR code is not an IP address. Please try again."))
                 return
             }
-            if (remote) {
-                connectRemoteInternal(ip, null)
-            } else {
-                loginToTv(ip)
+            if (!remote) {
+                // Plaintext TV login was replaced by encrypted Quick Connect.
+                call.resolve(responses.error("Use Remote → Sign in a TV with the TV's Quick Connect code."))
+                return
             }
+            connectRemoteInternal(ip, null)
             call.resolve(responses.ok(""))
         } catch (e: Exception) {
             call.resolve(responses.error(e.message))
         }
-    }
-
-    private fun loginToTv(ip: String) {
-        val account = getActiveAccount()
-        val jsonAccount = gson.toJson(account)
-        val message = WebSocketMessage(jsonAccount, "login", "ok")
-        if (webSocketConnected) {
-            mWebSocket!!.close(1000, "")
-        }
-        connectWebSocket("ws://$ip:30001", true)
-        mWebSocket!!.send(gson.toJson(message))
-        mWebSocket!!.close(1000, "")
-        setWebsocketConnectionStatus(false)
     }
 
     private fun connectRemoteInternal(ip: String, deviceName: String?) {
@@ -264,6 +255,9 @@ class BackendWebsocket(
         val payload = JSObject()
         payload.put("devices", arr)
         notifyListeners("remoteDevicesUpdated", payload)
+        val qcPayload = JSObject()
+        qcPayload.put("devices", quickConnect.devicesJson())
+        notifyListeners("quickConnectTvsUpdated", qcPayload)
     }
 
     fun setWebsocketConnectionStatus(status: Boolean) {

@@ -144,6 +144,9 @@
     <string name="radio_station_deleted">Radio station deleted</string>
     <string name="radio_admin_required">Admin account required to manage radio stations</string>
     <string name="discover_servers">Discover servers</string>
+    <string name="quick_connect">Quick Connect</string>
+    <string name="quick_connect_help">On your phone open SonicSound → Remote → Sign in a TV and enter this code, or scan the QR code to sign in from any browser.</string>
+    <string name="quick_connect_signing_in">Quick Connect: signing in…</string>
     <string name="discovering_servers">Scanning LAN…</string>
     <string name="no_servers_found">No Subsonic servers found on LAN</string>
     <string name="eq_enabled">Audio equalizer</string>

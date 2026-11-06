@@ -7,6 +7,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import VLC from "../Plugins/VLC";
+import SignInTv from "./SignInTv";
 
 export interface IRemoteDevice {
     ip: string;
@@ -128,6 +129,7 @@ export default function Remote() {
                     Connect
                 </button>
             </form>
+            {Capacitor.isNativePlatform() && <SignInTv />}
         </div>
     );
 }

@@ -11,6 +11,8 @@ data class RemoteBeacon(
     val deviceName: String = "",
     val wsPort: Int = 30001,
     val authProtocol: Int = RemoteAuth.PROTOCOL_VERSION,
+    /** True while the TV shows a Quick Connect code and accepts sign-in. */
+    val quickConnect: Boolean = false,
 ) {
     companion object {
         const val TYPE = "sonicsound-remote"
@@ -25,6 +27,7 @@ data class RemoteBeacon(
             deviceName: String,
             wsPort: Int = 30001,
             authProtocol: Int = RemoteAuth.PROTOCOL_VERSION,
+            quickConnect: Boolean = false,
         ): RemoteBeacon = RemoteBeacon(
             role = ROLE_TV,
             serverUrl = serverUrl,
@@ -32,6 +35,7 @@ data class RemoteBeacon(
             deviceName = deviceName,
             wsPort = wsPort,
             authProtocol = authProtocol,
+            quickConnect = quickConnect,
         )
 
         fun probe(): RemoteBeacon = RemoteBeacon(role = ROLE_PROBE)
@@ -56,4 +60,5 @@ data class RemoteDevice(
     val serverUrl: String,
     val accountFingerprint: String,
     val wsPort: Int = 30001,
+    val quickConnect: Boolean = false,
 )

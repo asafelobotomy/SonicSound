@@ -20,6 +20,9 @@
     "@fortawesome/free-regular-svg-icons": "^6.1.1",
     "@fortawesome/free-solid-svg-icons": "^6.1.1",
     "@fortawesome/react-fontawesome": "^0.2.2",
+    "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "@noriginmedia/norigin-spatial-navigation": "^1.0.4",
     "@use-gesture/react": "^10.2.15",
     "axios": "^1.7.9",
@@ -43,7 +46,8 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:quickconnect",
+    "build:quickconnect": "esbuild src/quickconnect/page.ts --bundle --minify --format=iife --target=es2019 --outfile=android/app/src/main/assets/quickconnect/qc.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -66,6 +70,7 @@
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.21.5",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-react": "^7.37.0",
@@ -73,8 +78,8 @@
     "prettier": "^2.6.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "vitest": "^2.1.8",
-    "vite-plugin-pwa": "^0.21.2"
+    "vite-plugin-pwa": "^0.21.2",
+    "vitest": "^2.1.8"
   },
   "allowScripts": {
     "esbuild@0.21.5": true,

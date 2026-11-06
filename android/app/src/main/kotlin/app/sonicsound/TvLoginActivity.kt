@@ -3,12 +3,9 @@ package app.sonicsound
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
@@ -17,6 +14,8 @@ import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.lifecycleScope
 import app.sonicsound.discovery.SubsonicLanDiscovery
 import app.sonicsound.models.Account
+import app.sonicsound.remote.QuickConnect
+import app.sonicsound.remote.QuickConnectHttpServer
 import app.sonicsound.subsonic.SubsonicClient
 import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.Gson
@@ -37,6 +36,8 @@ class TvLoginActivity : AppCompatActivity() {
     private lateinit var plaintext: SwitchCompat
     private var wsLoginObserver: WsLogin? = null
     private var loginUiReady = false
+    private var quickConnectPanel: QuickConnectPanel? = null
+    private var quickConnectPage: QuickConnectHttpServer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +60,9 @@ class TvLoginActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         MessageServer.disablePairing()
+        QuickConnect.stop()
+        quickConnectPage?.stop()
+        quickConnectPage = null
         wsLoginObserver?.let { Globals.UnregisterObserver(it) }
         wsLoginObserver = null
         super.onDestroy()
@@ -70,6 +74,17 @@ class TvLoginActivity : AppCompatActivity() {
         }
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        val panel = quickConnectPanel
+        if (panel != null && panel.isShowing) {
+            panel.hide()
+            return
+        }
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
+    }
+
     private fun showLoginUi() {
         setContentView(R.layout.activity_tv_login)
         // Drop splash launch-theme background so it doesn't show behind the form.
@@ -79,6 +94,7 @@ class TvLoginActivity : AppCompatActivity() {
         bindUi()
         ensureWsLoginObserver()
         MessageServer.enablePairing()
+        quickConnectPage = QuickConnectHttpServer(assets).also { it.start() }
         loginUiReady = true
     }
 
@@ -111,7 +127,7 @@ class TvLoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun tryLogin(account: Account) {
+    private fun tryLogin(account: Account, fromQuickConnect: Boolean = false) {
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -122,10 +138,20 @@ class TvLoginActivity : AppCompatActivity() {
                         account.usePlaintext
                     )
                 }
+                if (fromQuickConnect) {
+                    QuickConnect.stop()
+                    Globals.NotifyObservers(QuickConnectExchange.ACTION_RESULT_OK, "")
+                }
                 startActivity(Intent(this@TvLoginActivity, TvActivity::class.java))
                 MessageServer.disablePairing()
                 finish()
             } catch (e: Exception) {
+                if (fromQuickConnect) {
+                    Globals.NotifyObservers(
+                        QuickConnectExchange.ACTION_RESULT_ERROR,
+                        e.message ?: "The server rejected the login.",
+                    )
+                }
                 // Leave splash if auto-login or QR-during-splash failed.
                 if (!loginUiReady) {
                     showLoginUi()
@@ -141,11 +167,22 @@ class TvLoginActivity : AppCompatActivity() {
 
     inner class WsLogin : IBroadcastObserver {
         override fun update(action: String?, value: String?) {
-            if (action == "WSLOGIN") {
+            if (action == QuickConnectExchange.ACTION_LOGIN) {
                 try {
                     val account = Gson().fromJson(value, Account::class.java)
-                    tryLogin(account)
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@TvLoginActivity,
+                            R.string.quick_connect_signing_in,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    tryLogin(account, fromQuickConnect = true)
                 } catch (_: Exception) {
+                    Globals.NotifyObservers(
+                        QuickConnectExchange.ACTION_RESULT_ERROR,
+                        "The account received is malformed.",
+                    )
                     runOnUiThread {
                         if (!loginUiReady) showLoginUi()
                         Toast.makeText(
@@ -204,20 +241,9 @@ class TvLoginActivity : AppCompatActivity() {
         }
         discoverButton = findViewById(R.id.btn_discover_servers)
         discoverButton.setOnClickListener { runDiscovery() }
-        val image: ImageView = findViewById(R.id.iv_qr_login)
-        val text: TextView = findViewById(R.id.tv_qr_login)
-        val layout: LinearLayout = findViewById(R.id.qr_login_container)
-        val ip = App.localIp ?: "127.0.0.1"
-        image.setImageBitmap(Helpers.encodeAsBitmap(ip))
-        text.text = ip
+        val panel = QuickConnectPanel(this).also { quickConnectPanel = it }
         val qrButton: Button = findViewById(R.id.btn_tv_qr)
-        qrButton.setOnClickListener {
-            val showing = layout.visibility != View.VISIBLE
-            layout.visibility = if (showing) View.VISIBLE else View.INVISIBLE
-            if (showing) {
-                MessageServer.enablePairing()
-            }
-        }
+        qrButton.setOnClickListener { panel.toggle() }
     }
 
     private fun runDiscovery() {

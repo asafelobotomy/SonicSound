@@ -52,6 +52,12 @@ export const backendRemote = {
     async connectRemote(this: Backend) {
         return errorResponse("Remote is only available on Android");
     },
+    async quickConnectTv(this: Backend, _o: { ip: string; code: string; wsPort?: number }) {
+        return errorResponse("Signing in a TV requires the Android app");
+    },
+    async getQuickConnectTvs(this: Backend) {
+        return okResponse([]);
+    },
     async startRemoteDiscovery(this: Backend) {
         return errorResponse("Remote is only available on Android");
     },

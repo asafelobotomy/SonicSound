@@ -19,7 +19,12 @@ cd android && ./gradlew testDebugUnitTest assembleDebug
 ## Surfaces
 - Phone: Capacitor WebView + `BackendPlugin` (Capacitor name still `"VLC"`).
 - TV: native Leanback (`TvActivity`); React TV shell removed.
-- Remote: WS `:30001` requires HMAC auth (protocol 2); login-over-WS only during pairing window.
+- Remote: WS `:30001` requires HMAC auth (protocol 2).
+- Quick Connect (TV login): TV shows a 6-digit code; phone (Remote → Sign in a TV) or any browser
+  (`http://<tv>:30003/`, served from `assets/quickconnect`) sends the account over WS `qcHello`/`qcLogin`,
+  sealed with ECDH P-256 + HKDF(code) + AES-GCM. Keep `remote/QuickConnectCrypto.kt` and
+  `src/quickconnect/qcCrypto.ts` in sync (shared test vector). Plaintext WS `login` is rejected.
+  `npm run build` also bundles the page (`build:quickconnect`).
 - Do not commit `*.jks` / secrets. Release keystore lives outside the repo or in CI secrets.
 
 ## Feature flags

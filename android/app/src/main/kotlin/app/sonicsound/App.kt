@@ -5,6 +5,7 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
 import android.util.Log
+import app.sonicsound.remote.QuickConnect
 import app.sonicsound.services.MediaBrowserService
 import app.sonicsound.subsonic.SubsonicClient
 import kotlinx.coroutines.CoroutineScope
@@ -58,7 +59,10 @@ class App : Application() {
                     }
                     CoroutineScope(Dispatchers.IO).launch {
                         while (isActive) {
-                            if (KeyValueStorage.getActiveAccount().username != null) {
+                            // Beacon while signed in, or while Quick Connect waits for a phone.
+                            if (KeyValueStorage.getActiveAccount().username != null ||
+                                QuickConnect.isActive()
+                            ) {
                                 Globals.NotifyObservers("REMOTE_BEACON", "")
                             }
                             delay(5000)

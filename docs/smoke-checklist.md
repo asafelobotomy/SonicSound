@@ -37,7 +37,9 @@ Record **Pass / Fail / Skip** per row. Preconditions: same Navidrome account on 
 |----|--------|-------|
 | R1–R5, R8 | Skip | No devices |
 | R6 Unauth command rejected | Pass | Unit/code: MessageServer gates `command` on `authenticated` set |
-| R7 Login ignored when pairing closed | Pass | Unit: `MessageServerPairingTest`; login requires `isPairingActive()` |
+| R7 Login ignored when Quick Connect closed | Pass | Unit: `QuickConnectCryptoTest` (expiry, 5-attempt lockout); plaintext WS `login` rejected |
+| R9 Quick Connect from phone | Pending | TV login → Quick Connect; phone Remote → Sign in a TV → enter code → TV signs in |
+| R10 Quick Connect from browser | Pending | Scan TV QR → page prefilled with code → enter server/user/pass → TV signs in |
 
 ## J / F / S
 

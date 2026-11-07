@@ -48,9 +48,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: npm ci
-      # Generates the git-ignored android/capacitor-cordova-android-plugins
-      # project that android/app/capacitor.build.gradle includes.
-      - run: npx cap update android
+      # cap sync needs the built web assets in ./build. It copies them and generates the git-ignored
+      # android/capacitor-cordova-android-plugins project that capacitor.build.gradle includes.
+      - run: npm run build
+      - run: npx cap sync android
       - name: Unit tests
         run: cd android && ./gradlew testDebugUnitTest --no-daemon
 

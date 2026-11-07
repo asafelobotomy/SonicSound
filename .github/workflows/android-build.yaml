@@ -39,10 +39,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: npm
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: "17"
+      - run: npm ci
+      # Generates the git-ignored android/capacitor-cordova-android-plugins
+      # project that android/app/capacitor.build.gradle includes.
+      - run: npx cap update android
       - name: Unit tests
         run: cd android && ./gradlew testDebugUnitTest --no-daemon
 

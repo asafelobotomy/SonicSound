@@ -38,7 +38,7 @@
     "react-hook-form": "^7.30.0",
     "react-lines-ellipsis": "^0.15.0",
     "react-qrcode-logo": "^2.7.0",
-    "react-router-dom": "^6.28.0",
+    "react-router-dom": "^7.18.5",
     "react-virtualized-auto-sizer": "^1.0.6",
     "react-window": "^1.8.7",
     "sass": "^1.51.0"

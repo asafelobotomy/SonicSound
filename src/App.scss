@@ -3,7 +3,7 @@
 
 .App {
   text-align: center;
-  font-family: 'Montserrat';
+  font-family: var(--ss-font-ui);
   height: 100vh;
 }
 
@@ -19,7 +19,7 @@
 }
 
 .App-header {
-  background-color: #282c34;
+  background-color: $color-background-app;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -35,7 +35,7 @@
 }
 
 .App-link {
-  color: #61dafb;
+  color: var(--ss-link);
 }
 
 @keyframes App-logo-spin {
@@ -211,13 +211,13 @@ input[type=range]:focus::-webkit-slider-runnable-track {
 
 .form-select,
 .form-select:focus {
-  background-color: #282c34;
+  background-color: $color-background-app;
   color: #ffffff;
   border-color: #555;
 }
 
 .form-select option {
-  background-color: #282c34;
+  background-color: $color-background-app;
   color: #ffffff;
 }
 
@@ -265,7 +265,7 @@ input[type=range]:focus::-webkit-slider-runnable-track {
 }
 
 .form-focused {
-  background-color: #282c34 !important;
+  background-color: $color-background-app !important;
   color: white !important;
 
 }

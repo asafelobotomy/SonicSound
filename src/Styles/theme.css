@@ -1,0 +1,37 @@
+/* SonicSound's palette as custom properties. src/Styles/colors.scss points its SCSS variables
+ * here, so the values can change at run time.
+ *
+ * uQ's theme: in the desktop shell on the uQ desktop, src/uq/uqTokens.ts sets --uq-* and
+ * data-uq-variant on <html> from ~/.local/state/uq/theme/tokens.json. SonicSound is dark only
+ * (Bootstrap's dark classes and white text throughout), so it takes uQ's colours while uQ's
+ * theme is dark and keeps its own dark palette under a light uQ theme; the font follows uQ in
+ * either. Without uQ (Android, the web build, another desktop) the attribute is never set and
+ * only the first block applies. */
+:root {
+  --ss-bg-app: #282c34;
+  --ss-bg-darker: #111317;
+  --ss-items: #454c5a;
+  --ss-items-hover: #626c80;
+  --ss-items-highlight: #1d2027;
+  --ss-item-translucid: #00000090;
+  --ss-text: #ebebeb;
+  --ss-link: #61dafb;
+  --ss-red: #cf1141;
+  --ss-red-highlight: #f5144d;
+  --ss-font-ui: "Montserrat", sans-serif;
+}
+
+:root[data-uq-variant="dark"] {
+  --ss-bg-app: var(--uq-bg);
+  --ss-bg-darker: var(--uq-surface);
+  --ss-items: var(--uq-surface-alt);
+  --ss-items-hover: var(--uq-overlay);
+  --ss-items-highlight: var(--uq-surface);
+  --ss-text: var(--uq-text);
+  --ss-link: var(--uq-accent);
+  --ss-red: var(--uq-error);
+}
+
+:root[data-uq-variant] {
+  --ss-font-ui: var(--uq-font-ui), "Montserrat", sans-serif;
+}

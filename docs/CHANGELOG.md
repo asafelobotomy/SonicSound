@@ -1,3 +1,9 @@
+# Unreleased
+
+- Desktop shell follows the uQ desktop's theme: on uQ with a dark theme, colours and the UI font
+  come from uQ and update live (vendored `uq-tokens` 1.0.0). Android and the web build are unchanged
+- The palette now lives in CSS custom properties (`src/Styles/theme.css`); `colors.scss` points at them
+
 # 0.2.16
 
 - GitHub release self-update on Android (check, download APK, install prompt) from TV Settings

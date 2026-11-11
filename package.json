@@ -54,6 +54,7 @@
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" --max-warnings 0",
     "lint:loc": "node scripts/check-max-lines.cjs",
     "lint:features": "node scripts/check-features-sync.cjs",
+    "check:uq-tokens": "bash scripts/check-uq-tokens.sh 1.0.0 src/vendor/uq-tokens/uq-tokens.js",
     "bump-version": "node scripts/bump-version.cjs",
     "cap:sync": "npm run build && npx cap sync android"
   },

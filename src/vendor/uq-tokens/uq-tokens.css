@@ -1,0 +1,32 @@
+/* uq-tokens 1.0.0: fallback custom properties.
+ * Neutral defaults used when uQ's tokens are missing or broken (a plain browser, another
+ * desktop, a bad file). uq-tokens.js sets the same properties inline on <html>, which wins over
+ * these. Edit the values to your app's own theme; keep the property names.
+ * SonicSound: the values are SonicSound's own dark palette (src/Styles/theme.css). The app is
+ * dark only, so there is no light block. */
+:root {
+    --uq-bg: #282c34;
+    --uq-surface: #1d2027;
+    --uq-surface-alt: #454c5a;
+    --uq-overlay: #626c80;
+    --uq-text: #ebebeb;
+    --uq-text-muted: #a9a9ac;
+    --uq-accent: #61dafb;
+    --uq-accent-text: #111317;
+    --uq-border: #626c80;
+    --uq-success: #81c995;
+    --uq-warning: #fdd663;
+    --uq-error: #cf1141;
+    --uq-radius: 10px;
+    --uq-gap: 6px;
+    --uq-gap-in: 6px;
+    --uq-gap-out: 12px;
+    --uq-border-width: 1px;
+    --uq-font-size: 14px;
+    --uq-font-ui: "Montserrat";
+    --uq-font-mono: "Menlo";
+}
+
+/* Use them with a fallback stack, e.g.:
+ *   body { background: var(--uq-bg); color: var(--uq-text);
+ *          font-family: var(--uq-font-ui), system-ui, sans-serif; } */

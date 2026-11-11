@@ -11,7 +11,8 @@ Fork of [SonicLair](https://github.com/thelinkin3000/SonicLair) — rebranded, m
 - **Android phone** (Capacitor)
 - **Android TV** (Leanback, Remote phone control, Jukebox Collections, UDP/mDNS discovery)
 - **PWA / web** (Vite)
-- Desktop shell (`src-tauri/`) deferred — not in the active npm toolchain
+- Desktop shell (`src-tauri/`) deferred — not in the active npm toolchain. On the
+  [uQ](https://github.com/asafelobotomy/uq) desktop it follows uQ's theme (see below)
 
 ## Features
 
@@ -81,6 +82,16 @@ Prefer an `https://` Subsonic/Navidrome URL when your server supports TLS. Andro
 F-Droid packaging notes: [docs/fdroid.md](docs/fdroid.md). Multi-ABI: `./gradlew assembleRelease -Pabis=armeabi-v7a,arm64-v8a`.
 
 Live Navidrome e2e: [docs/smoke-checklist.md](docs/smoke-checklist.md). Music videos: [docs/music-videos.md](docs/music-videos.md) (deferred / gated off).
+
+### uQ theme
+
+`src/vendor/uq-tokens/` is vendored from uQ's `web/uq-tokens` (`uq-tokens.js` unchanged;
+`uq-tokens.css` holds SonicSound's palette as fallbacks). In the desktop shell, `src-tauri/src/uq_tokens.rs`
+reads `$XDG_STATE_HOME/uq/theme/tokens.json` and emits `uq-tokens-changed`; `src/uq/uqTokens.ts`
+applies it, and `src/Styles/theme.css` maps it onto the palette while uQ's theme is dark (SonicSound
+is dark only). Android and the web build have no Tauri bridge and keep the app's own palette. To
+update, copy the new `uq-tokens.js` over it and bump the version pinned in `package.json`'s
+`check:uq-tokens` script (run in CI).
 
 ## Upstream credit
 

@@ -2,10 +2,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import "./vendor/uq-tokens/uq-tokens.css";
+import "./Styles/theme.css";
 import "./index.css";
 import { hydrateCredentials } from "./player/accounts";
+import { startUqTokens } from "./uq/uqTokens";
 
 async function boot() {
+    // uQ's theme in the desktop shell; a no-op on Android and the web build.
+    startUqTokens();
     await hydrateCredentials();
     const root = ReactDOM.createRoot(
         document.getElementById("root") as HTMLElement

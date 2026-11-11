@@ -29,6 +29,8 @@ jobs:
       - run: npm ci
       - run: npm run lint:loc
       - run: npm run lint:features
+      - name: Check the vendored uq-tokens version
+        run: npm run check:uq-tokens
       - run: npm run lint
       - run: npm test
       - run: npm run build
